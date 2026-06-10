@@ -32,6 +32,16 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'When compacting, preserve: the active spec path (docs/specs/NNNN-*.md), the current branch name, the list of files modified this session, the failing/passing state of the quality gate, and any unresolved [ask-user] review findings.'"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

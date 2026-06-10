@@ -22,17 +22,22 @@
 #     .pre-commit-config.yaml
 #   - the .claude/ tree: settings.json + the branch-check SessionStart
 #     hook + the block-destructive PreToolUse hook + the gate-on-stop
-#     Stop hook + the default
+#     Stop hook + the rules (.claude/rules/: git-workflow, commit-style,
+#     public-repo-hygiene, python-code, agent-legible-code) + the default
 #     subagents (planner / test-first / reviewer /
 #     reviewer-adversarial) + the default skills (python-module-split /
 #     python-docstrings / dependency-hygiene) + the default slash
-#     commands (spec, specs-status, scope-check, plan, test-first,
-#     review-check, review, review-adversarial, security, performance)
+#     commands (spec, specs-status, scope-check, clarify, plan,
+#     test-first, analyze, review-check, review, review-adversarial,
+#     security, performance)
 #   - docs/specs/README.md — the specs convention
 #   - docs/workflow-diagram.md — visual map of the agentic loop
+#   - docs/parallel-agents.md — worktrees, agent teams, unattended runs
+#   - docs/plugin-packaging.md — plugin/marketplace distribution path
 #   - docs/serena-setup.md — optional serena MCP install/verify runbook
 #   - docs/agent-handoff.md — operational runbook stub (project-owned)
-#   - the .github/ tree: CI workflow, PR template, issue forms
+#   - the .github/ tree: CI workflow, opt-in Claude review workflow
+#     (.example, inert until renamed), PR template, issue forms
 #
 # What it does NOT copy:
 #   - bootstrap.sh, README.md (this directory's index),
@@ -147,6 +152,11 @@ sync .claude/settings.json
 sync .claude/hooks/branch-check.sh
 sync .claude/hooks/block-destructive.sh
 sync .claude/hooks/gate-on-stop.sh
+sync .claude/rules/git-workflow.md
+sync .claude/rules/commit-style.md
+sync .claude/rules/public-repo-hygiene.md
+sync .claude/rules/python-code.md
+sync .claude/rules/agent-legible-code.md
 sync .claude/agents/planner.md
 sync .claude/agents/test-first.md
 sync .claude/agents/reviewer.md
@@ -154,8 +164,10 @@ sync .claude/agents/reviewer-adversarial.md
 sync .claude/commands/spec.md
 sync .claude/commands/specs-status.md
 sync .claude/commands/scope-check.md
+sync .claude/commands/clarify.md
 sync .claude/commands/plan.md
 sync .claude/commands/test-first.md
+sync .claude/commands/analyze.md
 sync .claude/commands/review-check.md
 sync .claude/commands/review.md
 sync .claude/commands/review-adversarial.md
@@ -166,8 +178,11 @@ sync .claude/skills/python-docstrings/SKILL.md
 sync .claude/skills/dependency-hygiene/SKILL.md
 sync docs/specs/README.md
 sync docs/workflow-diagram.md
+sync docs/parallel-agents.md
+sync docs/plugin-packaging.md
 sync docs/serena-setup.md
 sync .github/workflows/ci.yml
+sync .github/workflows/claude-review.yml.example
 sync .github/pull_request_template.md
 sync .github/ISSUE_TEMPLATE/feature.yml
 sync .github/ISSUE_TEMPLATE/bug.yml
@@ -218,9 +233,12 @@ echo "Workflow loop (slash commands installed in .claude/commands/):"
 echo "  /scope-check <desc>    OPTIONAL — five forcing questions before /spec"
 echo "                         when goal/scope is ambiguous"
 echo "  /spec <name>           create a spec under docs/specs/"
+echo "  /clarify [spec]        OPTIONAL — interrogate the draft spec for"
+echo "                         underspecified areas; writes answers back in"
 echo "  /specs-status [filter] print the status table for all specs"
 echo "  /plan                  invoke the planner subagent on the latest spec"
 echo "  /test-first            invoke the test-first subagent"
+echo "  /analyze [spec]        OPTIONAL — read-only spec/tests/diff consistency check"
 echo "  /review-check          run the local quality gate (ruff, format, mypy, pytest)"
 echo "  /review                invoke the reviewer subagent on the current diff"
 echo "  /review-adversarial    invoke reviewer-adversarial on the same diff;"

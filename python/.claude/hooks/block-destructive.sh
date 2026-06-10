@@ -9,8 +9,16 @@
 # This is a mechanical backstop, NOT a substitute for the explicit-approval
 # rule in CLAUDE.md. The rule catches things like "git push" that are
 # policy-gated but recoverable; the deny-list catches things that are
-# genuinely unrecoverable: rm -rf on system paths, force-push, hard reset,
-# disk writes, filesystem creates, terraform destroy, destructive SQL.
+# truly unrecoverable: rm -rf on system paths, git clean -fd, history
+# rewrites, disk writes, filesystem creates, terraform destroy,
+# destructive SQL. (Force-push and hard reset are deliberately NOT
+# listed — see the git section below.)
+#
+# It is also one layer, not the whole defense. Claude Code's OS-level
+# sandboxing (/sandbox) and permission modes sit above this hook and are
+# the right tool for unattended runs; /rewind recovers from mistakes the
+# deny-list was never meant to catch. Keep this list narrow and
+# false-positive-free rather than growing it toward a sandbox substitute.
 #
 # To bypass for a legitimate need:
 #   - run the command outside the agent session (a regular terminal), or

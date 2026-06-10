@@ -30,6 +30,15 @@ htmlcov/
 # Machine-specific; regenerated on first run. See docs/serena-setup.md.
 .serena/
 
+# Claude Code local-only files — personal settings and notes that must
+# not propagate to other machines or contributors. The shared
+# counterparts (.claude/settings.json, CLAUDE.md, .claude/rules/,
+# .claude/agents/, .claude/skills/, .claude/commands/) ARE committed.
+# Auto-memory lives outside the repo (~/.claude/projects/) — nothing to
+# ignore for it here.
+.claude/settings.local.json
+CLAUDE.local.md
+
 # OS / editor cruft
 .DS_Store
 *.swp

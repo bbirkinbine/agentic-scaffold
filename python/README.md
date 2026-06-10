@@ -24,11 +24,17 @@ python/
 ├── .gitignore                             # Python ignores, incl. .env* (.env.*.example kept)
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy
 ├── .claude/
-│   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse ruff/mypy + Stop gate
+│   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse ruff/mypy + PreCompact preserve-context + Stop gate
 │   ├── hooks/
 │   │   ├── branch-check.sh                # SessionStart: warn when a session opens on main
 │   │   ├── block-destructive.sh           # PreToolUse: block unrecoverable cmds (rm -rf /, git clean -fd, mkfs, dd, terraform destroy, etc.)
-│   │   └── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes
+│   │   └── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes (8-block cap applies)
+│   ├── rules/
+│   │   ├── git-workflow.md                # Branch-per-change, naming, PR conventions (always loaded)
+│   │   ├── commit-style.md                # Commit style + mistakes-feed-back-into-rules (always loaded)
+│   │   ├── public-repo-hygiene.md         # Secrets / public-surface rules (always loaded)
+│   │   ├── python-code.md                 # Python conventions + external-reference provenance (path-scoped to src/**, tests/**)
+│   │   └── agent-legible-code.md          # Write code agents can verify (path-scoped to src/**)
 │   ├── agents/
 │   │   ├── planner.md                     # Spec → markdown plan; read-only
 │   │   ├── test-first.md                  # Write failing pytest tests; never implements
@@ -41,8 +47,10 @@ python/
 │   │   ├── spec.md                        # /spec <name> — create docs/specs/NNNN-<slug>.md
 │   │   ├── specs-status.md                # /specs-status — print status table over all specs
 │   │   ├── scope-check.md                 # /scope-check — five forcing questions before /spec
+│   │   ├── clarify.md                     # /clarify — interrogate a draft spec; writes answers back in
 │   │   ├── plan.md                        # /plan — invoke planner subagent
 │   │   ├── test-first.md                  # /test-first — invoke test-first subagent
+│   │   ├── analyze.md                     # /analyze — read-only spec ↔ tests ↔ diff consistency check
 │   │   ├── review-check.md                # /review-check — local gate before /review
 │   │   ├── review.md                      # /review — invoke reviewer subagent
 │   │   ├── review-adversarial.md          # /review-adversarial — invoke reviewer-adversarial
@@ -57,7 +65,8 @@ python/
 │           └── SKILL.md                   # Auto-invoked when pyproject.toml adds a dep
 ├── .github/
 │   ├── workflows/
-│   │   └── ci.yml                         # CI gate: ruff + mypy + pytest on every PR
+│   │   ├── ci.yml                         # CI gate: ruff + mypy + pytest on every PR
+│   │   └── claude-review.yml.example      # Opt-in Claude PR review (inert until renamed; bills an API key)
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── feature.yml                    # feature issue form; fields feed the spec
 │   │   └── bug.yml                        # bug issue form
@@ -65,6 +74,8 @@ python/
 ├── docs/
 │   ├── agent-handoff.md                   # Operational runbook (project-owned; current state, risks, rollback)
 │   ├── workflow-diagram.md                # Visual map of the agentic loop (Mermaid; managed)
+│   ├── parallel-agents.md                 # Degrees of autonomy, worktree parallelism, agent teams, completion ladder, unattended runs (managed)
+│   ├── plugin-packaging.md                # Plugin/marketplace distribution path — documented, not yet adopted (managed)
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
 │   └── specs/
 │       └── README.md                      # Spec numbering, status vocabulary, optional sections
@@ -132,10 +143,12 @@ After bootstrap:
 | --- | --- | --- |
 | Scope check (optional pre-spec) | You answer five forcing questions; output feeds the spec | `/scope-check <desc>` |
 | Spec | You write `docs/specs/NNNN-<feature>.md` (seeded with status header) | `/spec <name>` |
-| Branch | Main session creates `<issue#>-<slug>` (or `<type>/<slug>`) automatically — see CLAUDE.md "Git workflow" | — |
+| Clarify (optional post-draft) | Agent interrogates the draft spec's underspecified areas (max 5 questions), writes answers back into the spec | `/clarify [spec-path]` |
+| Branch | Main session creates `<issue#>-<slug>` (or `<type>/<slug>`) automatically — see `.claude/rules/git-workflow.md` | — |
 | Plan | `planner` subagent (`.claude/agents/planner.md`) | `/plan [spec-path]` |
 | Test-first | `test-first` subagent (`.claude/agents/test-first.md`) | `/test-first [spec-path]` |
-| Implement | Main Claude session (CLAUDE.md tells it the rules) | — |
+| Analyze (optional consistency check) | Read-only cross-check: every success criterion covered by a test, no undeclared scope, standing rules honored | `/analyze [spec-path]` |
+| Implement | Main Claude session (CLAUDE.md + `.claude/rules/` tell it the rules) | — |
 | Per-edit quality | PostToolUse hook (`.claude/settings.json`) runs ruff format + ruff check + mypy on every Edit/Write | — |
 | Local quality gate (pre-review) | ruff lint + format + mypy + pytest, refuses pass on failure | `/review-check` |
 | Turn-end gate (automatic) | Stop hook (`.claude/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes — `/review-check` made mechanical | — |
@@ -170,7 +183,17 @@ phase explicitly when the agent doesn't auto-route.
 `AGENTS.md` is a portable stub sibling of `CLAUDE.md` — non-Claude
 agents (Codex, Cursor, Gemini) that look for that filename by
 convention find a pointer back to `CLAUDE.md`. `CLAUDE.md` stays the
-source of truth.
+source of truth. For a repo that non-Claude agents work regularly, the
+stub can be inverted into a symlink (`ln -sf AGENTS.md CLAUDE.md` after
+moving the content) — one file, both filenames; see the note inside
+`AGENTS.md`.
+
+Standing rules beyond `CLAUDE.md` live in `.claude/rules/` — rules
+without `paths` frontmatter (git workflow, commit style, hygiene) load
+every session; path-scoped rules (Python conventions, agent-legible
+code) load when matching files are touched. This keeps `CLAUDE.md`
+itself short enough to be read rather than skimmed; the sizing research
+this follows says a bloated root context file gets ignored.
 
 ## Opt-in subagents
 

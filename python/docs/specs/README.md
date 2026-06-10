@@ -176,13 +176,26 @@ If a decision was load-bearing enough to redo the original spec, do
 that instead — `Status: superseded-by-NNNN` and a new spec. This
 section is for the small stuff.
 
+## Specs sit under the constitution
+
+`CLAUDE.md` and `.claude/rules/` are this project's constitution — the
+enduring principles every spec inherits: conventions, don't-touch
+zones, hygiene rules, the loop itself. A spec never needs to restate
+them, and the planner and reviewers treat them as non-negotiable. If a
+feature requires violating one (touching a don't-touch path, breaking a
+convention), the spec must say so explicitly in `## Goal` or a dedicated
+note — an undeclared violation is a finding at review time, not a
+judgment call.
+
 ## How specs interact with the agentic loop
 
 From `Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md`:
 
 1. **You write the spec.** ~5 minutes. One paragraph minimum.
+   `/scope-check` before (ambiguous goals) and `/clarify` after the
+   draft (real unknowns) are the optional sharpening passes.
 2. **`planner` subagent reads the spec** + relevant code, produces a markdown plan with files-to-touch and ordering.
-3. **`test-first` subagent reads the spec** + the plan, writes failing pytest tests.
+3. **`test-first` subagent reads the spec** + the plan, writes failing pytest tests. `/analyze` here cross-checks that every success criterion has a covering test — the cheap moment to find a hole.
 4. Main session implements the minimum code to pass the tests.
 5. **`reviewer` subagent reads the spec + the diff**, produces review notes before commit.
 

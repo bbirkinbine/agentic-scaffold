@@ -72,6 +72,11 @@ phase on its own. You decide whether to advance.
 [edit the spec]                    # goal, success criteria, non-goals;
                                    # one paragraph minimum
         ↓
+/clarify                           # OPTIONAL — on features with real unknowns.
+                                   # Interrogates the draft spec for underspecified
+                                   # areas (max 5 questions) and writes the answers
+                                   # back into the spec. Skip when the spec is tight.
+        ↓
 [create the branch]                # <issue#>-<slug> for issue-tracked work; else
                                    # <type>/<slug>. The agent branches itself —
                                    # never run the loop on main.
@@ -91,6 +96,11 @@ phase on its own. You decide whether to advance.
                                    # NotImplementedError / AssertionError —
                                    # NOT ImportError on a typo. Wrong failure
                                    # mode = the test isn't pinning down behavior.
+        ↓
+/analyze                           # OPTIONAL — cross-checks spec ↔ tests before
+                                   # implementation: every success criterion covered,
+                                   # no test pinning undeclared scope. A coverage
+                                   # hole is cheapest to fix right here.
         ↓
 [main session implements]          # CLAUDE.md tells it: minimum code to
                                    # pass tests, one concept per file,
@@ -185,6 +195,39 @@ doesn't need until the session itself is the bottleneck.
 See `docs/specs/README.md` for the `## Phase handoff` and
 `## Implementation Notes` section shapes.
 
+## The completion ladder
+
+"The agent declared done and it wasn't" has a layered fix; each rung
+catches what the one below misses. Use more rungs the longer nobody is
+watching.
+
+1. **In-prompt check** — phrase the spec's success criteria as a
+   runnable command. Cheapest; a long session can drift past it.
+2. **`/goal`** — a completion condition checked by a separate evaluator
+   every turn. Survives drift because the evaluator is outside the
+   conversation.
+3. **Stop hook** — `gate-on-stop.sh` blocks ending a turn on a red
+   gate, mechanically. Capped: Claude Code overrides a Stop hook after
+   8 consecutive blocks, so it is a strong nudge, not a guarantee.
+4. **Fresh-context verification** — `/review` + `/review-adversarial`:
+   a context that never saw the implementation reasoning judges the
+   result. The only rung that catches "gate is green but the feature is
+   wrong."
+
+Demand evidence, not assertions: an agent claiming an outcome should
+show the command output that proves it. That expectation is in
+`CLAUDE.md` ("Verify before you report"); the ladder is what enforces
+it when the claim is "done."
+
+How many rungs to activate is a function of how attended the run is —
+at the default attended tier your two checkpoints are the completion
+mechanism and `/goal` is redundant; set `/goal` at checkpoint 1 when
+the implement stretch will run long or unattended; `/loop` is for
+post-PR babysitting and maintenance, never for feature work. The tier
+table is in `docs/parallel-agents.md` → "Degrees of autonomy"; the
+full loop taxonomy (the six loops this workflow is made of) is in
+`docs/workflow-diagram.md` → "Loops within loops."
+
 ## When NOT to use the full loop
 
 The scaffolding is sized for projects you intend to maintain. For a
@@ -217,12 +260,29 @@ skip `/review` if you're the only reviewer. Scale the loop to the work.
   auto-invoked even after you install them; the slash command is the
   trigger. Treat `/security` and `/performance` as a deliberate gate per
   PR, not a passive background check.
-- **The Stop hook enforces the gate automatically.** Once `src/` has
-  pending changes, the session can't end a turn while ruff/mypy/pytest are
-  red — `.claude/hooks/gate-on-stop.sh` returns `decision: block`. This is
-  the `/review-check` discipline made mechanical, so "I forgot to run the
-  gate" stops being a failure mode. It does not run on a clean tree and
-  steps aside rather than looping when a gate can't pass.
+- **The Stop hook enforces the gate automatically — with a cap.** Once
+  `src/` has pending changes, the session can't end a turn while
+  ruff/mypy/pytest are red — `.claude/hooks/gate-on-stop.sh` returns
+  `decision: block`. This is the `/review-check` discipline made
+  mechanical, so "I forgot to run the gate" stops being a failure mode.
+  It does not run on a clean tree and steps aside rather than looping
+  when a gate can't pass. Know the limit: Claude Code overrides a Stop
+  hook after 8 consecutive blocks without progress, so the hook is one
+  rung of the completion ladder above, not the whole answer.
+- **Standing rules live in two places.** `CLAUDE.md` plus
+  `.claude/rules/` — rules without `paths` frontmatter load every
+  session; path-scoped rules (Python conventions, agent-legible code)
+  load when matching files are touched. When the agent repeats a
+  mistake, the durable fix is a line in one of these files, made in the
+  same change as the correction — standing instructions are the error
+  log that compounds across sessions.
+- **Two memory layers, different owners.** `CLAUDE.md` and
+  `.claude/rules/` are human-authored and committed. Claude Code's auto
+  memory is agent-authored and lives outside the repo
+  (`~/.claude/projects/<project>/memory/`), shared across worktrees —
+  nothing to commit or ignore. Local-only files (`CLAUDE.local.md`,
+  `.claude/settings.local.json`) are gitignored; everything else under
+  `.claude/` is committed and shared.
 - **CI is the non-skippable gate.** `bootstrap.sh` installs
   `.github/workflows/ci.yml` — ruff + mypy + pytest on every PR. Local
   hooks and `/review-check` can be bypassed; CI cannot. Red CI means the
@@ -230,11 +290,17 @@ skip `/review` if you're the only reviewer. Scale the loop to the work.
 
 ## Reference
 
-- `CLAUDE.md` — the rules the agent follows every turn
+- `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn
 - `docs/workflow-diagram.md` — the same loop as a rendered visual map
   (Mermaid): the per-feature loop, the automation/guardrail layer, and
   the subagent-delegation model
 - `docs/specs/README.md` — spec numbering + minimum shape
+- `docs/parallel-agents.md` — worktree parallelism, agent teams, the
+  completion ladder, unattended runs
+- `docs/plugin-packaging.md` — the (not-yet-adopted) plugin/marketplace
+  distribution path; `bootstrap.sh` remains canonical
+- `.github/workflows/claude-review.yml.example` — opt-in Claude PR
+  review in CI; rename to enable, needs `ANTHROPIC_API_KEY` secret
 - `~/Downloads/src/agentic-scaffold/new-project-checklist.md` —
   pre-flight checklist for the day-zero setup
 - Where the backlog *outside* the feature loop lives — GitHub Issues:

@@ -22,10 +22,11 @@ pre-move development history is in that repo's log.
 
 ### Python projects — use [`python/`](python/)
 
-The full agentic-workflow scaffolding: `CLAUDE.md` + `AGENTS.md` +
-`WORKFLOW.md`, default and opt-in subagents, slash commands,
-auto-invoked skills, PostToolUse hook, `pyproject.toml` /
-`.pre-commit-config.yaml`, and the `docs/specs/` convention.
+The full agentic-workflow scaffolding: `CLAUDE.md` + `.claude/rules/` +
+`AGENTS.md` + `WORKFLOW.md`, default and opt-in subagents, slash
+commands, auto-invoked skills, lifecycle hooks (session-start through
+stop-gate), `pyproject.toml` / `.pre-commit-config.yaml`, and the
+`docs/specs/` convention.
 
 Run [`python/bootstrap.sh`](python/bootstrap.sh) from a new repo's
 root and everything drops into place.

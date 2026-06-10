@@ -12,6 +12,10 @@ dev = [
   "ruff>=0.15",
   "mypy>=2.0",
   "pre-commit",
+  # Optional verification depth — cheap when an agent does the labor.
+  # Uncomment per project once there is real logic worth the rigor:
+  # "hypothesis",       # property-based tests; pairs well with /test-first
+  # "mutmut",           # mutation testing; catches tautological test suites
 ]
 
 [tool.ruff]

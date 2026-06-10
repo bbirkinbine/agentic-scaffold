@@ -17,9 +17,18 @@
 #                     than looping.
 #   2. change guard — do nothing if src/ has no pending changes this turn.
 #
-# decision control: a Stop hook reports decision via top-level JSON on
-# stdout, processed only on exit 0. Emit {"decision":"block","reason":...}
-# to prevent the stop; emit nothing to allow it.
+# decision control: a Stop hook reports its decision via JSON on stdout,
+# processed only on exit 0. We emit both the top-level form
+# ({"decision":"block","reason":...}) and the current hookSpecificOutput
+# form so the block works across Claude Code versions; emit nothing to
+# allow the stop.
+#
+# NOT an unbounded guarantee: Claude Code overrides a Stop hook after 8
+# consecutive blocks without progress (raise with
+# CLAUDE_CODE_STOP_HOOK_BLOCK_CAP). This gate is one rung of the
+# completion ladder — in-prompt checks below it, /goal and a fresh
+# verification subagent above it. See WORKFLOW.md -> "The completion
+# ladder".
 
 set -uo pipefail
 
@@ -46,7 +55,7 @@ uv run pytest -q   >/dev/null 2>&1 || fails="${fails} pytest"
 
 if [ -n "$fails" ]; then
   reason="Quality gate is red (failed:${fails}). Per CLAUDE.md Verify phase, do not finish: fix the failures, or write the missing failing tests first, then re-run. Use /review-check for the verbose output."
-  printf '{"decision":"block","reason":"%s"}\n' "$reason"
+  printf '{"decision":"block","reason":"%s","hookSpecificOutput":{"hookEventName":"Stop","decision":"block","reason":"%s"}}\n' "$reason" "$reason"
 fi
 
 exit 0
