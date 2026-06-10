@@ -1,0 +1,38 @@
+repos:
+  # Guardrail: block direct commits to main/master. Feature and fix work
+  # belongs on a branch (see CLAUDE.md -> Git workflow). The one expected
+  # exception is the day-zero scaffolding commit: git commit --no-verify.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      # Hygiene guardrails — make the CLAUDE.md rules mechanical.
+      - id: detect-private-key        # blocks committed private keys
+      - id: check-added-large-files   # blocks accidental large/binary commits
+      - id: check-merge-conflict      # blocks unresolved conflict markers
+      - id: check-yaml                # validates YAML (workflows, issue forms)
+      - id: check-toml                # validates pyproject.toml
+
+  # Full secret scan — ~150 secret types (API tokens, cloud keys, JWTs).
+  # detect-private-key above only catches private keys; this is the real
+  # backstop for the "never commit credentials" rule in CLAUDE.md.
+  # Bump rev with: pre-commit autoupdate
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.13
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.1.0
+    hooks:
+      - id: mypy
+        args: [--strict]
+        additional_dependencies: []   # add types-* / *-stubs packages here as needed

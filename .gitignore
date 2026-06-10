@@ -1,0 +1,8 @@
+# OS noise (also in ~/.gitignore_global; repeated here so the repo
+# stands alone for other clones)
+.DS_Store
+
+# env files — never commit real values; examples are whitelisted
+.env
+.env.*
+!.env.*.example

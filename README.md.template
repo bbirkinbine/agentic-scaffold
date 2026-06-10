@@ -1,0 +1,47 @@
+# {{REPO_NAME}}
+
+{{ONE_OR_TWO_SENTENCE_DESCRIPTION_OF_WHAT_THE_PROJECT_DOES}}
+
+> ## Status
+>
+> Published as a personal {{tool|reference|lab}}, not an actively
+> maintained product. Issues and PRs are welcome but won't get fast
+> turnaround. The [`docs/`](docs/) tree — especially
+> {{POINTERS_TO_THE_MOST_USEFUL_DOCS_FOR_OTHERS}} — is the part most
+> likely to be useful to others.
+>
+> **This repo is in-flight.** {{WHAT_IS_STILL_SETTLING_AND_WHY}} Anything
+> called out as shipped/verified in a per-component README has been
+> exercised end-to-end; the rest is subject to change without notice.
+> Pin a specific commit if you depend on a snapshot.
+
+## Requirements
+
+{{HOST_OR_LANGUAGE_OR_TOOL_PREREQS}}
+
+## Quick start
+
+```bash
+{{CLONE_INSTALL_AND_RUN_COMMANDS}}
+```
+
+## Repository layout
+
+{{TOP_LEVEL_DIRECTORY_TOUR_WITH_LINKS_TO_PER_COMPONENT_READMES}}
+
+## Development
+
+```bash
+{{TEST_LINT_TYPECHECK_COMMANDS}}
+```
+
+See [`CLAUDE.md`](CLAUDE.md) for the per-project agent contract (what
+Claude Code should and shouldn't do in this repo).
+
+## Acknowledgements
+
+This project was developed with the assistance of AI tools.
+
+## License
+
+{{LICENSE_NAME}} — see [`LICENSE`](LICENSE).

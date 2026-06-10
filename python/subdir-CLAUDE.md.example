@@ -1,0 +1,24 @@
+# src/{{AREA_NAME}}/
+
+{{ONE_LINE_DESCRIPTION_OF_WHAT_LIVES_IN_THIS_DIRECTORY}}
+
+Loads only when the agent reads files in this directory. Keep it tight
+— context is precious. Trim everything that doesn't apply.
+
+## Conventions
+
+- {{AREA_SPECIFIC_CONVENTIONS — e.g., one file per resource, naming pattern, where models vs routes vs handlers live}}
+- {{IMPORT_PATTERNS_IF_NON_OBVIOUS}}
+
+## Error handling
+
+- {{HOW_ERRORS_ARE_RAISED_IN_THIS_AREA — e.g., raise custom typed exceptions from `errors.py`, not stdlib}}
+- {{HOW_ERRORS_ARE_CAUGHT_AT_THE_BOUNDARY}}
+
+## Test pattern
+
+{{HOW_TESTS_FOR_THIS_AREA_ARE_STRUCTURED — fixtures, conftest path, test file naming}}
+
+## Don't touch
+
+- {{AREA_SPECIFIC_DONT_TOUCH — e.g., generated client code, vendored upstream files}}
