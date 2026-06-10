@@ -7,8 +7,7 @@
 # done. This makes the /review-check discipline automatic: the session
 # cannot stop on a broken build without a human seeing green first.
 #
-# See CLAUDE.md -> "Workflow expectations" (Verify) and the Obsidian note
-# Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md.
+# See CLAUDE.md -> "Workflow expectations" (Verify).
 #
 # Stop hooks have no matcher and fire on every turn end, so two guards keep
 # this from nagging in normal conversation or looping forever:

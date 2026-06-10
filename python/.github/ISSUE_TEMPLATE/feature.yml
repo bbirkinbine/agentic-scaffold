@@ -1,7 +1,7 @@
 # Issue form for a feature. The Goal / Success criteria / Non-goals
 # fields map straight into the docs/specs/ scaffold that /spec reads.
-# The labels below must exist in the repo — see the label vocabulary in
-# the vault note "06 GitHub Issues for Solo Agentic Projects".
+# The labels below must exist in the repo — create them before first
+# use.
 name: Feature
 description: A new capability or enhancement
 labels: [feature, spec-needed]

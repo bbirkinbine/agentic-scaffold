@@ -118,7 +118,6 @@ Don't claim a change is "ready" without at least:
 
 ## Open work / current state (updated 2026-06-09)
 
-Repo just split out of the dotfiles repo; first content commit pending.
-The Python scaffolding under `python/` is the active surface and evolves
-with the methodology notes in the Obsidian vault
-(`Research/Programming/Agentic Programming/`).
+Repo split out of the dotfiles repo on 2026-06-09. The Python
+scaffolding under `python/` is the active surface; the methodology
+behind it is maintained in personal notes outside this repo.

@@ -56,8 +56,7 @@ are the source of truth.
 
 The authoritative step-by-step for any new repo — identity check,
 GitHub About sidebar, first-commit hygiene, and the pre-flip
-private→public checklist. This mirrors the Obsidian source at
-`Research/Programming/New Project Setup.md` in my vault.
+private→public checklist.
 
 ## How to use
 
@@ -78,11 +77,6 @@ cp ~/Downloads/src/agentic-scaffold/README.md.template  ./README.md
 # Replace every {{...}} placeholder:  rg '{{' .
 # then walk the rest of new-project-checklist.md
 ```
-
-The Obsidian vault has the authoritative checklist with extra context
-and *why* notes; this repo is the version that lives next to the
-actual template files so it stands alone on machines without the
-vault.
 
 ## Acknowledgements
 

@@ -10,9 +10,7 @@
 >
 > serena runs as a **local child process beside the agent and the code**,
 > not a shared service — it needs filesystem access to the repo and boots
-> a language server against it. Where-it-runs and sizing are covered in
-> `Research/Programming/Code Graphs for Coding Agents — Cheat Sheet.md`
-> in the Obsidian vault.
+> a language server against it.
 
 ---
 

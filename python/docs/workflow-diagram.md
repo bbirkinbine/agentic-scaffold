@@ -216,6 +216,3 @@ Section shapes are in [`specs/README.md`](specs/README.md).
 - [`specs/README.md`](specs/README.md) — spec numbering, status vocabulary,
   `## External references`, `## Phase handoff`, `## Implementation Notes`.
 - [`serena-setup.md`](serena-setup.md) — the optional symbol-navigation MCP.
-- Methodology background (Obsidian vault):
-  `Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md`
-  and `01 Context Management for Coding Agents.md`.

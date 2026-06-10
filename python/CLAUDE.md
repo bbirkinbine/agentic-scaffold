@@ -97,9 +97,7 @@ own failure mode:
 
 ## Workflow expectations (Spec → Plan → Test-first → Implement → Verify)
 
-This is the agentic loop documented in
-`Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md`
-in my Obsidian vault. The human-facing walkthrough with worked examples
+The human-facing walkthrough with worked examples
 lives in `WORKFLOW.md` at the repo root; a rendered diagram of the whole
 machine — loop, guardrails, and subagent delegation — is in
 `docs/workflow-diagram.md`. Honor each phase — don't run open-ended.
@@ -238,9 +236,7 @@ grep for navigation — see the delegation table in "Your role:
 orchestrator."
 
 Setup, verification (new or existing), update/pin, and teardown:
-[`docs/serena-setup.md`](docs/serena-setup.md). Rationale and tool
-comparison: `Research/Programming/Code Graphs for Coding Agents — Cheat
-Sheet.md` in my Obsidian vault.
+[`docs/serena-setup.md`](docs/serena-setup.md).
 
 ## Subagents (in `.claude/agents/`)
 

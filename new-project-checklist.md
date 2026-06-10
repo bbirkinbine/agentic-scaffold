@@ -1,8 +1,7 @@
 # New project checklist
 
-The authoritative version of this checklist lives in the Obsidian vault
-at `Research/Programming/New Project Setup.md`. This copy is mirrored here so this
-repo stands alone on a machine without the vault checked out.
+This is the authoritative version of the new-project checklist — it
+carries the latest conventions and is updated first.
 
 ## At repo creation
 

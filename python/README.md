@@ -7,15 +7,9 @@ the files into place.
 This directory **is the source of truth** for the agentic-workflow
 scaffolding, version-controlled in this repo
 (`github.com/bbirkinbine/agentic-scaffold`; before 2026-06-09 it lived
-under `templates/python/` in `github.com/bbirkinbine/dotfiles`). It
-used to be mirrored into the Obsidian vault under
-`Research/Programming/Agentic Programming/starter-files/`; that mirror
-is retired — the vault folder is now just a pointer back here. The
-vault still holds the conventions and rationale behind each piece:
-
-- `Research/Programming/Agentic Programming/00 Agentic Programming.md`
-- `Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md` (the loop diagram)
-- `Research/Programming/Agentic Programming/04 MD Files for Coding Agents.md`
+under `templates/python/` in `github.com/bbirkinbine/dotfiles`). The
+conventions and rationale behind each piece are maintained in personal
+methodology notes outside this repo.
 
 ## What's in here
 

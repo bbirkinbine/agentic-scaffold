@@ -1,6 +1,5 @@
-# Issue form for a bug. The labels below must exist in the repo — see
-# the label vocabulary in the vault note "06 GitHub Issues for Solo
-# Agentic Projects".
+# Issue form for a bug. The labels below must exist in the repo —
+# create them before first use.
 name: Bug
 description: Something is broken
 labels: [bug, triage]

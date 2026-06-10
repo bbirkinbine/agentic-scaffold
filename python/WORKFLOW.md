@@ -163,9 +163,9 @@ change, a multi-package refactor, anything where the main session would
 end the day past 50% context — running the whole loop in one session
 degrades review quality. By the time `/review` fires, the main session
 has accumulated spec discussion, plan iteration, test-writing, and
-implementation context. That's the U-curve from
-`Research/Programming/Agentic Programming/01 Context Management for Coding Agents.md`
-in the Obsidian vault.
+implementation context. That's the context-degradation U-curve: a
+session reviews best when it's neither empty of context nor drowning
+in its own history.
 
 The discipline: at each phase boundary, append a `## Phase handoff`
 section to the spec capturing the current state and entry conditions
@@ -237,11 +237,6 @@ skip `/review` if you're the only reviewer. Scale the loop to the work.
 - `docs/specs/README.md` — spec numbering + minimum shape
 - `~/Downloads/src/agentic-scaffold/new-project-checklist.md` —
   pre-flight checklist for the day-zero setup
-- Methodology background:
-  `Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md`
-  in the Obsidian vault
-- Where the backlog *outside* the feature loop lives — GitHub Issues
-  conventions, label vocabulary, and the issue ↔ spec ↔ branch ↔ PR
-  chain for solo + Claude Code projects:
-  `Research/Programming/Agentic Programming/06 GitHub Issues for Solo Agentic Projects.md`
-  in the Obsidian vault
+- Where the backlog *outside* the feature loop lives — GitHub Issues:
+  the labels the issue forms reference (`feature`, `bug`, `spec-needed`,
+  `triage`) and the issue ↔ spec ↔ branch ↔ PR chain.
