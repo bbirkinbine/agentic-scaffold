@@ -30,9 +30,24 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.1.0
+  # mypy runs in the PROJECT uv environment (not pre-commit's isolated venv)
+  # so it resolves the project's third-party imports, and is scoped to src/ —
+  # matching the documented gate (`uv run mypy src/`) and CI
+  # (.github/workflows/ci.yml). Tests are intentionally NOT strict-typed (see
+  # the ruff per-file-ignores for tests/** in pyproject.toml). The previous
+  # mirrors-mypy hook ran in an isolated env WITHOUT the project's deps and
+  # strict-checked tests/, so every commit with src+tests failed on
+  # import-not-found + missing-annotation errors — that is the bug this
+  # avoids. `pass_filenames: false` => always run `mypy src/`, never the
+  # staged-file list; the `[ -d src ]` guard keeps it quiet on a fresh repo
+  # before src/ exists. Strict config comes from [tool.mypy] in pyproject.toml.
+  # (To add stubs, install them as a dev dependency, e.g. `uv add --dev
+  # types-requests` — the project env is what mypy now uses.)
+  - repo: local
     hooks:
       - id: mypy
-        args: [--strict]
-        additional_dependencies: []   # add types-* / *-stubs packages here as needed
+        name: mypy (strict, src/)
+        entry: "bash -c 'if [ -d src ]; then uv run mypy src/; fi'"
+        language: system
+        types: [python]
+        pass_filenames: false
