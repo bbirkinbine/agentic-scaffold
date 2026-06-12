@@ -117,7 +117,9 @@ standing consent to resolve `[ask-user]` findings too.
   numbering, required sections, and `## External references`
   provenance). One paragraph minimum: goal, success criteria, non-goals.
   On ambiguous features, `/scope-check` before and `/clarify` after the
-  draft.
+  draft. Product-level direction lives in `docs/specs/0000-product.md`
+  (written by the `/product-spec` interview, if present); feature specs
+  link to it rather than restating product rationale.
 - **Plan.** For tasks that touch > 3 files: `/plan` first. Review the
   plan before any writes happen.
 - **Test-first.** Tests come before implementation. `/test-first` writes
@@ -181,6 +183,7 @@ user-sized data, async, load).
 
 | Command | Purpose |
 | --- | --- |
+| `/product-spec [name]` | Optional: interview to create/refresh `docs/specs/0000-product.md` (the product-level spec) |
 | `/scope-check <desc>` | Optional pre-spec: five forcing questions on ambiguous features |
 | `/spec <name>` | Create `docs/specs/NNNN-<slug>.md` scaffold; stops for human edit |
 | `/clarify [spec]` | Interrogate a draft spec's underspecified areas; writes answers back in |

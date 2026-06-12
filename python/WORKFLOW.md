@@ -55,6 +55,16 @@ Then, in order:
    the one expected commit there; make it before `pre-commit install`,
    or with `git commit --no-verify`. Every change after that goes on a
    branch.
+5. **Optionally, run `/product-spec`.** It interviews you — seven
+   questions, one at a time: the problem and concrete user, who it's
+   *not* for, success metrics, kill criteria, product non-goals,
+   constraints, first units of work — and writes
+   `docs/specs/0000-product.md` from the answers. This is the
+   product-level layer (the job a PRD does on a team) that feature
+   specs link up to instead of restating rationale. Skip it while a
+   README purpose paragraph still covers the project; write it before
+   the backlog outgrows your head or before any multi-spec autonomous
+   run. Re-run it later to refresh — it asks only about the gaps.
 
 ## Per-feature loop
 
@@ -67,10 +77,18 @@ phase on its own. You decide whether to advance.
                                        # Five forcing questions. Output goes into the
                                        # spec's ## Goal and ## Non-goals.
         ↓
+[create the issue]                 # gh issue create — the issue number becomes NNNN
+                                   # and names the spec, branch, and the PR's Closes #N.
+                                   # An identifier, not an execution order: specs ship
+                                   # in triage order, and gaps in docs/specs/ are normal.
+        ↓
 /spec add user authentication      # scaffolds docs/specs/NNNN-add-user-authentication.md
+                                   # (NNNN = the issue number)
         ↓
 [edit the spec]                    # goal, success criteria, non-goals;
-                                   # one paragraph minimum
+                                   # one paragraph minimum. Blocked on another spec?
+                                   # add "Depends on: NNNN" to the header —
+                                   # /specs-status will show it as (blocked)
         ↓
 /clarify                           # OPTIONAL — on features with real unknowns.
                                    # Interrogates the draft spec for underspecified
@@ -294,7 +312,8 @@ skip `/review` if you're the only reviewer. Scale the loop to the work.
 - `docs/workflow-diagram.md` — the same loop as a rendered visual map
   (Mermaid): the per-feature loop, the automation/guardrail layer, and
   the subagent-delegation model
-- `docs/specs/README.md` — spec numbering + minimum shape
+- `docs/specs/README.md` — spec numbering (identity, not order), the
+  `0000-product.md` product spec, + minimum shape
 - `docs/parallel-agents.md` — worktree parallelism, agent teams, the
   completion ladder, unattended runs
 - `docs/plugin-packaging.md` — the (not-yet-adopted) plugin/marketplace

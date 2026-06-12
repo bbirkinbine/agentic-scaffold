@@ -124,7 +124,9 @@ nobody is watching, the more rungs you want active.
 ## Unattended runs
 
 These are the tier 3–4 mechanics from the table above. For long
-autonomous work — a PRD with many items, a repo-wide sweep — the
+autonomous work — a product requirements document (PRD) with many
+items, which in this scaffolding is `docs/specs/0000-product.md` plus
+the issue backlog it points at, or a repo-wide sweep — the
 working pattern is a *loop with externalized state*: progress
 accumulates in files and git (specs, `## Phase handoff` sections,
 commits on a branch), never only in the conversation, so each iteration
@@ -134,7 +136,9 @@ can start with a fresh context and pick up from disk.
   babysitting jobs (re-check CI, retry a flaky migration step).
 - **The Ralph-loop pattern** (official `ralph-wiggum` plugin) re-feeds
   one prompt until a completion sentinel or max-iterations — fits
-  "work through this PRD item by item." Known failure modes: drift
+  "work through this PRD item by item" (here: the `0000-product.md`
+  roadmap pointers, one issue → spec → branch per item). Known
+  failure modes: drift
   without a tight spec, and uncapped cost — set max-iterations.
 - **`/goal` + autodrive** covers the common middle: one feature, end to
   end, with the evaluator holding the finish line.

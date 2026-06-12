@@ -212,11 +212,21 @@ file, reserved number `0000`, covering:
   whom. (Who it is *not* for is as load-bearing as who it is.)
 - **Success metrics** — how you'd know the product is working, at the
   product level. Behavior in the world, not "tests pass."
+- **Kill criteria** — what would make this product not worth
+  continuing. Named up front, it is a decision; discovered later, it
+  is a sunk cost.
 - **Product non-goals** — directions deliberately not pursued, so
   feature specs don't relitigate them one at a time.
+- **Constraints and assumptions** — platform, licensing, budget,
+  "solo-maintained"; the facts a planner must not design against.
 - **Roadmap pointers** — links to the feature specs and open issues
   that currently serve the direction. A list of links, not a plan;
   the issues stay the backlog.
+
+Don't write it from a blank template — run `/product-spec`, which
+interviews you (seven questions, one at a time) and writes the file
+from your answers. Re-run it later to refresh a stale product spec;
+it asks only about the gaps.
 
 Differences from a feature spec: no issue, no branch, no
 implementation, status `evergreen`. It is the one spec that is a

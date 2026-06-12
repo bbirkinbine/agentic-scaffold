@@ -161,6 +161,7 @@ sync .claude/agents/planner.md
 sync .claude/agents/test-first.md
 sync .claude/agents/reviewer.md
 sync .claude/agents/reviewer-adversarial.md
+sync .claude/commands/product-spec.md
 sync .claude/commands/spec.md
 sync .claude/commands/specs-status.md
 sync .claude/commands/scope-check.md
@@ -230,6 +231,8 @@ echo "     cp $SRC_DIR/.claude/agents/optional/performance-reviewer.md \\"
 echo "        .claude/agents/performance-reviewer.md"
 echo
 echo "Workflow loop (slash commands installed in .claude/commands/):"
+echo "  /product-spec [name]   OPTIONAL — interview to create/refresh the"
+echo "                         product-level spec docs/specs/0000-product.md"
 echo "  /scope-check <desc>    OPTIONAL — five forcing questions before /spec"
 echo "                         when goal/scope is ambiguous"
 echo "  /spec <name>           create a spec under docs/specs/"

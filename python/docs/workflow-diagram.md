@@ -48,12 +48,23 @@ flowchart TD
     D2 --> E
     D3 --> E
     E["uv sync · uv run pre-commit install"] --> F["scaffolding commit on main<br/>— the one commit allowed there —<br/>then branch everything after"]
+    F --> G["/product-spec — optional<br/>interview → docs/specs/0000-product.md<br/>problem · success metrics · kill criteria · non-goals"]
+
+    classDef optional fill:#f3f4f6,stroke:#6b7280,color:#111,stroke-dasharray: 5 5;
+    class G optional;
 ```
 
 The identity check is load-bearing: `git config user.email` is baked into
 the first commit forever and leaks once the repo flips public. Opt-ins are
 decided *now*, not retroactively — see [`../WORKFLOW.md`](../WORKFLOW.md)
 "Day zero."
+
+`/product-spec` is the product-level layer — the job a PRD does on a
+team. It interviews you (seven questions, one at a time) and writes
+`docs/specs/0000-product.md` from the answers; feature specs link up to
+it instead of restating product rationale. Optional on day one — a
+README purpose paragraph covers a small project — but write it before
+the backlog outgrows your head or before any multi-spec autonomous run.
 
 ---
 
@@ -64,8 +75,9 @@ at transitions rather than rolling forward.
 
 ```mermaid
 flowchart TD
-    S0["/scope-check — optional<br/>5 forcing questions"] --> S1["/spec → docs/specs/NNNN-*.md"]
-    S1 --> EDIT["Edit spec: goal · success · non-goals"]
+    S0["/scope-check — optional<br/>5 forcing questions"] --> ISS["Create the issue: gh issue create<br/>issue # becomes NNNN"]
+    ISS --> S1["/spec → docs/specs/NNNN-*.md<br/>NNNN = issue # (identity, not order)"]
+    S1 --> EDIT["Edit spec: goal · success · non-goals<br/>+ Depends on: NNNN if blocked"]
     EDIT --> CLAR["/clarify — optional<br/>interrogates the draft spec, ≤5 questions<br/>writes answers back into it"]
     CLAR --> BR["Create branch: issue#-slug<br/>never on main"]
     BR --> PLAN["/plan → planner subagent (read-only)"]
@@ -108,6 +120,14 @@ answer is already obvious: `/scope-check` when the *goal* is fuzzy,
 `/clarify` when the *spec draft* has real unknowns, `/analyze` when you
 want proof the tests cover the spec before implementation starts. Each
 sits at the point where its class of mistake is cheapest to fix.
+
+**The front of the loop is issue-first.** The GitHub issue exists
+before `/spec` runs; its number names the spec, the branch, and the
+PR's `Closes #N`. The number is an identifier, not an execution order —
+specs ship in whatever order triage dictates, a blocked spec records
+`**Depends on:** NNNN` in its header, and `/specs-status` marks it
+`(blocked)` until the dependencies ship. See
+[`specs/README.md`](specs/README.md) → "Numbering".
 
 **The two ★ checkpoints are the whole point of "autodrive."** When handed
 a spec, the agent runs branch → `/test-first` → implement → `/review-check`
@@ -204,7 +224,7 @@ flowchart TD
 | 2 | **Gate** | implement → `/review-check` red → fix → re-run | Stop hook (capped at 8) + agent | — |
 | 3 | **Feature** | spec → plan → tests → implement → verify → merge | **You**, at the two ★ checkpoints | `/goal` — set at checkpoint 1 when the remaining stretch runs long or unattended; redundant when you're attending the checkpoints yourself |
 | 4 | **Babysit** | run prompt → wait interval → run again | Interval timer; you cancel it | `/loop` — lives *after* checkpoint 2 (PR babysitting) or outside feature work entirely (maintenance) |
-| 5 | **Backlog** | pick issue → feature loop → merge → next issue | You, at triage | The Ralph pattern is this loop made autonomous: re-feed one PRD prompt, fresh context each iteration, progress in files/git — see [`parallel-agents.md`](parallel-agents.md) |
+| 5 | **Backlog** | pick issue → feature loop → merge → next issue | You, at triage (the `0000-product.md` roadmap pointers say which issues serve the direction) | The Ralph pattern is this loop made autonomous: re-feed one PRD-style prompt — `0000-product.md` is that document here — fresh context each iteration, progress in files/git — see [`parallel-agents.md`](parallel-agents.md) |
 | 6 | **Improvement** | agent mistake → line in `CLAUDE.md` / `.claude/rules/` → fewer mistakes; scaffold improvements → `bootstrap.sh --update` → every project | You + agent, in the same change as the correction | — (this is the loop that makes the others cheaper every cycle) |
 
 Two structural notes:
@@ -286,7 +306,9 @@ the *Skip when* column is as load-bearing as the *Reach for* column.
 
 | Situation | Reach for | Skip when |
 | --- | --- | --- |
+| Backlog outgrows your head, or a multi-spec autonomous run is coming | `/product-spec` — interview → `docs/specs/0000-product.md` | Small project where the README purpose paragraph still covers it |
 | Goal itself is fuzzy ("we should do something about X") | `/scope-check` before `/spec` | The goal is already one concrete sentence |
+| A spec can't start until other specs ship | `**Depends on:** NNNN` in its header; `/specs-status` shows `(blocked)` | No cross-spec ordering — most specs |
 | Spec draft has real unknowns (data shapes, failure behavior) | `/clarify` after editing the spec | The spec is tight; don't invent questions |
 | Want proof tests cover the spec before implementing | `/analyze` after `/test-first` | Trivial/small tasks; one-criterion specs |
 | Network surface, auth, untrusted input, secrets | `security-reviewer` (opt-in, decide at day zero) | Pure-local tooling with no trust boundary |
@@ -327,7 +349,8 @@ Section shapes are in [`specs/README.md`](specs/README.md).
   failure modes.
 - `../CLAUDE.md` + `.claude/rules/` — the rules the agent reads every
   turn (delegation tables, git workflow, hooks, public-repo hygiene).
-- [`specs/README.md`](specs/README.md) — spec numbering, status vocabulary,
+- [`specs/README.md`](specs/README.md) — spec numbering (identity, not
+  order), status vocabulary, the `0000-product.md` product spec,
   `## External references`, `## Phase handoff`, `## Implementation Notes`.
 - [`parallel-agents.md`](parallel-agents.md) — degrees of autonomy,
   worktree parallelism, agent teams, unattended runs.

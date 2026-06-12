@@ -44,6 +44,7 @@ python/
 │   │       ├── security-reviewer.md       # App-sec review (opt-in, not auto-copied)
 │   │       └── performance-reviewer.md    # Perf review (opt-in, not auto-copied)
 │   ├── commands/
+│   │   ├── product-spec.md                # /product-spec — interview to create/refresh docs/specs/0000-product.md
 │   │   ├── spec.md                        # /spec <name> — create docs/specs/NNNN-<slug>.md
 │   │   ├── specs-status.md                # /specs-status — print status table over all specs
 │   │   ├── scope-check.md                 # /scope-check — five forcing questions before /spec
@@ -141,6 +142,7 @@ After bootstrap:
 
 | Phase | Driven by | Slash command |
 | --- | --- | --- |
+| Product spec (optional, project-level, once) | Agent interviews you (seven questions) and writes `docs/specs/0000-product.md` — the PRD-level layer feature specs link up to | `/product-spec [name]` |
 | Scope check (optional pre-spec) | You answer five forcing questions; output feeds the spec | `/scope-check <desc>` |
 | Spec | You write `docs/specs/NNNN-<feature>.md` (seeded with status header) | `/spec <name>` |
 | Clarify (optional post-draft) | Agent interrogates the draft spec's underspecified areas (max 5 questions), writes answers back into the spec | `/clarify [spec-path]` |
