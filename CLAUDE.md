@@ -116,16 +116,24 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-06-10)
+## Open work / current state (updated 2026-06-12)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
 behind it is maintained in personal notes outside this repo.
 
-Branch `feat/2026-workflow-refresh` (in flight): 2026 state-of-the-art
-refresh — `.claude/rules/` split of the oversized `python/CLAUDE.md`,
-`/clarify` + `/analyze` commands, PreCompact hook, Stop-hook cap
-documentation, completion-ladder + parallel-agents + plugin-packaging
-docs, opt-in Claude CI review workflow, adversarial-reviewer scope
-discipline, AGENTS.md symlink guidance. Experimental — validate on a
-real project before merging to `main`.
+The 2026 workflow refresh merged to `main` on 2026-06-12 (branch
+`feat/2026-workflow-refresh`, since deleted): `.claude/rules/` split of
+the oversized `python/CLAUDE.md`, `/clarify` + `/analyze` commands,
+PreCompact hook, Stop-hook cap documentation, completion-ladder +
+parallel-agents + plugin-packaging docs, opt-in Claude CI review
+workflow, adversarial-reviewer scope discipline, AGENTS.md symlink
+guidance. The same merge brought the spec-numbering doctrine (spec
+number = issue number; identity, not execution order; `**Depends on:**`
+field) and the `/product-spec` interview that writes
+`docs/specs/0000-product.md`, the product-level (PRD) layer.
+
+Open: the refreshed scaffolding has not yet been validated end-to-end
+on a real project — exercise `bootstrap.sh` and the issue-first
+`/spec` → `/product-spec` flow on the next new repo and feed
+corrections back here.
