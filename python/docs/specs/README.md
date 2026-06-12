@@ -5,9 +5,27 @@ or reviewing.
 
 ## Numbering
 
-`NNNN-<kebab-name>.md`, zero-padded to four digits. New specs increment
-the highest existing number. Once a number is assigned it doesn't change,
-even if the spec is later superseded.
+`NNNN-<kebab-name>.md`, zero-padded to four digits. `NNNN` is the
+GitHub issue number for the work — the same number names the branch
+(see `.claude/rules/git-workflow.md`), so issue ↔ spec ↔ branch ↔ PR
+all share one identifier. Create the issue first, then the spec. Once
+a number is assigned it never changes, even if the spec is later
+superseded. In a repo without GitHub issues, fall back to
+highest-existing + 1; never reuse a number either way.
+
+Two consequences, both intentional:
+
+- **Gaps are normal.** Issue numbers are also consumed by bug reports
+  and questions, so `docs/specs/` will skip numbers. A gap is not a
+  missing spec.
+- **The number is an identifier, not an execution order.** Specs ship
+  in whatever order priorities and dependencies dictate — 0003, then
+  0004, then 0002 is fine. Ordering lives in issue triage (labels,
+  milestones) and in the `**Depends on:**` field below, never in the
+  filename.
+
+`0000` is reserved for the product spec (see below) and is never an
+issue number.
 
 ## Status header convention
 
@@ -18,12 +36,18 @@ Top of every spec:
 
 **Status:** draft | shipping | shipped | paused | abandoned | superseded-by-NNNN
 **Last updated:** YYYY-MM-DD
+**Depends on:** NNNN, NNNN
 ```
 
 The `**Status:**` field is load-bearing — `/specs-status` reads it across
 all specs to print the status table. Keep it current; a spec stuck on
 `draft` six months after the work shipped is the noise this convention
 exists to prevent.
+
+`**Depends on:**` is optional — list the spec numbers that must ship
+before this one can start. `/specs-status` surfaces it, so blocked work
+is visible from the status table without opening each file. This field,
+not the filename, is where ordering lives.
 
 Status vocabulary:
 
@@ -33,6 +57,8 @@ Status vocabulary:
 - `paused` — deliberately set down. Will resume; not abandoned. Note in the spec why.
 - `abandoned` — decided not to build. Spec stays as a design log of "we considered this and skipped." Note why in the spec.
 - `superseded-by-NNNN` — replaced by a newer spec. Link to the successor.
+- `evergreen` — reserved for `0000-product.md` (see below). Revised in
+  place as direction changes; never ships, never closes.
 
 ## Minimum spec shape
 
@@ -175,6 +201,35 @@ honest about what shipped.
 If a decision was load-bearing enough to redo the original spec, do
 that instead — `Status: superseded-by-NNNN` and a new spec. This
 section is for the small stuff.
+
+## The product spec — `0000-product.md`
+
+Feature specs answer "what is this unit of work?"; the product spec
+answers "what is this product?" — the job a PRD does on a team. One
+file, reserved number `0000`, covering:
+
+- **Problem** — the user pain this product exists to remove, and for
+  whom. (Who it is *not* for is as load-bearing as who it is.)
+- **Success metrics** — how you'd know the product is working, at the
+  product level. Behavior in the world, not "tests pass."
+- **Product non-goals** — directions deliberately not pursued, so
+  feature specs don't relitigate them one at a time.
+- **Roadmap pointers** — links to the feature specs and open issues
+  that currently serve the direction. A list of links, not a plan;
+  the issues stay the backlog.
+
+Differences from a feature spec: no issue, no branch, no
+implementation, status `evergreen`. It is the one spec that is a
+living document — revise it in place when direction changes (the
+design-log record of *why* lives in the feature specs and their
+issues). Feature specs link up to it instead of restating product
+rationale; when a feature's `## Goal` is hard to justify in one
+paragraph, that's usually a sign the product spec needs a line, not
+the feature spec a longer preamble.
+
+Optional on day one — a README purpose paragraph covers a small
+project. Write it when the backlog grows past what one person holds in
+their head, or before handing an agent a multi-spec autonomous run.
 
 ## Specs sit under the constitution
 

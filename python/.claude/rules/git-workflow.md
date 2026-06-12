@@ -19,7 +19,11 @@ branching is not an optional courtesy step.
 - Anything past XS should get a GitHub issue first — issues are the
   cross-session persistence layer. The spec number, the issue number,
   and the branch number are the same number; that shared id ties
-  spec ↔ issue ↔ branch ↔ PR together.
+  spec ↔ issue ↔ branch ↔ PR together. The number is an identifier,
+  not an execution order — gaps in `docs/specs/` are expected (issue
+  numbers are also consumed by bugs and questions), and specs ship in
+  whatever order triage dictates. See `docs/specs/README.md` →
+  "Numbering".
 
 One branch per spec / unit of work.
 

@@ -12,9 +12,10 @@ Procedure:
    - The H1 title (the first line that starts with `#`).
    - The `**Status:**` value (the line that begins with `**Status:**`).
    - The `**Last updated:**` value.
+   - The `**Depends on:**` value, if present (optional field).
 3. If `$ARGUMENTS` is non-empty, filter rows to specs whose status matches `$ARGUMENTS` (case-insensitive).
-4. Group rows by status and print as a markdown table with columns: `Status` | `Spec` | `Last updated`. Within each group, sort by the 4-digit spec number ascending.
-5. Order the groups: `draft`, `shipping`, `shipped`, `paused`, `abandoned`, then any `superseded-by-NNNN`, then any unrecognized status. This puts "what's in flight" at the top and the design log of "decided not to do this" at the bottom.
+4. Group rows by status and print as a markdown table with columns: `Status` | `Spec` | `Last updated` | `Depends on`. Within each group, sort by the 4-digit spec number ascending — display order only; the number is an identifier, not an execution order. In the `Depends on` cell, append `(blocked)` after any dependency whose own status is not `shipped`.
+5. Order the groups: `evergreen` (the product spec, if present), `draft`, `shipping`, `shipped`, `paused`, `abandoned`, then any `superseded-by-NNNN`, then any unrecognized status. This puts "what's in flight" at the top and the design log of "decided not to do this" at the bottom.
 6. Below the table, print a one-line count per status. Example: `7 shipped · 1 shipping · 2 draft · 1 abandoned`.
 7. Flag specs missing the `**Status:**` field as a separate "Needs attention" list. Do not guess their status; surface the filename and stop short of editing.
 
@@ -27,7 +28,8 @@ for spec in docs/specs/*.md; do
   title=$(awk 'NR==1 && /^# / { sub(/^# */,""); print; exit }' "$spec")
   spec_status=$(awk '/^\*\*Status:\*\*/ { sub(/^\*\*Status:\*\* */,""); print; exit }' "$spec")
   updated=$(awk '/^\*\*Last updated:\*\*/ { sub(/^\*\*Last updated:\*\* */,""); print; exit }' "$spec")
-  printf '%s|%s|%s|%s\n' "${spec_status:-MISSING}" "$spec" "${updated:-?}" "$title"
+  depends=$(awk '/^\*\*Depends on:\*\*/ { sub(/^\*\*Depends on:\*\* */,""); print; exit }' "$spec")
+  printf '%s|%s|%s|%s|%s\n' "${spec_status:-MISSING}" "$spec" "${updated:-?}" "${depends:--}" "$title"
 done
 ```
 
