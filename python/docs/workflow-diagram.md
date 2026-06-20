@@ -2,11 +2,11 @@
 
 > **Purpose.** The visual / systems companion to the methodology.
 > `../CLAUDE.md` is the *rules* the agent follows every turn;
-> [`../WORKFLOW.md`](../WORKFLOW.md) is the prose *walkthrough* — what each
-> step is for and where it goes wrong if you skip it. This file is the
-> *map*: how the spec, branch, slash commands, subagents, hooks, and CI
-> fit together, in diagrams. Read WORKFLOW.md for the *why*; read this to
-> see the *shape*.
+> [`../WORKFLOW.md`](../WORKFLOW.md) is the prose *walkthrough* — what to
+> run at each step, in order, and why. This file is the *map*: how the
+> spec, branch, slash commands, subagents, hooks, and CI fit together, in
+> diagrams. Read WORKFLOW.md for the *steps*; read this to see the
+> *shape*.
 >
 > Diagrams are [Mermaid](https://mermaid.js.org/) — they render natively on
 > GitHub and in Obsidian (VS Code needs the "Markdown Preview Mermaid
@@ -65,79 +65,62 @@ team. It interviews you (seven questions, one at a time) and writes
 it instead of restating product rationale. Optional on day one — a
 README purpose paragraph covers a small project — but write it before
 the backlog outgrows your head or before any multi-spec autonomous run.
+Canonical description in [`specs/README.md`](specs/README.md) → "The
+product spec."
 
 ---
 
 ## The per-feature loop
 
-The core. Each box is a separate turn; the agent stops and surfaces output
-at transitions rather than rolling forward.
+Set up once, then loop. The top is linear — issue, spec, plan, branch,
+first tests. Then **implement → check → review repeats until every
+success criterion in the spec passes.** Then you ship.
 
 ```mermaid
 flowchart TD
-    S0["/scope-check — optional<br/>5 forcing questions"] --> ISS["Create the issue: gh issue create<br/>issue # becomes NNNN"]
-    ISS --> S1["/spec → docs/specs/NNNN-*.md<br/>NNNN = issue # (identity, not order)"]
-    S1 --> EDIT["Edit spec: goal · success · non-goals<br/>+ Depends on: NNNN if blocked"]
-    EDIT --> CLAR["/clarify — optional<br/>interrogates the draft spec, ≤5 questions<br/>writes answers back into it"]
-    CLAR --> BR["Create branch: issue#-slug<br/>never on main"]
-    BR --> PLAN["/plan → planner subagent (read-only)"]
-    PLAN --> CP1{"★ Plan looks right?"}
-    CP1 -->|no| FIXSPEC["Fix the spec / push back"]
-    FIXSPEC --> EDIT
-    CP1 -->|yes| TF["/test-first → failing tests"]
-    TF --> REDOK{"Fails for the right reason?"}
-    REDOK -->|"no — ImportError / typo"| TF
-    REDOK -->|"yes — Assertion / NotImplemented"| AN["/analyze — optional<br/>spec ↔ tests cross-check:<br/>every criterion covered?"]
-    AN -->|coverage hole| TF
-    AN --> IMPL["Implement — main session, on branch"]
-    IMPL --> GATE["/review-check<br/>ruff · format · mypy · pytest"]
-    GATE --> GREEN{"Green?"}
-    GREEN -->|no| IMPL
-    GREEN -->|yes| CP2{"★ Checkpoint before review"}
-    CP2 --> REV["/review + /review-adversarial<br/>independent subagents"]
-    REV --> OPT["/security · /performance<br/>if installed & triggered"]
-    OPT --> APP{"Approved?"}
-    APP -->|no| IMPL
-    APP -->|yes| COMMIT["Commit — you write the message"]
-    COMMIT --> PR["gh pr create --fill --web<br/>body: Closes #N"]
-    PR --> CI["CI: ruff · mypy · pytest<br/>+ Claude PR review if enabled"]
-    CI --> CIQ{"CI green?"}
-    CIQ -->|no| IMPL
-    CIQ -->|yes| MERGE["Merge → issue auto-closes → next /spec"]
+    ISS["Create the issue<br/>its number names the spec · branch · PR"]
+    ISS --> SPEC["/spec<br/>goal · success criteria · non-goals"]
+    SPEC --> PLAN["/plan<br/>agent lists the files to touch + the order"]
+    PLAN --> OK1{"★ Plan look right?"}
+    OK1 -->|"no — fix the spec"| SPEC
+    OK1 -->|yes| BR["Branch: issue#-slug<br/>(never on main)"]
+    BR --> TF["/test-first<br/>failing tests from the spec"]
+    TF --> IMPL
+
+    subgraph LOOP["Build loop — repeat until the spec is finished"]
+      IMPL["Implement<br/>minimum code to pass the tests"]
+      IMPL --> CHK["/review-check<br/>ruff · mypy · pytest — must be green"]
+      CHK --> REV["/review<br/>fresh agent checks the diff against the spec"]
+      REV --> DONE{"Every success<br/>criterion met?"}
+      DONE -->|"no — fix and go again"| IMPL
+    end
+
+    DONE -->|"yes ★"| SHIP["Commit + open PR (Closes #N)<br/>you write the message"]
+    SHIP --> MERGE["CI green → merge → next feature"]
 
     classDef checkpoint fill:#fde68a,stroke:#b45309,color:#111;
     classDef gate fill:#bbf7d0,stroke:#15803d,color:#111;
     classDef subagent fill:#ddd6fe,stroke:#6d28d9,color:#111;
-    classDef optional fill:#f3f4f6,stroke:#6b7280,color:#111,stroke-dasharray: 5 5;
-    class CP1,CP2 checkpoint;
-    class GATE,CI gate;
-    class PLAN,TF,REV,OPT subagent;
-    class S0,CLAR,AN optional;
+    class OK1,DONE checkpoint;
+    class CHK gate;
+    class PLAN,TF,REV subagent;
 ```
 
-Dashed boxes are **optional sharpening passes** — skip them when the
-answer is already obvious: `/scope-check` when the *goal* is fuzzy,
-`/clarify` when the *spec draft* has real unknowns, `/analyze` when you
-want proof the tests cover the spec before implementation starts. Each
-sits at the point where its class of mistake is cheapest to fix.
+**You stop at two ★ checkpoints; the agent drives the loop between
+them.** Checkpoint one: approve the plan (a wrong plan is a one-paragraph
+spec fix — much cheaper than catching it later). Checkpoint two: decide
+the spec is finished before you commit.
 
-**The front of the loop is issue-first.** The GitHub issue exists
-before `/spec` runs; its number names the spec, the branch, and the
-PR's `Closes #N`. The number is an identifier, not an execution order —
-specs ship in whatever order triage dictates, a blocked spec records
-`**Depends on:** NNNN` in its header, and `/specs-status` marks it
-`(blocked)` until the dependencies ship. See
-[`specs/README.md`](specs/README.md) → "Numbering".
+**The issue comes first** — and an issue is a work item (like a Jira or
+Linear ticket, not just a bug report). Its number is the shared id for
+the spec, the branch, and the PR's `Closes #N`. The number is identity,
+not order; see [`specs/README.md`](specs/README.md) → "Numbering".
 
-**The two ★ checkpoints are the whole point of "autodrive."** When handed
-a spec, the agent runs branch → `/test-first` → implement → `/review-check`
-on its own, stopping only at: (1) after `/plan`, before tests, and (2)
-after `/review-check` is green, before review/commit. A wrong turn at the
-spec is a one-paragraph fix; the same error caught at review is a redo.
-
-The back-edges matter: a failing gate or a rejected review returns to
-**Implement**, not to the start — but a *wrong plan* returns to the
-**spec**, because the plan being wrong usually means the spec was.
+**Optional sharpening passes** slot in where each helps and are left off
+the diagram to keep it clean: `/scope-check` (fuzzy goal) and `/clarify`
+(open questions) before building, `/analyze` (tests cover the spec?)
+after `/test-first`, `/security` and `/performance` during review. See
+[`../WORKFLOW.md`](../WORKFLOW.md).
 
 ---
 
@@ -170,107 +153,6 @@ draws is *unrecoverable* — things the reflog or a re-clone can't bring
 back; merely risky-but-recoverable commands stay off it. OS-level
 sandboxing (`/sandbox`) and permission modes sit above all of these for
 unattended runs.
-
----
-
-## The completion ladder ("done" must be proven)
-
-Each rung catches what the one below misses; activate more rungs the
-longer nobody is watching. The Stop hook alone is not the answer — it
-caps at 8 consecutive blocks.
-
-```mermaid
-flowchart BT
-    R1["1 · in-prompt check<br/>success criteria phrased as a runnable command"]
-    R2["2 · /goal<br/>completion condition, checked by a separate evaluator every turn"]
-    R3["3 · Stop hook<br/>gate-on-stop.sh blocks turn-end on a red gate (capped)"]
-    R4["4 · fresh-context verification<br/>/review + /review-adversarial — never saw the reasoning"]
-    R1 --> R2 --> R3 --> R4
-    R4 --> OUT["the only rung that catches<br/>'gate is green but the feature is wrong'"]
-
-    classDef rung fill:#bbf7d0,stroke:#15803d,color:#111;
-    class R1,R2,R3,R4 rung;
-```
-
-Companion rule in `../CLAUDE.md` ("Verify before you report"): claims
-come with the command output that proves them — for outcomes the gate
-can't see, the agent runs the concrete check before stating the result.
-
----
-
-## Loops within loops
-
-`/goal` and `/loop` are not the only loops here — the workflow is six
-nested loops, most of them never called one. Naming them shows where
-`/goal` and `/loop` actually attach, and who closes each cycle:
-
-```mermaid
-flowchart TD
-    subgraph L6["6 · Improvement loop — compounding, no end"]
-      subgraph L5["5 · Backlog loop — days/weeks per cycle"]
-        subgraph L3["3 · Feature loop — hours/days per cycle"]
-          subgraph L2["2 · Gate loop — minutes per cycle"]
-            L1["1 · Edit loop — seconds<br/>Edit/Write → PostToolUse ruff·mypy → fix"]
-          end
-        end
-        L4["4 · Babysit loop — interval-driven<br/>/loop: poll CI · re-check deploys · maintenance"]
-      end
-    end
-```
-
-| # | Loop | One cycle | Closed by | Where `/goal` / `/loop` attach |
-| --- | --- | --- | --- | --- |
-| 1 | **Edit** | edit → lint/type-check → fix | PostToolUse hook + agent | — |
-| 2 | **Gate** | implement → `/review-check` red → fix → re-run | Stop hook (capped at 8) + agent | — |
-| 3 | **Feature** | spec → plan → tests → implement → verify → merge | **You**, at the two ★ checkpoints | `/goal` — set at checkpoint 1 when the remaining stretch runs long or unattended; redundant when you're attending the checkpoints yourself |
-| 4 | **Babysit** | run prompt → wait interval → run again | Interval timer; you cancel it | `/loop` — lives *after* checkpoint 2 (PR babysitting) or outside feature work entirely (maintenance) |
-| 5 | **Backlog** | pick issue → feature loop → merge → next issue | You, at triage (the `0000-product.md` roadmap pointers say which issues serve the direction) | The Ralph pattern is this loop made autonomous: re-feed one PRD-style prompt — `0000-product.md` is that document here — fresh context each iteration, progress in files/git — see [`parallel-agents.md`](parallel-agents.md) |
-| 6 | **Improvement** | agent mistake → line in `CLAUDE.md` / `.claude/rules/` → fewer mistakes; scaffold improvements → `bootstrap.sh --update` → every project | You + agent, in the same change as the correction | — (this is the loop that makes the others cheaper every cycle) |
-
-Two structural notes:
-
-- **Inner loops are machine-closed, outer loops are human-closed.**
-  Loops 1–2 close on hook exit codes; loops 3, 5, 6 close on your
-  judgment. Raising the autonomy tier (see
-  [`parallel-agents.md`](parallel-agents.md) "Degrees of autonomy")
-  means machine-closing more of loop 3 — `/goal` is exactly that: an
-  evaluator standing in for the human at the loop-3 finish line.
-- **Loop 4 is a different shape, not a bigger loop 3.** `/loop` re-runs
-  a *prompt* on a timer; it has no checkpoints, no spec, and no finish
-  line — which is why it fits babysitting and maintenance but should
-  never carry feature work. Feature work that needs to survive nobody
-  watching belongs in loop 3 at tier 3, or the Ralph form of loop 5.
-
----
-
-## Orchestration model (why subagents)
-
-The main session delegates for two reasons — **independence** (a reviewer
-that already saw the implementation reasoning isn't independent) and
-**context hygiene** (verbose work doesn't pollute the context holding the
-goal). Subagents don't share memory with the main session; only their
-summary returns.
-
-```mermaid
-flowchart TD
-    MAIN["Main session — orchestrator<br/>holds the spec · drives the loop"]
-    MAIN -->|"/plan"| P["planner<br/>read-only · returns a plan"]
-    MAIN -->|"/test-first"| T["test-first<br/>writes failing tests only"]
-    MAIN -->|"/review"| R["reviewer<br/>diff + spec, fresh context"]
-    MAIN -->|"/review-adversarial"| RA["reviewer-adversarial<br/>argues against the change"]
-    MAIN -->|"/security (opt-in)"| SEC["security-reviewer"]
-    MAIN -->|"/performance (opt-in)"| PERF["performance-reviewer"]
-    P -.summary.-> MAIN
-    T -.summary.-> MAIN
-    R -.summary.-> MAIN
-    RA -.summary.-> MAIN
-```
-
-Anything you want the reviewer to know goes in the **spec**, not a message
-to the main session — the reviewer never sees the chat. Auto-invoked
-*skills* (`python-module-split`, `python-docstrings`, `dependency-hygiene`)
-are a separate mechanism: they load on what the diff contains, not on a
-command.
 
 ---
 
@@ -344,16 +226,17 @@ Section shapes are in [`specs/README.md`](specs/README.md).
 
 ## Go deeper
 
-- [`../WORKFLOW.md`](../WORKFLOW.md) — the prose walkthrough, the
-  completion ladder, and the "where it goes wrong if you skip steps"
-  failure modes.
+- [`../WORKFLOW.md`](../WORKFLOW.md) — the step-by-step walkthrough:
+  day-zero setup and the per-feature loop, one line of why per step.
 - `../CLAUDE.md` + `.claude/rules/` — the rules the agent reads every
   turn (delegation tables, git workflow, hooks, public-repo hygiene).
 - [`specs/README.md`](specs/README.md) — spec numbering (identity, not
   order), status vocabulary, the `0000-product.md` product spec,
   `## External references`, `## Phase handoff`, `## Implementation Notes`.
-- [`parallel-agents.md`](parallel-agents.md) — degrees of autonomy,
-  worktree parallelism, agent teams, unattended runs.
+- [`parallel-agents.md`](parallel-agents.md) — degrees of autonomy, the
+  completion ladder, worktree parallelism, agent teams, unattended runs.
+- [`agent-handoff.md`](agent-handoff.md) — the operational runbook:
+  current state, known risks, accepted commands, rollback playbook.
 - [`plugin-packaging.md`](plugin-packaging.md) — the (not-yet-adopted)
   plugin/marketplace distribution path.
 - [`serena-setup.md`](serena-setup.md) — the optional symbol-navigation MCP.

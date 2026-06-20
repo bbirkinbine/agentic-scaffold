@@ -1,7 +1,6 @@
 # Python agentic-workflow scaffolding
 
-Drop-in scaffolding for new Python projects under `~/Downloads/src/`.
-Mirrors the destination structure exactly — `bootstrap.sh` just `cp -r`s
+Drop-in scaffolding for new Python projects. Mirrors the destination structure exactly — `bootstrap.sh` just `cp -r`s
 the files into place.
 
 This directory **is the source of truth** for the agentic-workflow
@@ -96,8 +95,8 @@ python/
 ## How to use
 
 ```bash
-cd ~/Downloads/src/new-project
-bash ~/Downloads/src/agentic-scaffold/python/bootstrap.sh
+cd your-project
+bash path/to/agentic-scaffold/python/bootstrap.sh
 ```
 
 The script copies everything except this README, itself, and
@@ -108,29 +107,32 @@ scaffolding (everything except the project-owned `CLAUDE.md`,
 
 After bootstrap:
 
-0. **Read [`WORKFLOW.md`](WORKFLOW.md)** — the human-facing loop
-   walkthrough (day-zero setup, per-feature loop, where it goes wrong if
-   you skip steps). Copied into every new project; this is the entry
-   point for understanding the methodology.
+0. **Read [`WORKFLOW.md`](WORKFLOW.md)** — the human-facing
+   walkthrough: day-zero setup and the per-feature loop as numbered
+   steps. Copied into every new project; this is the entry point for
+   understanding the methodology.
 1. Replace placeholders: `rg '\{\{' .`
 2. Walk the rest of [`../new-project-checklist.md`](../new-project-checklist.md)
    — README acknowledgement, GitHub About sidebar, identity check.
 3. `uv sync && uv run pre-commit install`
-4. Write your first spec: `docs/specs/0001-<feature>.md`
-5. For per-subdirectory rules: `cp subdir-CLAUDE.md.example src/<area>/CLAUDE.md`
+4. Create the GitHub issue labels the issue forms reference (`feature`,
+   `bug`, `spec-needed`, `triage`) so `.github/ISSUE_TEMPLATE/` resolves
+   them — e.g. `gh label create spec-needed`.
+5. Write your first spec: `docs/specs/0001-<feature>.md`
+6. For per-subdirectory rules: `cp subdir-CLAUDE.md.example src/<area>/CLAUDE.md`
    and edit heavily.
-6. **If this project has a network surface, auth, or processes untrusted
+7. **If this project has a network surface, auth, or processes untrusted
    input** — add the opt-in security-reviewer:
    ```
-   cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
+   cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
       .claude/agents/security-reviewer.md
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for what
    triggers a "yes" on this question.
-7. **If this project has a hot path, async code, or runs under load** —
+8. **If this project has a hot path, async code, or runs under load** —
    add the opt-in performance-reviewer:
    ```
-   cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
+   cp path/to/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
       .claude/agents/performance-reviewer.md
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for the
@@ -225,7 +227,7 @@ review only — no `pip-audit` / `bandit` / `semgrep` shell-outs.
 To enable for a project:
 
 ```bash
-cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
+cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
    .claude/agents/security-reviewer.md
 ```
 
@@ -254,7 +256,7 @@ human runs them.
 To enable for a project:
 
 ```bash
-cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
+cp path/to/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
    .claude/agents/performance-reviewer.md
 ```
 
@@ -268,6 +270,4 @@ Then add a one-line mention in your `CLAUDE.md` "Subagents" section.
   use it where per-area conventions differ from the root.
 - Don't paste these templates into a chat and ask Claude to "regenerate
   them for my project." Hand-edit. LLM-generated context files have been
-  measured to *reduce* agent performance (Gloaguen et al., 2026) — see
-  the rationale in
-  `Research/Programming/Agentic Programming/04 MD Files for Coding Agents.md`.
+  measured to *reduce* agent performance (Gloaguen et al., 2026).

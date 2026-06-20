@@ -10,7 +10,7 @@
 ## What this repo is
 
 Project-bootstrap templates and agentic-workflow scaffolding for new
-repos under `~/Downloads/src/` — generic `CLAUDE.md` / `README.md` /
+repos — generic `CLAUDE.md` / `README.md` /
 `AGENTS.md` templates, the new-project checklist, the GitHub About
 checklist, and the full Python agentic-workflow scaffolding under
 `python/` (subagents, slash commands, skills, hooks, `bootstrap.sh`).

@@ -3,14 +3,15 @@
 # scaffolding from the agentic-scaffold repo. Run from the project's root.
 #
 # Usage:
-#   cd ~/Downloads/src/new-project
-#   bash ~/Downloads/src/agentic-scaffold/python/bootstrap.sh            # first-time setup
-#   bash ~/Downloads/src/agentic-scaffold/python/bootstrap.sh --update   # pull template improvements
+#   cd your-project
+#   bash path/to/agentic-scaffold/python/bootstrap.sh            # first-time setup
+#   bash path/to/agentic-scaffold/python/bootstrap.sh --update   # pull template improvements
 #
 # Two classes of file:
-#   - PROJECT-OWNED  (CLAUDE.md, pyproject.toml, .gitignore) — written
-#     once, then customized per project (filled placeholders, real deps,
-#     project-specific ignores). NEVER overwritten, in either mode.
+#   - PROJECT-OWNED  (CLAUDE.md, pyproject.toml, .gitignore,
+#     docs/agent-handoff.md) — written once, then customized per project
+#     (filled placeholders, real deps, ignores). NEVER overwritten, in
+#     either mode.
 #   - MANAGED  (everything else — the .claude/ tree, WORKFLOW.md,
 #     AGENTS.md, .pre-commit-config.yaml, docs/specs/README.md, the
 #     .github/ tree) — the agentic scaffolding itself. On first run it
@@ -27,9 +28,9 @@
 #     subagents (planner / test-first / reviewer /
 #     reviewer-adversarial) + the default skills (python-module-split /
 #     python-docstrings / dependency-hygiene) + the default slash
-#     commands (spec, specs-status, scope-check, clarify, plan,
-#     test-first, analyze, review-check, review, review-adversarial,
-#     security, performance)
+#     commands (product-spec, spec, specs-status, scope-check, clarify,
+#     plan, test-first, analyze, review-check, review,
+#     review-adversarial, security, performance)
 #   - docs/specs/README.md — the specs convention
 #   - docs/workflow-diagram.md — visual map of the agentic loop
 #   - docs/parallel-agents.md — worktrees, agent teams, unattended runs
@@ -39,18 +40,19 @@
 #   - the .github/ tree: CI workflow, opt-in Claude review workflow
 #     (.example, inert until renamed), PR template, issue forms
 #
+# What it also creates (only if absent):
+#   - src/{{PACKAGE_NAME}}/__init__.py + tests/test_smoke.py — a starter
+#     src-layout so mypy/pytest are green from the first run. Rename the
+#     package dir when you fill placeholders.
+#
 # What it does NOT copy:
 #   - bootstrap.sh, README.md (this directory's index),
 #     subdir-CLAUDE.md.example (copied manually into each src/<area>/)
 #   - anything under .claude/agents/optional/ (opt-in subagents that
 #     each project enables per-need — see the Done message at the end)
 #
-# After a first run:
-#   1. Walk the {{PLACEHOLDER}} slots in CLAUDE.md, pyproject.toml.
-#      Verify with: rg '\{\{' .
-#   2. Walk ~/Downloads/src/agentic-scaffold/new-project-checklist.md
-#      for the README.md acknowledgement, GitHub About sidebar, identity check.
-#   3. uv sync && uv run pre-commit install
+# After a first run, read WORKFLOW.md (copied into the project root) —
+# the source of truth for day-zero setup and the per-feature loop.
 
 set -euo pipefail
 
@@ -144,6 +146,26 @@ copy pyproject.toml
 copy .gitignore
 copy docs/agent-handoff.md
 
+# --- starter layout: a src/<package>/ and tests/, seeded so mypy/pytest
+# and the PostToolUse hook are green from the first run. Created only when
+# absent, so existing code is never touched. ---
+if [[ -d "$DST_DIR/src" ]]; then
+  echo "  skip (exists): src/"
+else
+  mkdir -p "$DST_DIR/src/{{PACKAGE_NAME}}"
+  printf '"""{{PACKAGE_NAME}} package — rename this directory to your package name."""\n' \
+    > "$DST_DIR/src/{{PACKAGE_NAME}}/__init__.py"
+  echo "  created: src/{{PACKAGE_NAME}}/__init__.py"
+fi
+if [[ -d "$DST_DIR/tests" ]]; then
+  echo "  skip (exists): tests/"
+else
+  mkdir -p "$DST_DIR/tests"
+  printf 'def test_smoke() -> None:\n    """Placeholder so the suite is green; delete once you have real tests."""\n    assert True\n' \
+    > "$DST_DIR/tests/test_smoke.py"
+  echo "  created: tests/test_smoke.py"
+fi
+
 # --- managed: refreshed by --update ---
 sync WORKFLOW.md
 sync AGENTS.md
@@ -202,52 +224,24 @@ if [[ "$MODE" == update ]]; then
   echo "Update complete. Review what changed:"
   echo "  git diff"
   echo
-  echo "Project-owned files (CLAUDE.md, pyproject.toml, .gitignore) were left"
-  echo "untouched. If the template's versions of those changed, merge by hand."
+  echo "Project-owned files (CLAUDE.md, pyproject.toml, .gitignore,"
+  echo "docs/agent-handoff.md) were left untouched. If the template's"
+  echo "versions of those changed, merge by hand."
   exit 0
 fi
 
-echo "Done. Next steps:"
-echo "  0. Read WORKFLOW.md — the loop walkthrough with worked examples."
-echo "  1. Replace placeholders:  rg '\\{\\{' . | head"
-echo "  2. Walk the rest of the new-project checklist:"
-echo "     ~/Downloads/src/agentic-scaffold/new-project-checklist.md"
-echo "  3. Install dev environment:"
-echo "     uv sync && uv run pre-commit install"
-echo "  4. Create the GitHub issue labels the issue forms reference"
-echo "     (feature, bug, spec-needed, triage, ...)."
-echo "  5. Write your first spec:  /spec <feature name>  (or by hand at"
-echo "     docs/specs/0001-<feature>.md)"
-echo "  6. For per-subdir CLAUDE.md files:"
-echo "     cp $SRC_DIR/subdir-CLAUDE.md.example src/<area>/CLAUDE.md"
-echo "  7. If this project has a network surface, auth, or processes"
-echo "     untrusted input, add the opt-in security-reviewer:"
-echo "     cp $SRC_DIR/.claude/agents/optional/security-reviewer.md \\"
-echo "        .claude/agents/security-reviewer.md"
-echo "  8. If this project has a hot path, async code, DB queries on"
-echo "     user-sized data, or a latency SLO, add the opt-in"
-echo "     performance-reviewer:"
-echo "     cp $SRC_DIR/.claude/agents/optional/performance-reviewer.md \\"
-echo "        .claude/agents/performance-reviewer.md"
+echo "Done. Scaffolding and a starter src/ + tests/ layout are in place."
 echo
-echo "Workflow loop (slash commands installed in .claude/commands/):"
-echo "  /product-spec [name]   OPTIONAL — interview to create/refresh the"
-echo "                         product-level spec docs/specs/0000-product.md"
-echo "  /scope-check <desc>    OPTIONAL — five forcing questions before /spec"
-echo "                         when goal/scope is ambiguous"
-echo "  /spec <name>           create a spec under docs/specs/"
-echo "  /clarify [spec]        OPTIONAL — interrogate the draft spec for"
-echo "                         underspecified areas; writes answers back in"
-echo "  /specs-status [filter] print the status table for all specs"
-echo "  /plan                  invoke the planner subagent on the latest spec"
-echo "  /test-first            invoke the test-first subagent"
-echo "  /analyze [spec]        OPTIONAL — read-only spec/tests/diff consistency check"
-echo "  /review-check          run the local quality gate (ruff, format, mypy, pytest)"
-echo "  /review                invoke the reviewer subagent on the current diff"
-echo "  /review-adversarial    invoke reviewer-adversarial on the same diff;"
-echo "                         pair with /review on meaningful features"
-echo "  /security              invoke security-reviewer (if installed)"
-echo "  /performance           invoke performance-reviewer (if installed)"
+echo "Read WORKFLOW.md next — it's in your project root and is the source"
+echo "of truth for what to do: day-zero setup and the per-feature loop."
+echo "This script doesn't repeat those steps, so they can't drift from the"
+echo "docs. Companion docs, all copied into your project:"
+echo "  WORKFLOW.md              — the steps, in order"
+echo "  CLAUDE.md                — the rules the agent follows + slash commands"
+echo "  docs/workflow-diagram.md — the same loop as a visual map"
 echo
-echo "To pull future template improvements into this project, re-run with:"
-echo "  bash $SRC_DIR/bootstrap.sh --update"
+echo "Opt-in reviewers (security / performance) aren't installed by"
+echo "default; WORKFLOW.md day zero says when. Enable one with:"
+echo "  cp $SRC_DIR/.claude/agents/optional/<name>.md .claude/agents/"
+echo
+echo "Pull future template improvements:  bash $SRC_DIR/bootstrap.sh --update"

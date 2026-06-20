@@ -14,6 +14,12 @@ for your attention. Pick the tier deliberately — `/goal` is redundant
 at tier 1 and load-bearing at tier 3. The tier decides which rungs of
 the completion ladder you activate, not which phases you run.
 
+> **`/goal`, `/loop`, and `/sandbox` are Claude Code built-ins**, not
+> slash commands this scaffold ships — there is no file for them under
+> `.claude/commands/`. They come with the Claude Code CLI itself
+> (version-gated where the version tag is noted below, e.g. `v2.1.139+`),
+> so availability tracks your CLI version, not this template.
+
 | Tier | Your role | Completion mechanism | Setup |
 | --- | --- | --- | --- |
 | **1 · Attended** (default) | Both checkpoints, adjudicate `[ask-user]` findings live | You — the checkpoints *are* the completion mechanism | Nothing; this is the loop as shipped |
