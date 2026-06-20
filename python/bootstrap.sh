@@ -9,9 +9,11 @@
 #
 # Two classes of file:
 #   - PROJECT-OWNED  (CLAUDE.md, pyproject.toml, .gitignore,
-#     docs/agent-handoff.md) — written once, then customized per project
-#     (filled placeholders, real deps, ignores). NEVER overwritten, in
-#     either mode.
+#     docs/agent-handoff.md, README.md) — written once, then customized
+#     per project (filled placeholders, real deps, ignores). NEVER
+#     overwritten, in either mode. README.md is laid down from
+#     README.md.template (suffix dropped); keep its Acknowledgements
+#     section — that is the single AI-attribution surface.
 #   - MANAGED  (everything else — the .claude/ tree, WORKFLOW.md,
 #     AGENTS.md, .pre-commit-config.yaml, docs/specs/README.md, the
 #     .github/ tree) — the agentic scaffolding itself. On first run it
@@ -19,12 +21,15 @@
 #     projects pick up template improvements.
 #
 # What it copies:
-#   - CLAUDE.md, WORKFLOW.md, AGENTS.md, pyproject.toml, .gitignore,
-#     .pre-commit-config.yaml
+#   - CLAUDE.md, README.md (from README.md.template), WORKFLOW.md,
+#     AGENTS.md, pyproject.toml, .gitignore, .pre-commit-config.yaml
 #   - the .claude/ tree: settings.json + the branch-check SessionStart
 #     hook + the block-destructive PreToolUse hook + the gate-on-stop
 #     Stop hook + the specs-status PostToolUse hook (regenerates the
-#     status dashboard in docs/specs/README.md) + the rules
+#     status dashboard in docs/specs/README.md) + the
+#     strip-ai-attribution commit-msg hook (drops AI co-author trailers
+#     and generated-with footers; wired via .pre-commit-config.yaml) +
+#     the rules
 #     (.claude/rules/: git-workflow, commit-style,
 #     public-repo-hygiene, python-code, agent-legible-code) + the default
 #     subagents (planner / test-first / reviewer /
@@ -49,7 +54,8 @@
 #     package dir when you fill placeholders.
 #
 # What it does NOT copy:
-#   - bootstrap.sh, README.md (this directory's index),
+#   - bootstrap.sh, README.md (this directory's own index — distinct from
+#     README.md.template, which IS laid down as the project's README.md),
 #     subdir-CLAUDE.md.example (copied manually into each src/<area>/)
 #   - anything under .claude/agents/optional/ (opt-in subagents that
 #     each project enables per-need — see the Done message at the end)
@@ -122,6 +128,25 @@ copy() {
   echo "  copied: $rel"
 }
 
+# copy_renamed: like copy() (PROJECT-OWNED, never overwritten), but the
+# source and destination paths differ — used for a *.template file that
+# drops its suffix in the project (README.md.template -> README.md). The
+# laid-down README is project-owned: fill the placeholders, keep the
+# Acknowledgements section, never let --update clobber it.
+copy_renamed() {
+  local src_rel="$1"
+  local dst_rel="$2"
+  local src="$SRC_DIR/$src_rel"
+  local dst="$DST_DIR/$dst_rel"
+  if [[ -e "$dst" ]]; then
+    echo "  skip (project-owned, exists): $dst_rel"
+    return
+  fi
+  mkdir -p "$(dirname "$dst")"
+  cp -R "$src" "$dst"
+  echo "  copied: $src_rel -> $dst_rel"
+}
+
 # sync: MANAGED files. Copied if absent; with --update, overwritten so
 # the project tracks template improvements.
 sync() {
@@ -148,6 +173,7 @@ copy CLAUDE.md
 copy pyproject.toml
 copy .gitignore
 copy docs/agent-handoff.md
+copy_renamed README.md.template README.md
 
 # --- starter layout: a src/<package>/ and tests/, seeded so mypy/pytest
 # and the PostToolUse hook are green from the first run. Created only when
@@ -178,6 +204,7 @@ sync .claude/hooks/branch-check.sh
 sync .claude/hooks/block-destructive.sh
 sync .claude/hooks/gate-on-stop.sh
 sync .claude/hooks/specs-status.sh
+sync .claude/hooks/strip-ai-attribution.sh
 sync .claude/rules/git-workflow.md
 sync .claude/rules/commit-style.md
 sync .claude/rules/public-repo-hygiene.md

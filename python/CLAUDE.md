@@ -224,7 +224,12 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
   guarantee; `/goal` and a fresh verification subagent sit above it
   (see `WORKFLOW.md` → "The completion ladder").
 - **pre-commit** blocks commits on `main` (`no-commit-to-branch`) and
-  scans for secrets (`gitleaks`, `detect-private-key`).
+  scans for secrets (`gitleaks`, `detect-private-key`). A `commit-msg`
+  hook (`strip-ai-attribution.sh`) is the mechanical backstop for the
+  no-AI-attribution rule in `.claude/rules/commit-style.md`: it strips
+  any `Co-Authored-By: Claude` trailer or "Generated with Claude Code"
+  footer from the message. `uv run pre-commit install` wires both hook
+  types (`default_install_hook_types` in `.pre-commit-config.yaml`).
 - **CI** (`.github/workflows/ci.yml`) runs the full gate on every PR —
   the non-skippable backstop.
 

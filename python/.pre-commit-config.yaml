@@ -1,3 +1,8 @@
+# Install both the pre-commit and commit-msg hook types from a bare
+# `pre-commit install` (no `--hook-type` flag needed), so the commit-msg
+# attribution-strip hook below is actually wired up on day zero.
+default_install_hook_types: [pre-commit, commit-msg]
+
 repos:
   # Guardrail: block direct commits to main/master. Feature and fix work
   # belongs on a branch (see CLAUDE.md -> Git workflow). The one expected
@@ -29,6 +34,20 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  # commit-msg backstop: strip AI-attribution lines (Co-Authored-By:
+  # Claude trailers, "Generated with Claude Code" footers) from the commit
+  # message — the mechanical half of the no-AI-attribution rule in
+  # .claude/rules/commit-style.md. AI assistance is acknowledged once in
+  # README.md, never in git history. Runs at the commit-msg stage only.
+  - repo: local
+    hooks:
+      - id: strip-ai-attribution
+        name: strip AI co-author trailers / generated-with footers
+        entry: .claude/hooks/strip-ai-attribution.sh
+        language: script
+        stages: [commit-msg]
+        always_run: true
 
   # mypy runs in the PROJECT uv environment (not pre-commit's isolated venv)
   # so it resolves the project's third-party imports, and is scoped to src/ —

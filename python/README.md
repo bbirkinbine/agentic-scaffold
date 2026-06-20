@@ -15,20 +15,22 @@ methodology notes outside this repo.
 ```text
 python/
 ├── README.md                              # this file (not copied to projects)
+├── README.md.template                     # laid down as the project's README.md (incl. the AI-assist Acknowledgements section)
 ├── bootstrap.sh                           # the one-shot setup script
 ├── CLAUDE.md                              # project-root context for Claude Code
 ├── AGENTS.md                              # portable stub for non-Claude agents; points at CLAUDE.md
 ├── WORKFLOW.md                            # human-facing loop walkthrough (start here)
 ├── pyproject.toml                         # uv + ruff + mypy + pytest config
 ├── .gitignore                             # Python ignores, incl. .env* (.env.*.example kept)
-├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy
+├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .claude/
 │   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse ruff/mypy + PreCompact preserve-context + Stop gate
 │   ├── hooks/
 │   │   ├── branch-check.sh                # SessionStart: warn when a session opens on main
 │   │   ├── block-destructive.sh           # PreToolUse: block unrecoverable cmds (rm -rf /, git clean -fd, mkfs, dd, terraform destroy, etc.)
 │   │   ├── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes (8-block cap applies)
-│   │   └── specs-status.sh                # PostToolUse: regenerate the status dashboard in docs/specs/README.md when a spec changes
+│   │   ├── specs-status.sh                # PostToolUse: regenerate the status dashboard in docs/specs/README.md when a spec changes
+│   │   └── strip-ai-attribution.sh        # pre-commit commit-msg hook: strip Co-Authored-By: Claude trailers + generated-with footers
 │   ├── rules/
 │   │   ├── git-workflow.md                # Branch-per-change, naming, PR conventions (always loaded)
 │   │   ├── commit-style.md                # Commit style + mistakes-feed-back-into-rules (always loaded)
@@ -100,11 +102,13 @@ cd your-project
 bash path/to/agentic-scaffold/python/bootstrap.sh
 ```
 
-The script copies everything except this README, itself, and
-`subdir-CLAUDE.md.example`. On a first run, existing files are skipped,
-not overwritten. Re-run with `--update` to refresh the managed
-scaffolding (everything except the project-owned `CLAUDE.md`,
-`pyproject.toml`, and `.gitignore`) to the current template.
+The script copies everything except this index README, itself, and
+`subdir-CLAUDE.md.example`. `README.md.template` is laid down as the
+project's `README.md` (suffix dropped). On a first run, existing files
+are skipped, not overwritten. Re-run with `--update` to refresh the
+managed scaffolding (everything except the project-owned `CLAUDE.md`,
+`README.md`, `pyproject.toml`, and `.gitignore`) to the current
+template.
 
 After bootstrap:
 
@@ -112,10 +116,17 @@ After bootstrap:
    walkthrough: day-zero setup and the per-feature loop as numbered
    steps. Copied into every new project; this is the entry point for
    understanding the methodology.
-1. Replace placeholders: `rg '\{\{' .`
+1. Replace placeholders: `rg '\{\{' .` — including the new `README.md`.
+   Keep its **Acknowledgements** section (the single AI-attribution
+   surface); don't move that attribution into commits or per-file
+   notices.
 2. Walk the rest of [`../new-project-checklist.md`](../new-project-checklist.md)
-   — README acknowledgement, GitHub About sidebar, identity check.
-3. `uv sync && uv run pre-commit install`
+   — GitHub About sidebar, identity check, the private→public scrub.
+3. `uv sync && uv run pre-commit install` — installs both the
+   `pre-commit` and `commit-msg` hook types (the latter runs
+   `strip-ai-attribution.sh`, which drops any `Co-Authored-By: Claude`
+   trailer or "Generated with Claude Code" footer that slips into a
+   commit message).
 4. Create the GitHub issue labels the issue forms reference (`feature`,
    `bug`, `spec-needed`, `triage`) so `.github/ISSUE_TEMPLATE/` resolves
    them — e.g. `gh label create spec-needed`.
