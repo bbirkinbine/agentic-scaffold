@@ -187,7 +187,7 @@ user-sized data, async, load).
 | `/scope-check <desc>` | Optional pre-spec: five forcing questions on ambiguous features |
 | `/spec <name>` | Create `docs/specs/NNNN-<slug>.md` scaffold; stops for human edit |
 | `/clarify [spec]` | Interrogate a draft spec's underspecified areas; writes answers back in |
-| `/specs-status [filter]` | Status table over all specs |
+| `/specs-status [filter]` | Refresh the `## Status` dashboard in `docs/specs/README.md` and print the status table in chat |
 | `/plan [spec]` | Invoke `planner` on the spec |
 | `/test-first [spec]` | Invoke `test-first` |
 | `/analyze [spec]` | Read-only consistency check: spec ↔ tests ↔ diff ↔ standing rules |
@@ -209,7 +209,12 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
   one-off. OS-level sandboxing (`/sandbox`) and permission modes sit
   above this layer; prefer them for unattended runs.
 - **PostToolUse** runs `ruff format` + `ruff check` + `mypy` after every
-  Edit/Write. Fix lint/type errors immediately.
+  Edit/Write. Fix lint/type errors immediately. A second PostToolUse hook
+  (`specs-status.sh`) regenerates the `## Status` dashboard in
+  `docs/specs/README.md` whenever a spec file under `docs/specs/` is
+  created or edited, so the struck-through/live status list stays current
+  without a manual step. It only ever rewrites its own generated block;
+  the spec `**Status:**` lines remain the source of truth.
 - **PreCompact** injects a reminder to preserve the active spec path,
   branch, and modified-file list through compaction.
 - **Stop** (`gate-on-stop.sh`) blocks ending a turn while `src/` has

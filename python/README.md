@@ -27,7 +27,8 @@ python/
 │   ├── hooks/
 │   │   ├── branch-check.sh                # SessionStart: warn when a session opens on main
 │   │   ├── block-destructive.sh           # PreToolUse: block unrecoverable cmds (rm -rf /, git clean -fd, mkfs, dd, terraform destroy, etc.)
-│   │   └── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes (8-block cap applies)
+│   │   ├── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes (8-block cap applies)
+│   │   └── specs-status.sh                # PostToolUse: regenerate the status dashboard in docs/specs/README.md when a spec changes
 │   ├── rules/
 │   │   ├── git-workflow.md                # Branch-per-change, naming, PR conventions (always loaded)
 │   │   ├── commit-style.md                # Commit style + mistakes-feed-back-into-rules (always loaded)
@@ -45,7 +46,7 @@ python/
 │   ├── commands/
 │   │   ├── product-spec.md                # /product-spec — interview to create/refresh docs/specs/0000-product.md
 │   │   ├── spec.md                        # /spec <name> — create docs/specs/NNNN-<slug>.md
-│   │   ├── specs-status.md                # /specs-status — print status table over all specs
+│   │   ├── specs-status.md                # /specs-status — refresh the status dashboard in docs/specs/README.md and print it in chat
 │   │   ├── scope-check.md                 # /scope-check — five forcing questions before /spec
 │   │   ├── clarify.md                     # /clarify — interrogate a draft spec; writes answers back in
 │   │   ├── plan.md                        # /plan — invoke planner subagent
@@ -161,7 +162,7 @@ After bootstrap:
 | Verify (security) | `security-reviewer` (opt-in subagent) | `/security [<base>..<head>]` |
 | Verify (performance) | `performance-reviewer` (opt-in subagent) | `/performance [<base>..<head>]` |
 | CI gate (every PR) | GitHub Actions runs ruff + mypy + pytest — the non-skippable backstop | `.github/workflows/ci.yml` |
-| Status overview (any time) | Aggregates `**Status:**` over all specs under `docs/specs/` | `/specs-status [filter]` |
+| Status overview (any time) | Live dashboard in `docs/specs/README.md` (struck-through = shipped/abandoned/superseded), auto-refreshed by the `specs-status.sh` hook on every spec change; `/specs-status` forces a refresh and prints the table in chat | `/specs-status [filter]` |
 
 On multi-day features, append a `## Phase handoff` section to the spec
 at phase boundaries and run `/clear` between phases — see

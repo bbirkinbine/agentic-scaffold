@@ -19,7 +19,7 @@ Procedure:
    - Only in a repo that doesn't use GitHub issues: fall back to the
      highest existing 4-digit prefix in `docs/specs/` + 1.
    - Never reuse an existing prefix, and never use `0000` — it is
-     reserved for the product spec (`docs/specs/README.md`).
+     reserved for the product spec (`docs/specs/0000-product.md`).
 2. Derive a slug from `$ARGUMENTS` (lowercase, hyphen-separated, no punctuation).
 3. Title-case `$ARGUMENTS` for the H1.
 4. Determine today's date in `YYYY-MM-DD` (UTC or local, consistent with prior specs).

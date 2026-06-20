@@ -23,7 +23,9 @@
 #     .pre-commit-config.yaml
 #   - the .claude/ tree: settings.json + the branch-check SessionStart
 #     hook + the block-destructive PreToolUse hook + the gate-on-stop
-#     Stop hook + the rules (.claude/rules/: git-workflow, commit-style,
+#     Stop hook + the specs-status PostToolUse hook (regenerates the
+#     status dashboard in docs/specs/README.md) + the rules
+#     (.claude/rules/: git-workflow, commit-style,
 #     public-repo-hygiene, python-code, agent-legible-code) + the default
 #     subagents (planner / test-first / reviewer /
 #     reviewer-adversarial) + the default skills (python-module-split /
@@ -31,7 +33,8 @@
 #     commands (product-spec, spec, specs-status, scope-check, clarify,
 #     plan, test-first, analyze, review-check, review,
 #     review-adversarial, security, performance)
-#   - docs/specs/README.md — the specs convention
+#   - docs/specs/README.md — the specs convention + the live status
+#     dashboard the specs-status hook keeps current
 #   - docs/workflow-diagram.md — visual map of the agentic loop
 #   - docs/parallel-agents.md — worktrees, agent teams, unattended runs
 #   - docs/plugin-packaging.md — plugin/marketplace distribution path
@@ -174,6 +177,7 @@ sync .claude/settings.json
 sync .claude/hooks/branch-check.sh
 sync .claude/hooks/block-destructive.sh
 sync .claude/hooks/gate-on-stop.sh
+sync .claude/hooks/specs-status.sh
 sync .claude/rules/git-workflow.md
 sync .claude/rules/commit-style.md
 sync .claude/rules/public-repo-hygiene.md

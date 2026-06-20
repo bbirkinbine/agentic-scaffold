@@ -30,6 +30,15 @@
             "command": "if [ -d src ] && [ -d tests ]; then uv run ruff format . && uv run ruff check . && uv run mypy src/; fi"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/specs-status.sh --hook"
+          }
+        ]
       }
     ],
     "PreCompact": [

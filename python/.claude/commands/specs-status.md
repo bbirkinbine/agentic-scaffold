@@ -1,36 +1,53 @@
 ---
-description: Print a status table of all specs under docs/specs/, aggregating the **Status:** line from each spec file. Read-only — does not modify any spec.
+description: Refresh the generated status block in docs/specs/README.md and print the same status list in chat. Driven by the specs-status.sh hook script; reads each spec's **Status:** field. Never edits a spec.
 argument-hint: [status filter — e.g. "draft", "shipped", "abandoned"]
 ---
 
-Print a status table for every spec under `docs/specs/`.
+Show the status of every spec under `docs/specs/`, and refresh the
+persisted dashboard.
+
+The `## Status` block at the top of `docs/specs/README.md` is the single
+place to see which specs have landed and which are in flight. It is kept
+current automatically by the `specs-status.sh` PostToolUse hook (it
+regenerates whenever a spec is created or its `**Status:**` changes).
+This command forces that same regeneration and prints the list in chat —
+use it when you want the table in front of you, or to repair the block if
+it ever looks stale.
 
 Procedure:
 
-1. Find all `.md` files under `docs/specs/` excluding `README.md`.
-2. For each file, extract:
-   - The H1 title (the first line that starts with `#`).
-   - The `**Status:**` value (the line that begins with `**Status:**`).
-   - The `**Last updated:**` value.
-   - The `**Depends on:**` value, if present (optional field).
-3. If `$ARGUMENTS` is non-empty, filter rows to specs whose status matches `$ARGUMENTS` (case-insensitive).
-4. Group rows by status and print as a markdown table with columns: `Status` | `Spec` | `Last updated` | `Depends on`. Within each group, sort by the 4-digit spec number ascending — display order only; the number is an identifier, not an execution order. In the `Depends on` cell, append `(blocked)` after any dependency whose own status is not `shipped`.
-5. Order the groups: `evergreen` (the product spec, if present), `draft`, `shipping`, `shipped`, `paused`, `abandoned`, then any `superseded-by-NNNN`, then any unrecognized status. This puts "what's in flight" at the top and the design log of "decided not to do this" at the bottom.
-6. Below the table, print a one-line count per status. Example: `7 shipped · 1 shipping · 2 draft · 1 abandoned`.
-7. Flag specs missing the `**Status:**` field as a separate "Needs attention" list. Do not guess their status; surface the filename and stop short of editing.
+1. Run the generator, which regenerates the block in
+   `docs/specs/README.md` and echoes the rendered list plus a per-status
+   count line:
 
-Suggested one-shot extraction (use this or equivalent):
+   ```bash
+   bash .claude/hooks/specs-status.sh --print
+   ```
+
+2. If `$ARGUMENTS` is non-empty, filter the printed lines to specs whose
+   status matches `$ARGUMENTS` (case-insensitive) before showing them.
+   The regeneration in step 1 always covers every spec — the filter is
+   display-only, applied to the chat output, not to the written block.
+
+3. Show the output. Shipped, abandoned, and superseded specs render
+   struck through (`~~…~~`); evergreen, draft, shipping, and paused
+   render live. A `(blocked)` tag follows any spec whose `Depends on:`
+   lists a dependency that has not shipped. Specs missing the
+   `**Status:**` field are flagged inline as needing attention — surface
+   them, do not guess or edit their status.
+
+This command does not edit any spec file. The only thing it writes is the
+generated block in `docs/specs/README.md`, which is a rendered cache of
+the spec `**Status:**` fields — never a source of truth. If the script is
+absent (an older bootstrap), fall back to aggregating the `**Status:**`
+lines yourself with the equivalent of:
 
 ```bash
 # NOTE: avoid the variable name `status` — it's a read-only built-in in zsh.
-for spec in docs/specs/*.md; do
-  [ "$(basename "$spec")" = "README.md" ] && continue
+for spec in docs/specs/[0-9][0-9][0-9][0-9]-*.md; do
+  [ -e "$spec" ] || continue
   title=$(awk 'NR==1 && /^# / { sub(/^# */,""); print; exit }' "$spec")
   spec_status=$(awk '/^\*\*Status:\*\*/ { sub(/^\*\*Status:\*\* */,""); print; exit }' "$spec")
-  updated=$(awk '/^\*\*Last updated:\*\*/ { sub(/^\*\*Last updated:\*\* */,""); print; exit }' "$spec")
-  depends=$(awk '/^\*\*Depends on:\*\*/ { sub(/^\*\*Depends on:\*\* */,""); print; exit }' "$spec")
-  printf '%s|%s|%s|%s|%s\n' "${spec_status:-MISSING}" "$spec" "${updated:-?}" "${depends:--}" "$title"
+  printf '%s | %s\n' "${spec_status:-MISSING}" "$title"
 done
 ```
-
-This command is read-only. Do not edit any spec to "fix" a missing status — that's the human's call. Surface the gaps; let them adjudicate.
