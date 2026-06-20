@@ -226,7 +226,8 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
 ## Beyond a single session
 
 Parallel agents in git worktrees, agent teams, and unattended runs
-(`/goal`, `/loop`, autonomous loops) are covered in
+(`/goal`, `/loop`, `/sandbox` — Claude Code built-ins, not commands in
+`.claude/commands/` — and autonomous loops) are covered in
 `docs/parallel-agents.md` — including the degrees-of-autonomy table
 (attended → long autodrive → unattended → babysitting) that decides
 when `/goal` is load-bearing versus redundant. Default remains tier 1:

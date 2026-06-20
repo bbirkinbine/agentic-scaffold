@@ -1,327 +1,124 @@
 # Workflow — how to use this scaffolding
 
-> Companion to `CLAUDE.md`. `CLAUDE.md` is the standing instructions the
-> agent reads every turn — the rules. This file is the human-facing
-> walkthrough — the loop, what each step is for, and where it goes wrong
-> if you skip a checkpoint.
+Companion to `CLAUDE.md`. `CLAUDE.md` is what the agent reads every turn
+(the rules); this file is the human's step-by-step — what to run, in
+order, with a one-line reason for each step.
 
-The scaffolding implements the agentic loop
-`Spec → Plan → Test-first → Implement → Verify`. The slash commands and
-subagents are checkpoints: the agent stops at each transition and surfaces
-output rather than rolling forward. The human is the loop driver.
+The whole thing is five phases: **Spec → Plan → Test-first → Implement →
+Verify.** Each slash command runs one phase and stops, so you stay in
+control. New to the terms? A *spec* is a short design note; a *subagent*
+is a fresh agent with its own clean context.
 
 ## Day zero (once per project)
 
-```bash
-mkdir ~/Downloads/src/myproj && cd ~/Downloads/src/myproj
-git init
-bash ~/Downloads/src/agentic-scaffold/python/bootstrap.sh
-```
+1. **Run bootstrap.** `bash path/to/agentic-scaffold/python/bootstrap.sh`
+   (wherever you cloned this repo) — drops the scaffolding into your repo.
+2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
+   — the agent reads `CLAUDE.md` every turn, so a leftover placeholder
+   misleads it. One placeholder is the starter package directory
+   `src/{{PACKAGE_NAME}}/` — rename it to your package name. Hand-edit the
+   `CLAUDE.md` content yourself (description, don't-touch list,
+   conventions); don't have the agent regenerate it — AI-written context
+   files measurably hurt agent performance (see `python/README.md` →
+   "Don't"). Mechanical fills like the project name in `pyproject.toml`
+   are fine to delegate.
+3. **Set up git identity and GitHub.** `git config user.email` must be
+   your GitHub noreply address — it is baked into the first commit
+   forever. Then add the README AI-acknowledgement line and fill the
+   GitHub "About" sidebar. (A fuller checklist, including the
+   private→public hygiene scrub, lives in the agentic-scaffold repo as
+   `new-project-checklist.md` — it is not copied into your project.)
+4. **Decide opt-in reviewers now.** Security and performance reviewers
+   are off by default; turn them on if the project needs them (see
+   `python/README.md` → "Opt-in subagents").
+5. **Install the dev tools.** `uv sync && uv run pre-commit install` —
+   dependencies plus the commit guard that keeps work off `main`.
+6. **Create the GitHub issue labels** the issue forms use: `feature`,
+   `bug`, `spec-needed`, `triage` (e.g. `gh label create spec-needed`).
+7. **Optional — `/product-spec`.** Interviews you and writes
+   `docs/specs/0000-product.md`, the product-level "what is this, and who
+   is it for." Skip it for a small project.
 
-Then, in order:
+## Every feature (the loop)
 
-1. **Walk placeholders.** `rg '\{\{' .` — fill in `CLAUDE.md` and
-   `pyproject.toml`. A `CLAUDE.md` that still says `{{PROJECT_NAME}}`
-   actively misleads the agent on every turn.
-2. **Walk the new-project checklist.** See
-   `~/Downloads/src/agentic-scaffold/new-project-checklist.md` — README
-   AI acknowledgement line, GitHub About sidebar, identity check. The
-   identity check is load-bearing: `git config user.email` is baked into
-   the first commit forever, and a wrong value leaks once the repo flips
-   public.
-3. **Decide opt-in subagents up front, not retroactively.**
-   - Network surface, auth, untrusted input, secrets, or external
-     deserialization → copy `security-reviewer`.
-   - Hot path, async, DB queries on user-sized data, or a latency SLO →
-     copy `performance-reviewer`.
-   - Add a one-line mention of each enabled subagent to the "Subagents"
-     section of `CLAUDE.md` so the agent knows when to route to it.
-   - **Large or long-lived codebase you'll revisit across many sessions**
-     (not a fresh small repo) → enable the `serena` MCP for symbol-level
-     navigation. Skip it on small single-language repos — see
-     `CLAUDE.md` → "Code navigation" for the when/whether (and the
-     skip-by-default rule), and `docs/serena-setup.md` for the install
-     and verification steps.
-4. **Install the dev environment.**
-   ```bash
-   uv sync
-   uv run pre-commit install
-   ```
-   Verify the PostToolUse hook works by making a trivial edit; you should
-   see `ruff format`, `ruff check`, and `mypy` run.
+Run these in order. Steps marked *optional* are skippable when the answer
+is already obvious.
 
-   `pre-commit install` also activates the `no-commit-to-branch`
-   guardrail. The initial scaffolding commit lands on `main` — that is
-   the one expected commit there; make it before `pre-commit install`,
-   or with `git commit --no-verify`. Every change after that goes on a
-   branch.
-5. **Optionally, run `/product-spec`.** It interviews you — seven
-   questions, one at a time: the problem and concrete user, who it's
-   *not* for, success metrics, kill criteria, product non-goals,
-   constraints, first units of work — and writes
-   `docs/specs/0000-product.md` from the answers. This is the
-   product-level layer (the job a PRD does on a team) that feature
-   specs link up to instead of restating rationale. Skip it while a
-   README purpose paragraph still covers the project; write it before
-   the backlog outgrows your head or before any multi-spec autonomous
-   run. Re-run it later to refresh — it asks only about the gaps.
+1. **Create a GitHub issue.** An issue is a work item — like a Jira or
+   Linear ticket, not just a bug report (`feature` is one of its labels).
+   Its number names the spec, the branch, and the PR — one id ties them
+   together.
+2. **`/spec <name>`** — write a short spec: goal, success criteria,
+   non-goals. This is the source of truth every later step checks
+   against.
+   - *Optional:* `/scope-check` before (fuzzy goal), `/clarify` after
+     (open questions) to sharpen it.
+3. **Make a branch** named `<issue#>-<slug>`. Never build on `main`.
+4. **`/plan`** — the agent lists the files to touch and the order.
+   Review it before any code; a wrong approach is cheap to fix here.
+5. **`/test-first`** — writes failing tests from the spec. Tests written
+   *after* the code just rubber-stamp whatever you built.
+   - *Optional:* `/analyze` confirms every success criterion has a test.
+6. **Implement.** Write the minimum code to make the tests pass.
+7. **`/review-check`** — runs ruff + mypy + pytest. Must be green before
+   moving on.
+8. **`/review`** (and `/review-adversarial` on bigger changes) — a fresh
+   agent reads the diff against the spec, catching what the gate can't.
+   - *Optional:* `/security` and `/performance` if you installed them.
+9. **Commit, then open the PR.** You write the commit message; the PR
+   body says `Closes #<issue>` so merging closes the issue.
 
-## Per-feature loop
+## Scale to the task
 
-Each step is a separate turn. The slash commands enforce that — every
-subagent stops and surfaces output rather than continuing into the next
-phase on its own. You decide whether to advance.
+Don't run the full loop on tiny work.
 
-```text
-/scope-check add user authentication   # OPTIONAL — only when goal/scope is ambiguous.
-                                       # Five forcing questions. Output goes into the
-                                       # spec's ## Goal and ## Non-goals.
-        ↓
-[create the issue]                 # gh issue create — the issue number becomes NNNN
-                                   # and names the spec, branch, and the PR's Closes #N.
-                                   # An identifier, not an execution order: specs ship
-                                   # in triage order, and gaps in docs/specs/ are normal.
-        ↓
-/spec add user authentication      # scaffolds docs/specs/NNNN-add-user-authentication.md
-                                   # (NNNN = the issue number)
-        ↓
-[edit the spec]                    # goal, success criteria, non-goals;
-                                   # one paragraph minimum. Blocked on another spec?
-                                   # add "Depends on: NNNN" to the header —
-                                   # /specs-status will show it as (blocked)
-        ↓
-/clarify                           # OPTIONAL — on features with real unknowns.
-                                   # Interrogates the draft spec for underspecified
-                                   # areas (max 5 questions) and writes the answers
-                                   # back into the spec. Skip when the spec is tight.
-        ↓
-[create the branch]                # <issue#>-<slug> for issue-tracked work; else
-                                   # <type>/<slug>. The agent branches itself —
-                                   # never run the loop on main.
-        ↓
-/plan                              # planner subagent reads spec + codebase
-        ↓
-[review the plan]                  # files to touch, order, risks;
-                                   # reviewable in < 5 minutes.
-                                   # if the plan is wrong, fix the spec
-                                   # or push back — don't proceed
-        ↓
-       (/clear if multi-day — see "Phase handoff" below)
-        ↓
-/test-first                        # writes failing pytest tests from the spec
-        ↓
-[confirm the failure mode]         # tests should fail with AttributeError /
-                                   # NotImplementedError / AssertionError —
-                                   # NOT ImportError on a typo. Wrong failure
-                                   # mode = the test isn't pinning down behavior.
-        ↓
-/analyze                           # OPTIONAL — cross-checks spec ↔ tests before
-                                   # implementation: every success criterion covered,
-                                   # no test pinning undeclared scope. A coverage
-                                   # hole is cheapest to fix right here.
-        ↓
-[main session implements]          # CLAUDE.md tells it: minimum code to
-                                   # pass tests, one concept per file,
-                                   # ≤ 300 lines, type hints required
-        ↓
-/review-check                      # local gate: ruff lint + format + mypy + pytest;
-                                   # refuses to pass on any failure
-        ↓
-       (/clear if multi-day — see "Phase handoff" below)
-        ↓
-/review                            # independent reviewer against spec + diff
-/review-adversarial                # same diff, adversarial framing — argues against
-                                   # the change. Run on meaningful features and read
-                                   # both review outputs side-by-side.
-   /security                       # if installed AND the diff trips a security trigger
-   /performance                    # if installed AND the diff trips a performance trigger
-        ↓
-[commit, explicitly]               # CLAUDE.md forbids agent-initiated commits;
-                                   # you write the commit message
-        ↓
-[append ## Implementation Notes    # OPTIONAL — capture decisions that surfaced
- to the spec, post-merge]          # during build but weren't in the original spec.
-```
+| Task | Do |
+| --- | --- |
+| Trivial — rename, typo, ≤10 lines | Just do it. Skip spec/plan; branch optional. |
+| Small — one function | Branch + one-sentence spec; `/test-first`; skip `/plan`. |
+| Medium — 3–10 files | The full loop above. |
+| Large — new subsystem | Split into medium pieces, one issue + spec each. |
 
-## Where this goes wrong if you skip steps
-
-- **Skipping the spec.** `/plan` becomes guess-the-feature; `/review`
-  has no anchor to compare against. The reviewer's first check is "does
-  the diff match the spec?" — with no spec, it can't run that check.
-- **Implementing on `main`.** Skip the branch step and the whole loop
-  runs on `main`. The `no-commit-to-branch` guardrail then blocks the
-  commit at the *end* — after the work is done, which is the worst time
-  to discover it. Branch right after the spec exists; the SessionStart
-  hook warning is the early reminder.
-- **Skipping `test-first`.** You'll write the implementation first and
-  then "tests" that match what you happened to build, not what the spec
-  says. Tautological tests pass everything, including the bugs.
-- **Running `/spec → /plan → /test-first → implement` in one shot
-  without checkpoints.** The checkpoints exist so a wrong turn at the
-  spec doesn't propagate through the plan and tests before you notice.
-  Cost of catching it at the spec phase: edit a paragraph. Cost of
-  catching it at review: redo the work.
-- **Skipping `/review-check` before `/review`.** The reviewer's first
-  action is `uv run pytest`; if tests fail, the review is wasted on
-  broken code. Run the gate first.
-- **Forgetting the opt-in subagent install.** `/security` and
-  `/performance` print install instructions and stop if the subagent
-  isn't in `.claude/agents/`. The check doesn't run. If you decided at
-  day zero that the project warrants the opt-in, install it then —
-  don't defer.
-- **Fabricating external reference data.** When the spec depends on a
-  registry, RFC, vendor table, or any other external authority, the
-  values must be either fetched in-session (URL + date pinned above the
-  table in code) or declared as empirical / original in the spec's
-  `## External references` section. The failure mode is the one the
-  spec template warns against: the agent writes the table from
-  training, names a source it never fetched, then writes fixtures that
-  match its own assumptions. Every test passes and every value is
-  wrong, because the round-trip never touched reality. If no source has
-  been found, the spec must say so — push back at spec time rather than
-  invent provenance later.
+A throwaway script needs none of this — just write the code.
 
 ## Phase handoff (multi-day features)
 
-Single-session features run the loop end-to-end — the common case the
-diagram covers.
-
-For a feature that spans multiple sessions — a real architectural
-change, a multi-package refactor, anything where the main session would
-end the day past 50% context — running the whole loop in one session
-degrades review quality. By the time `/review` fires, the main session
-has accumulated spec discussion, plan iteration, test-writing, and
-implementation context. That's the context-degradation U-curve: a
-session reviews best when it's neither empty of context nor drowning
-in its own history.
-
-The discipline: at each phase boundary, append a `## Phase handoff`
-section to the spec capturing the current state and entry conditions
-for the next phase. Then run `/clear` and resume in a fresh session.
-The fresh session re-reads `CLAUDE.md`, the spec (with the handoff
-section), and the diff — it has all it needs to pick up where the
-previous session left off.
-
-Where the boundaries are worth a `/clear`:
-
-- After `/plan` is reviewed and accepted, before `/test-first`.
-- After implementation passes `/review-check`, before `/review`.
-
-Skip the handoff on single-session features — it's overhead the loop
-doesn't need until the session itself is the bottleneck.
-
-See `docs/specs/README.md` for the `## Phase handoff` and
-`## Implementation Notes` section shapes.
+A feature that spans sessions reviews badly when one session carries all
+the spec, plan, test, and implementation context. At a phase boundary,
+append a `## Phase handoff` block to the spec, run `/clear`, and resume
+fresh. Boundaries worth a reset: after `/plan` is approved, and after
+`/review-check` is green. Section shape: `docs/specs/README.md`.
 
 ## The completion ladder
 
-"The agent declared done and it wasn't" has a layered fix; each rung
-catches what the one below misses. Use more rungs the longer nobody is
-watching.
+"The agent said done, but it wasn't" has layered fixes — use more the
+longer nobody is watching:
 
-1. **In-prompt check** — phrase the spec's success criteria as a
-   runnable command. Cheapest; a long session can drift past it.
-2. **`/goal`** — a completion condition checked by a separate evaluator
-   every turn. Survives drift because the evaluator is outside the
-   conversation.
-3. **Stop hook** — `gate-on-stop.sh` blocks ending a turn on a red
-   gate, mechanically. Capped: Claude Code overrides a Stop hook after
-   8 consecutive blocks, so it is a strong nudge, not a guarantee.
-4. **Fresh-context verification** — `/review` + `/review-adversarial`:
-   a context that never saw the implementation reasoning judges the
-   result. The only rung that catches "gate is green but the feature is
-   wrong."
+1. Success criteria written as a runnable command.
+2. `/goal` — a completion check run by a separate evaluator.
+3. The Stop hook — blocks ending a turn on a red gate.
+4. A fresh-context `/review` — the only rung that catches "gate green but
+   feature wrong."
 
-Demand evidence, not assertions: an agent claiming an outcome should
-show the command output that proves it. That expectation is in
-`CLAUDE.md` ("Verify before you report"); the ladder is what enforces
-it when the claim is "done."
+Detail and the autonomy tiers: `docs/parallel-agents.md`. (`/goal`,
+`/loop`, and `/sandbox` are Claude Code built-ins, not commands in
+`.claude/commands/`.)
 
-How many rungs to activate is a function of how attended the run is —
-at the default attended tier your two checkpoints are the completion
-mechanism and `/goal` is redundant; set `/goal` at checkpoint 1 when
-the implement stretch will run long or unattended; `/loop` is for
-post-PR babysitting and maintenance, never for feature work. The tier
-table is in `docs/parallel-agents.md` → "Degrees of autonomy"; the
-full loop taxonomy (the six loops this workflow is made of) is in
-`docs/workflow-diagram.md` → "Loops within loops."
+## Good to know
 
-## When NOT to use the full loop
+- **`CLAUDE.md` is re-read every turn** — edit it mid-feature to
+  course-correct (e.g. add a path to the don't-touch list).
+- **Subagents don't see your chat.** Put anything the reviewer needs in
+  the spec, not in a message.
+- **Specs are permanent** — they are the design log, not deleted after a
+  feature ships.
+- **CI is the gate you can't skip.** Local hooks can be bypassed; a red
+  PR is not done.
 
-The scaffolding is sized for projects you intend to maintain. For a
-throwaway one-off script (a `~/Downloads/scratch/` analysis, a
-dead-by-Friday spike), the loop is overhead. Skip `bootstrap.sh`
-entirely; just write the code. The judgment has to be honest about
-which projects are which — most "throwaways" turn out not to be.
+## Going deeper
 
-A reasonable middle path for small-but-real projects: bootstrap, write a
-one-paragraph spec at `docs/specs/0001-<feature>.md`, skip `/plan` (the
-codebase is too small to need it), use `/test-first` and `/review-check`,
-skip `/review` if you're the only reviewer. Scale the loop to the work.
-
-## Things that aren't obvious from the docs
-
-- **`CLAUDE.md` is re-read every turn**, not just at session start. Edits
-  to it take effect on the next prompt — use this to course-correct
-  mid-feature ("add to don't-touch: `src/foo/legacy/`").
-- **Subagents don't share memory with the main session.** That's the
-  point — the reviewer hasn't seen the implementation reasoning, so it
-  reads the code fresh. Don't try to "tell the reviewer" something via
-  the main session; put it in the spec.
-- **The PostToolUse hook can be loud.** If `ruff format` keeps fighting
-  your editor, your editor is configured with different settings. Align
-  them — `pyproject.toml` is the source of truth.
-- **`docs/specs/` is permanent.** Specs aren't deleted after the feature
-  ships — they're the project's design log. Future you, and `/review` on
-  the next feature, will read them.
-- **The opt-in subagents only invoke when you call them.** They are not
-  auto-invoked even after you install them; the slash command is the
-  trigger. Treat `/security` and `/performance` as a deliberate gate per
-  PR, not a passive background check.
-- **The Stop hook enforces the gate automatically — with a cap.** Once
-  `src/` has pending changes, the session can't end a turn while
-  ruff/mypy/pytest are red — `.claude/hooks/gate-on-stop.sh` returns
-  `decision: block`. This is the `/review-check` discipline made
-  mechanical, so "I forgot to run the gate" stops being a failure mode.
-  It does not run on a clean tree and steps aside rather than looping
-  when a gate can't pass. Know the limit: Claude Code overrides a Stop
-  hook after 8 consecutive blocks without progress, so the hook is one
-  rung of the completion ladder above, not the whole answer.
-- **Standing rules live in two places.** `CLAUDE.md` plus
-  `.claude/rules/` — rules without `paths` frontmatter load every
-  session; path-scoped rules (Python conventions, agent-legible code)
-  load when matching files are touched. When the agent repeats a
-  mistake, the durable fix is a line in one of these files, made in the
-  same change as the correction — standing instructions are the error
-  log that compounds across sessions.
-- **Two memory layers, different owners.** `CLAUDE.md` and
-  `.claude/rules/` are human-authored and committed. Claude Code's auto
-  memory is agent-authored and lives outside the repo
-  (`~/.claude/projects/<project>/memory/`), shared across worktrees —
-  nothing to commit or ignore. Local-only files (`CLAUDE.local.md`,
-  `.claude/settings.local.json`) are gitignored; everything else under
-  `.claude/` is committed and shared.
-- **CI is the non-skippable gate.** `bootstrap.sh` installs
-  `.github/workflows/ci.yml` — ruff + mypy + pytest on every PR. Local
-  hooks and `/review-check` can be bypassed; CI cannot. Red CI means the
-  PR is not done, whatever the local gate said.
-
-## Reference
-
-- `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn
-- `docs/workflow-diagram.md` — the same loop as a rendered visual map
-  (Mermaid): the per-feature loop, the automation/guardrail layer, and
-  the subagent-delegation model
-- `docs/specs/README.md` — spec numbering (identity, not order), the
-  `0000-product.md` product spec, + minimum shape
-- `docs/parallel-agents.md` — worktree parallelism, agent teams, the
-  completion ladder, unattended runs
-- `docs/plugin-packaging.md` — the (not-yet-adopted) plugin/marketplace
-  distribution path; `bootstrap.sh` remains canonical
-- `.github/workflows/claude-review.yml.example` — opt-in Claude PR
-  review in CI; rename to enable, needs `ANTHROPIC_API_KEY` secret
-- `~/Downloads/src/agentic-scaffold/new-project-checklist.md` —
-  pre-flight checklist for the day-zero setup
-- Where the backlog *outside* the feature loop lives — GitHub Issues:
-  the labels the issue forms reference (`feature`, `bug`, `spec-needed`,
-  `triage`) and the issue ↔ spec ↔ branch ↔ PR chain.
+- `docs/workflow-diagram.md` — the same loop as a visual map.
+- `docs/specs/README.md` — spec numbering, the product spec, section shapes.
+- `docs/parallel-agents.md` — autonomy tiers, worktrees, unattended runs.
+- `docs/agent-handoff.md` — operational runbook: risks, rollback, "when X breaks."
+- `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn.

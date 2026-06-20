@@ -40,6 +40,19 @@ contents:
 - Personal info — home address, phone, personal email, ID numbers.
 
 If the repo is currently private and a flip to public is on the table,
-walk the pre-flip checklist in
-`~/Downloads/src/agentic-scaffold/new-project-checklist.md` before
-clicking "Change visibility."
+do a full pre-flip scrub before clicking "Change visibility." The flip
+exposes all of history, not just the current working tree, so re-audit
+every surface in the "never commit" list above across the whole repo:
+
+- `git log -p` — secrets, internal hostnames, employer references, and
+  real names hiding in old diffs and commit messages.
+- `git log --format='%an <%ae>'` — author and committer identity on every
+  commit must be the public GitHub identity, not a work address.
+- Branch and tag names, PR/issue titles and bodies, and any CI logs.
+- A secret sweep (`gitleaks detect`) and an `.env*` check — only
+  `.env.*.example`, carrying no real values, should be tracked.
+
+A hit means either rewriting history (destructive — every SHA changes,
+and forks or caches may already hold the old state) or, better, not
+flipping until it is clean. Catching it before the flip is the cheap
+path.

@@ -34,7 +34,7 @@ Top of every spec:
 ```markdown
 # NNNN — <Title>
 
-**Status:** draft | shipping | shipped | paused | abandoned | superseded-by-NNNN
+**Status:** draft | shipping | shipped | paused | abandoned | superseded-by-NNNN | evergreen
 **Last updated:** YYYY-MM-DD
 **Depends on:** NNNN, NNNN
 ```
@@ -254,7 +254,7 @@ judgment call.
 
 ## How specs interact with the agentic loop
 
-From `Research/Programming/Agentic Programming/02 Agentic Methodology Loop.md`:
+The loop, phase by phase:
 
 1. **You write the spec.** ~5 minutes. One paragraph minimum.
    `/scope-check` before (ambiguous goals) and `/clarify` after the

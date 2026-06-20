@@ -13,16 +13,15 @@ carries the latest conventions and is updated first.
       git config user.email       # → 585281+bbirkinbine@users.noreply.github.com
       ```
       If `user.email` is anything else, fix it before the first commit.
-      The global default lives in `~/.gitconfig` (mirrored at
-      `~/Downloads/src/dotfiles/.gitconfig`); a wrong value means either
-      the global got overridden or a per-repo `.git/config` is shadowing
-      it.
+      The global default lives in `~/.gitconfig`; a wrong value means
+      either the global got overridden or a per-repo `.git/config` is
+      shadowing it.
 
 ### If this is a Python project — use the agentic-workflow scaffolding
 
 - [ ] Run the Python bootstrap:
       ```
-      bash ~/Downloads/src/agentic-scaffold/python/bootstrap.sh
+      bash path/to/agentic-scaffold/python/bootstrap.sh
       ```
       This drops in CLAUDE.md, WORKFLOW.md, pyproject.toml,
       .pre-commit-config.yaml, the `.claude/` tree (settings.json +
@@ -36,13 +35,17 @@ carries the latest conventions and is updated first.
       files are skipped, not overwritten.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied
       into the new project's root as `WORKFLOW.md`) — the human-facing
-      loop walkthrough with day-zero setup, per-feature loop, and where
-      it goes wrong if you skip steps.
+      walkthrough: day-zero setup and the per-feature loop, step by step.
 - [ ] Replace every `{{PLACEHOLDER}}` in the copied files:
       ```
       rg '\{\{' .
       ```
-      No `{{` markers should be left after this pass.
+      No `{{` markers should be left after this pass. Hand-edit the
+      `CLAUDE.md` content yourself (description, don't-touch list,
+      conventions) — don't have the agent regenerate it; AI-written
+      context files measurably hurt agent performance (see
+      `python/README.md` → "Don't"). Mechanical fills like the project
+      name in `pyproject.toml` are fine to delegate.
 - [ ] Copy [`README.md.template`](README.md.template) → `./README.md`
       and fill in placeholders. The Python bootstrap doesn't copy the
       README because it's the same across all repo flavors. **Do not
