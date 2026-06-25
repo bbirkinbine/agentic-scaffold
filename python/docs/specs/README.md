@@ -103,6 +103,12 @@ A spec doesn't need to be long. The minimum is:
 
 - <Verifiable, behavior-level. Not "code is clean", but "GET /foo returns 200 with {bar} when X.">
 
+<For a feature whose product contains an LLM/AI surface — and only then —
+phrase the quality bar as an **eval threshold** so `/eval`'s pass/fail is
+mechanical ("≥90% of cases score ≥4/5 on faithfulness"), not a one-off
+demo. Deterministic features need no eval line; see
+[`../evals.md`](../evals.md).>
+
 ## Non-goals
 
 - <Things we're explicitly NOT doing in this spec. Prevents scope creep at plan time.>

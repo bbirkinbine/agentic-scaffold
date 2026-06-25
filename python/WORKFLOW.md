@@ -65,6 +65,10 @@ is already obvious.
 8. **`/review`** (and `/review-adversarial` on bigger changes) — a fresh
    agent reads the diff against the spec, catching what the gate can't.
    - *Optional:* `/security` and `/performance` if you installed them.
+   - *LLM/AI-surface projects only:* `/eval` runs the eval suite — the
+     quality gate for non-deterministic output that `/review-check` can't
+     assert. Most projects ship no LLM surface and skip this entirely; see
+     `docs/evals.md` for the decision rule.
 9. **Commit, then open the PR.** You write the commit message; the PR
    body says `Closes #<issue>` so merging closes the issue.
 
@@ -119,6 +123,9 @@ Detail and the autonomy tiers: `docs/parallel-agents.md`. (`/goal`,
 
 - `docs/workflow-diagram.md` — the same loop as a visual map.
 - `docs/specs/README.md` — spec numbering, the product spec, section shapes.
+- `docs/evals.md` — what "eval" means (two senses): the review/analyze
+  work you already do for any project, plus the opt-in product-eval layer
+  for a product that contains an LLM/AI surface.
 - `docs/parallel-agents.md` — autonomy tiers, worktrees, unattended runs.
 - `docs/agent-handoff.md` — operational runbook: risks, rollback, "when X breaks."
 - `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn.

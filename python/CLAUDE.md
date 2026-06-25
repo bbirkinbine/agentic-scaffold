@@ -133,7 +133,11 @@ standing consent to resolve `[ask-user]` findings too.
 - **Verify.** Run `/review-check` (ruff lint, ruff format, mypy,
   pytest), then `/review` on the diff; `/review-adversarial` as well on
   meaningful features. Add `/security` and/or `/performance` if the
-  opt-in subagent is installed and the diff trips its triggers.
+  opt-in subagent is installed and the diff trips its triggers. If the
+  product itself contains an LLM/AI surface and the `evaluator` is
+  installed, `/eval` is part of Verify too — it judges output quality a
+  test can't assert (`docs/evals.md`). Deterministic projects ship no
+  LLM surface and skip it.
 - **Bug fixes — confirm the cause before the fix.** Reproduce the
   failure first, then have `/test-first` write a test that fails *for
   the reason you believe is the cause*. A reproducing test that fails
@@ -167,8 +171,10 @@ structural map every session. Setup, verification, update, teardown:
 
 Opt-in (copy from the scaffold's `.claude/agents/optional/`):
 `security-reviewer` (network surface, auth, untrusted input, secrets,
-deserialization) and `performance-reviewer` (hot paths, DB queries on
-user-sized data, async, load).
+deserialization), `performance-reviewer` (hot paths, DB queries on
+user-sized data, async, load), and `evaluator` (only when the *product*
+contains an LLM/AI surface — authors and runs evals that judge output
+quality against a rubric; see `docs/evals.md`).
 
 ## Skills (in `.claude/skills/`)
 
@@ -195,6 +201,7 @@ user-sized data, async, load).
 | `/review [range]` | Invoke `reviewer` on the diff |
 | `/review-adversarial [range]` | Invoke `reviewer-adversarial` on the same diff |
 | `/security`, `/performance [range]` | Opt-in reviewers, if installed |
+| `/eval [spec]` | Opt-in: author/run the eval suite for an LLM/AI feature, if `evaluator` is installed |
 
 ## Hooks and guardrails
 
