@@ -127,6 +127,16 @@ answer; each rung catches what the one below it misses:
 Use the ladder top-down when configuring an unattended run: the longer
 nobody is watching, the more rungs you want active.
 
+**On a feature whose product contains an LLM/AI surface, the finish line
+also includes the eval threshold.** A green `/review-check` proves the
+deterministic code works; it says nothing about whether the
+non-deterministic output is any good. For those features only, fold
+`/eval` clearing the spec's eval threshold into the completion condition —
+phrase the `/goal` (rung 2) to include it, and treat a below-bar eval as
+red the same way the gate treats a failing test. Deterministic projects
+ship no LLM surface and this rung does not apply; see
+[`evals.md`](evals.md).
+
 ## Unattended runs
 
 These are the tier 3–4 mechanics from the table above. For long

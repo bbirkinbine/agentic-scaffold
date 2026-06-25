@@ -10,7 +10,7 @@ Preflight: confirm `.claude/agents/performance-reviewer.md` exists in this proje
 ```
 Performance-reviewer is not installed in this project. To enable:
 
-  cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
+  cp path/to/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
      .claude/agents/performance-reviewer.md
 
 Then add a one-line mention under "Subagents" in CLAUDE.md so the agent knows when to invoke it.

@@ -44,7 +44,8 @@ python/
 │   │   ├── reviewer-adversarial.md        # Independent diff reviewer (adversarial framing)
 │   │   └── optional/
 │   │       ├── security-reviewer.md       # App-sec review (opt-in, not auto-copied)
-│   │       └── performance-reviewer.md    # Perf review (opt-in, not auto-copied)
+│   │       ├── performance-reviewer.md    # Perf review (opt-in, not auto-copied)
+│   │       └── evaluator.md               # Eval suite for an LLM/AI surface (opt-in, not auto-copied)
 │   ├── commands/
 │   │   ├── product-spec.md                # /product-spec — interview to create/refresh docs/specs/0000-product.md
 │   │   ├── spec.md                        # /spec <name> — create docs/specs/NNNN-<slug>.md
@@ -58,7 +59,8 @@ python/
 │   │   ├── review.md                      # /review — invoke reviewer subagent
 │   │   ├── review-adversarial.md          # /review-adversarial — invoke reviewer-adversarial
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
-│   │   └── performance.md                 # /performance — invoke performance-reviewer (if installed)
+│   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
+│   │   └── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
 │   └── skills/
 │       ├── python-module-split/
 │       │   └── SKILL.md                   # Auto-invoked when a .py file ≥ 300 lines
@@ -80,6 +82,7 @@ python/
 │   ├── parallel-agents.md                 # Degrees of autonomy, worktree parallelism, agent teams, completion ladder, unattended runs (managed)
 │   ├── plugin-packaging.md                # Plugin/marketplace distribution path — documented, not yet adopted (managed)
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
+│   ├── evals.md                           # When to add evals (opt-in, LLM/AI-surface projects) + how to keep them honest (managed)
 │   └── specs/
 │       └── README.md                      # Spec numbering, status vocabulary, optional sections
 └── subdir-CLAUDE.md.example               # Per-area CLAUDE.md template
@@ -149,6 +152,16 @@ After bootstrap:
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for the
    trigger list.
+9. **If the product itself contains an LLM/AI surface** (summarizer, RAG
+   answer, chatbot, agent trajectory, NL classifier) — add the opt-in
+   evaluator:
+   ```
+   cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
+      .claude/agents/evaluator.md
+   ```
+   Most projects ship no LLM surface and skip this. `docs/evals.md` is the
+   decision rule and the discipline that keeps evals from grading
+   themselves.
 
 ## The agentic loop this scaffolding enables
 
@@ -172,6 +185,7 @@ After bootstrap:
 | Verify (adversarial — pair with `/review` on meaningful PRs) | `reviewer-adversarial` subagent (`.claude/agents/reviewer-adversarial.md`) | `/review-adversarial [<base>..<head>]` |
 | Verify (security) | `security-reviewer` (opt-in subagent) | `/security [<base>..<head>]` |
 | Verify (performance) | `performance-reviewer` (opt-in subagent) | `/performance [<base>..<head>]` |
+| Verify (evals — LLM/AI-surface projects only) | `evaluator` (opt-in subagent) judges non-deterministic output quality against a rubric; most projects skip it | `/eval [spec-path]` |
 | CI gate (every PR) | GitHub Actions runs ruff + mypy + pytest — the non-skippable backstop | `.github/workflows/ci.yml` |
 | Status overview (any time) | Live dashboard in `docs/specs/README.md` (struck-through = shipped/abandoned/superseded), auto-refreshed by the `specs-status.sh` hook on every spec change; `/specs-status` forces a refresh and prints the table in chat | `/specs-status [filter]` |
 
@@ -270,6 +284,41 @@ To enable for a project:
 ```bash
 cp path/to/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.md \
    .claude/agents/performance-reviewer.md
+```
+
+Then add a one-line mention in your `CLAUDE.md` "Subagents" section.
+
+### `evaluator.md`
+
+The quality counterpart to `test-first`, for the subset of projects whose
+*product* contains an LLM/AI surface. Tests assert deterministic behavior;
+the `evaluator` authors and runs **evals** that judge non-deterministic
+output quality against a rubric (task success, tool-use quality, trajectory
+compliance, hallucination rate, response quality). It authors cases from
+the spec (never the implementation), keeps the rubric, inputs, and ground
+truth external, and runs the LM-judge pass independent of the generator —
+so an eval measures correctness, not the model's agreement with itself.
+Driven by `/eval`; full doctrine and the decision rule live in
+`docs/evals.md`.
+
+**Copy it in only when the product itself contains an LLM/AI surface:**
+
+- A text-generating feature whose output varies run to run (summarizer,
+  rewriter, chatbot).
+- A RAG / retrieval-grounded answerer where faithfulness to the source
+  matters.
+- An agent whose tool-use trajectory or task completion is the thing under
+  test.
+- An LLM classifier / extractor over natural-language input.
+
+A deterministic CLI, library, or IaC/homelab tool needs none of this —
+tests suffice. This is the most-skipped opt-in of the three.
+
+To enable for a project:
+
+```bash
+cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
+   .claude/agents/evaluator.md
 ```
 
 Then add a one-line mention in your `CLAUDE.md` "Subagents" section.

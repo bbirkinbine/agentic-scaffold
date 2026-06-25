@@ -30,7 +30,7 @@ carries the latest conventions and is updated first.
       python-docstrings / dependency-hygiene skills), and
       `docs/specs/README.md`. Opt-in subagents under
       `.claude/agents/optional/` (security-reviewer,
-      performance-reviewer) are not copied — see
+      performance-reviewer, evaluator) are not copied — see
       `python/README.md` for when to enable each. Existing
       files are skipped, not overwritten.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied

@@ -37,13 +37,15 @@
 #     python-docstrings / dependency-hygiene) + the default slash
 #     commands (product-spec, spec, specs-status, scope-check, clarify,
 #     plan, test-first, analyze, review-check, review,
-#     review-adversarial, security, performance)
+#     review-adversarial, security, performance, eval)
 #   - docs/specs/README.md — the specs convention + the live status
 #     dashboard the specs-status hook keeps current
 #   - docs/workflow-diagram.md — visual map of the agentic loop
 #   - docs/parallel-agents.md — worktrees, agent teams, unattended runs
 #   - docs/plugin-packaging.md — plugin/marketplace distribution path
 #   - docs/serena-setup.md — optional serena MCP install/verify runbook
+#   - docs/evals.md — when to add evals (opt-in, LLM/AI-surface projects)
+#     and how to keep them honest; pairs with the /eval command
 #   - docs/agent-handoff.md — operational runbook stub (project-owned)
 #   - the .github/ tree: CI workflow, opt-in Claude review workflow
 #     (.example, inert until renamed), PR template, issue forms
@@ -227,6 +229,7 @@ sync .claude/commands/review.md
 sync .claude/commands/review-adversarial.md
 sync .claude/commands/security.md
 sync .claude/commands/performance.md
+sync .claude/commands/eval.md
 sync .claude/skills/python-module-split/SKILL.md
 sync .claude/skills/python-docstrings/SKILL.md
 sync .claude/skills/dependency-hygiene/SKILL.md
@@ -235,6 +238,7 @@ sync docs/workflow-diagram.md
 sync docs/parallel-agents.md
 sync docs/plugin-packaging.md
 sync docs/serena-setup.md
+sync docs/evals.md
 sync .github/workflows/ci.yml
 sync .github/workflows/claude-review.yml.example
 sync .github/pull_request_template.md
@@ -247,6 +251,9 @@ sync .github/ISSUE_TEMPLATE/bug.yml
 #   .claude/agents/optional/performance-reviewer.md  — for projects with a hot path,
 #     DB queries on user-sized data, async code, migrations on large tables, or any
 #     latency SLO.
+#   .claude/agents/optional/evaluator.md             — for projects whose product
+#     contains an LLM/AI surface (summarizer, RAG answer, chatbot, agent trajectory);
+#     authors and runs evals that judge output quality. See docs/evals.md.
 #   See $SRC_DIR/.claude/agents/optional/ for what's available.
 
 echo

@@ -10,7 +10,7 @@ Preflight: confirm `.claude/agents/security-reviewer.md` exists in this project.
 ```
 Security-reviewer is not installed in this project. To enable:
 
-  cp ~/Downloads/src/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
+  cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
      .claude/agents/security-reviewer.md
 
 Then add a one-line mention under "Subagents" in CLAUDE.md so the agent knows when to invoke it.
