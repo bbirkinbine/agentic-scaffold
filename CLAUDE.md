@@ -116,7 +116,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-06-24)
+## Open work / current state (updated 2026-06-25)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -133,17 +133,18 @@ number = issue number; identity, not execution order; `**Depends on:**`
 field) and the `/product-spec` interview that writes
 `docs/specs/0000-product.md`, the product-level (PRD) layer.
 
-In flight on branch `feat/opt-in-evals-layer` (not yet merged): an opt-in
-evals layer for the Python scaffold, prompted by a review of Google's 2026
-"New SDLC with Vibe Coding" whitepaper. The paper uses "eval" in two senses
-— evaluating the coding agent that builds a project (output + trajectory),
-which the scaffold already does via `/review` / `/review-adversarial` /
-`/analyze` / the completion ladder; and evaluating an agent that *is* the
-product, which was the genuine gap. The branch adds `python/docs/evals.md`
-(teaches both senses, maps the first onto existing tools), an opt-in
-`evaluator` subagent + `/eval` command for the second (mirrors the
-security/performance opt-in pattern), and threads the "LLM/AI-surface
-projects only" framing through the workflow docs and diagram.
+The opt-in evals layer for the Python scaffold merged to `main` on
+2026-06-25 (PR #3, squashed; branch `feat/opt-in-evals-layer` deleted),
+prompted by a review of Google's 2026 "New SDLC with Vibe Coding"
+whitepaper. The paper uses "eval" in two senses — evaluating the coding
+agent that builds a project (output + trajectory), which the scaffold
+already does via `/review` / `/review-adversarial` / `/analyze` / the
+completion ladder; and evaluating an agent that *is* the product, which was
+the genuine gap. The merge added `python/docs/evals.md` (teaches both
+senses, maps the first onto existing tools), an opt-in `evaluator` subagent
+and `/eval` command for the second (mirrors the security/performance opt-in
+pattern), and threaded the "LLM/AI-surface projects only" framing through
+the workflow docs and diagram.
 
 Open: the refreshed scaffolding has not yet been validated end-to-end
 on a real project — exercise `bootstrap.sh` and the issue-first
