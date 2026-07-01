@@ -14,7 +14,9 @@ set of conventions for anything else (infra, shell, FPGA, ...).
 
 Run [`python/bootstrap.sh`](python/bootstrap.sh) from a new repo's root,
 then open [`python/WORKFLOW.md`](python/WORKFLOW.md) — it walks day-zero
-setup and the per-feature loop, step by step.
+setup and the per-feature loop, step by step. The default is
+`--python-core`; use `--minimal` for a thinner starter or `--full` for the
+author's complete workflow bundle.
 
 ```bash
 cd your-project                              # the new repo you're starting

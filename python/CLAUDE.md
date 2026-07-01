@@ -22,7 +22,7 @@ instructions are the error log that compounds.
 ## Stack
 
 - Python 3.12 (managed by `uv`)
-- {{ADD_PROJECT_SPECIFIC_LIBS — e.g., FastAPI / Pydantic v2 / SQLAlchemy 2.0 / httpx / lxml / structlog}}
+- {{ADD_PROJECT_SPECIFIC_LIBS — e.g., FastAPI / Pydantic v2 / SQLAlchemy 2.0 / httpx / lxml / logging choice}}
 - pytest + pytest-asyncio
 - ruff (lint + format) + mypy (strict)
 
@@ -69,10 +69,11 @@ each phase, and any time the conversation has drifted from it. If your
 context is getting long mid-feature, stop at a phase boundary and
 `/clear` — see `WORKFLOW.md` → "Phase handoff".
 
-**Verify before you report.** `/review-check`, the Stop-gate hook, and
-CI mechanically verify the *code* — but a claim the gate can't see ("the
-scrub worked", "these two files are duplicates", "the service came back
-up") is only true once you have proven it. Before you state an outcome,
+**Verify before you report.** `/review-check`, the Stop-gate hook when
+`--strict-hooks` is enabled, and CI mechanically verify the *code* — but
+a claim the gate can't see ("the scrub worked", "these two files are
+duplicates", "the service came back up") is only true once you have
+proven it. Before you state an outcome,
 run the concrete check that confirms it and show the output. "Looks
 done" with no command behind it is a guess, and a confident wrong claim
 costs more than the check would have.
@@ -114,11 +115,13 @@ standing consent to resolve `[ask-user]` findings too.
 
 - **Spec.** Before any non-trivial work, write a short spec under
   `docs/specs/NNNN-<feature>.md` (see `docs/specs/README.md` for the
-  numbering, required sections, and `## External references`
-  provenance). One paragraph minimum: goal, success criteria, non-goals.
-  On ambiguous features, `/scope-check` before and `/clarify` after the
-  draft. Product-level direction lives in `docs/specs/0000-product.md`
-  (written by the `/product-spec` interview, if present); feature specs
+  numbering, local-only mode, required sections, and
+  `## External references` provenance). One paragraph minimum: goal,
+  success criteria, non-goals.
+  On ambiguous features, use `/scope-check` before and `/clarify` after
+  the draft if those commands are installed. Product-level direction
+  lives in `docs/specs/0000-product.md` (written by the `/product-spec`
+  interview, if present); feature specs
   link to it rather than restating product rationale. Cross-cutting
   *technical* decisions — ones costly to reverse that several features
   inherit (storage engine, async/sync boundary, public API shape, auth
@@ -128,20 +131,21 @@ standing consent to resolve `[ask-user]` findings too.
   plan before any writes happen.
 - **Test-first.** Tests come before implementation. `/test-first` writes
   failing pytest tests from the spec; show the failing-test output.
-  Only then implement. `/analyze` after tests cross-checks spec ↔ tests
-  coverage before the implementation work starts.
+  Only then implement. If installed, `/analyze` after tests cross-checks
+  spec ↔ tests coverage before the implementation work starts.
 - **Implement.** You must already be on a feature branch (see
   `.claude/rules/git-workflow.md`). Write the minimum code to make the
   tests pass. External-authority values follow
   `.claude/rules/python-code.md` → "External-reference provenance".
 - **Verify.** Run `/review-check` (ruff lint, ruff format, mypy,
   pytest), then `/review` on the diff; `/review-adversarial` as well on
-  meaningful features. Add `/security` and/or `/performance` if the
-  opt-in subagent is installed and the diff trips its triggers. If the
-  product itself contains an LLM/AI surface and the `evaluator` is
-  installed, `/eval` is part of Verify too — it judges output quality a
-  test can't assert (`docs/evals.md`). Deterministic projects ship no
-  LLM surface and skip it.
+  meaningful features when installed. Add `/security` and/or
+  `/performance` if the opt-in subagent and command are installed and the
+  diff trips its triggers. If the product itself contains an LLM/AI
+  surface and the `evaluator` subagent plus `/eval` command are installed,
+  `/eval` is part of Verify too — it judges output quality a test can't
+  assert (`docs/evals.md`). Deterministic projects ship no LLM surface
+  and skip it.
 - **Bug fixes — confirm the cause before the fix.** Reproduce the
   failure first, then have `/test-first` write a test that fails *for
   the reason you believe is the cause*. A reproducing test that fails
@@ -191,6 +195,11 @@ quality against a rubric; see `docs/evals.md`).
 
 ## Slash commands (in `.claude/commands/`)
 
+Bootstrap profiles decide which commands are installed. `--minimal`
+includes only `/spec`, `/plan`, `/test-first`, `/review-check`, and
+`/review`; `--python-core` adds the attended workflow helpers;
+`--full` adds the optional-reviewer stubs.
+
 | Command | Purpose |
 | --- | --- |
 | `/product-spec [name]` | Optional: interview to create/refresh `docs/specs/0000-product.md` (the product-level spec) |
@@ -220,21 +229,23 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
   temporarily disable the hook — do not edit the deny-list for a
   one-off. OS-level sandboxing (`/sandbox`) and permission modes sit
   above this layer; prefer them for unattended runs.
-- **PostToolUse** runs `ruff format` + `ruff check` + `mypy` after every
-  Edit/Write. Fix lint/type errors immediately. A second PostToolUse hook
-  (`specs-status.sh`) regenerates the `## Status` dashboard in
-  `docs/specs/README.md` whenever a spec file under `docs/specs/` is
-  created or edited, so the struck-through/live status list stays current
-  without a manual step. It only ever rewrites its own generated block;
-  the spec `**Status:**` lines remain the source of truth.
+- **PostToolUse** runs `ruff format` after every Edit/Write by default;
+  `/review-check` and CI remain the hard gates. If bootstrap was run with
+  `--strict-hooks`, this hook also runs `ruff check` + `mypy` after every
+  edit. A second PostToolUse hook (`specs-status.sh`) regenerates the
+  `## Status` dashboard in `docs/specs/README.md` whenever a spec file
+  under `docs/specs/` is created or edited, so the struck-through/live
+  status list stays current without a manual step. It only ever rewrites
+  its own generated block; the spec `**Status:**` lines remain the source
+  of truth.
 - **PreCompact** injects a reminder to preserve the active spec path,
   branch, and modified-file list through compaction.
-- **Stop** (`gate-on-stop.sh`) blocks ending a turn while `src/` has
-  pending changes and ruff/mypy/pytest are red — `/review-check` made
-  mechanical. Note: Claude Code overrides a Stop hook after 8
-  consecutive blocks, so the gate is a strong nudge, not an unbounded
-  guarantee; `/goal` and a fresh verification subagent sit above it
-  (see `WORKFLOW.md` → "The completion ladder").
+- **Stop** (`gate-on-stop.sh`, strict-hooks only) blocks ending a turn
+  while `src/` has pending changes and ruff/mypy/pytest are red —
+  `/review-check` made mechanical. Note: Claude Code overrides a Stop
+  hook after 8 consecutive blocks, so the gate is a strong nudge, not an
+  unbounded guarantee; `/goal` and a fresh verification subagent sit
+  above it (see `WORKFLOW.md` → "The completion ladder").
 - **pre-commit** blocks commits on `main` (`no-commit-to-branch`) and
   scans for secrets (`gitleaks`, `detect-private-key`). A `commit-msg`
   hook (`strip-ai-attribution.sh`) is the mechanical backstop for the
@@ -254,11 +265,9 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
 Parallel agents in git worktrees, agent teams, and unattended runs
 (`/goal`, `/loop`, `/sandbox` — Claude Code built-ins, not commands in
 `.claude/commands/` — and autonomous loops) are covered in
-`docs/parallel-agents.md` — including the degrees-of-autonomy table
-(attended → long autodrive → unattended → babysitting) that decides
-when `/goal` is load-bearing versus redundant. Default remains tier 1:
-one attended session driving the loop; parallelize only with
-partitioned file ownership.
+`docs/parallel-agents.md` when the full/advanced docs are installed. The
+normal default remains tier 1: one attended session driving the loop;
+parallelize only with partitioned file ownership.
 
 ## Don't-touch list
 

@@ -140,9 +140,9 @@ flowchart LR
     SS["Session start"] --> SSb["branch-check.sh<br/>warn if on main"] --> W
     RL["reading src/** or tests/**"] --> RLb["path-scoped .claude/rules/<br/>python-code · agent-legible-code"] --> W
     W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
-    W --> POST["after each Edit/Write<br/>(PostToolUse)"] --> POSTb["ruff format · ruff check · mypy"]
+    W --> POST["after each Edit/Write<br/>(PostToolUse)"] --> POSTb["ruff format<br/>(+ ruff check · mypy with --strict-hooks)"]
     W --> CMP["before compaction<br/>(PreCompact)"] --> CMPb["preserve spec path · branch ·<br/>modified files · gate state"]
-    W --> STOP["turn end<br/>(Stop)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
+    W --> STOP["turn end<br/>(Stop, strict-hooks only)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
     W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: ruff · mypy · pytest — non-skippable<br/>+ claude-review.yml if enabled"]
 
@@ -150,8 +150,8 @@ flowchart LR
     class SSb,RLb,PREb,POSTb,CMPb,STOPb,PCb,CIb auto;
 ```
 
-Behaviour, edge cases, and how to bypass each (e.g. the Stop hook stepping
-aside on a second attempt, `--no-verify` for the day-zero commit) live in
+Behaviour, edge cases, and how to bypass each (e.g. the Stop hook when
+`--strict-hooks` is enabled, `--no-verify` for the day-zero commit) live in
 `../CLAUDE.md` → **Hooks and guardrails**. The line `block-destructive`
 draws is *unrecoverable* — things the reflog or a re-clone can't bring
 back; merely risky-but-recoverable commands stay off it. OS-level

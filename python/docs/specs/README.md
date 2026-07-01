@@ -33,13 +33,20 @@ _No specs yet. Run `/spec <name>` to create the first one; this list fills in an
 
 ## Numbering
 
-`NNNN-<kebab-name>.md`, zero-padded to four digits. `NNNN` is the
-GitHub issue number for the work — the same number names the branch
-(see `.claude/rules/git-workflow.md`), so issue ↔ spec ↔ branch ↔ PR
-all share one identifier. Create the issue first, then the spec. Once
-a number is assigned it never changes, even if the spec is later
-superseded. In a repo without GitHub issues, fall back to
-highest-existing + 1; never reuse a number either way.
+`NNNN-<kebab-name>.md`, zero-padded to four digits. In the default
+GitHub-backed workflow, `NNNN` is the GitHub issue number for the work —
+the same number names the branch (see `.claude/rules/git-workflow.md`),
+so issue ↔ spec ↔ branch ↔ PR all share one identifier. Create the issue
+first, then the spec. Once a number is assigned it never changes, even if
+the spec is later superseded.
+
+### Local-only mode
+
+For repos that do not use GitHub issues, skip the issue lookup and number
+specs from the highest existing 4-digit prefix in `docs/specs/` + 1. Use
+`spec-NNNN-<slug>` or `<type>/<slug>` for branches, and omit PR closing
+keywords. Document the choice in `CLAUDE.md` so `/spec` does not stop to
+ask for an issue. Never reuse a number in either mode.
 
 Two consequences, both intentional:
 

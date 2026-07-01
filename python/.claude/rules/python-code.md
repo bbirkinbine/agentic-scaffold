@@ -16,8 +16,9 @@ paths:
   args/returns/raises for public functions.
 - **Imports:** absolute imports inside the package; relative only inside
   `__init__.py`.
-- **Logging:** `structlog`, not `print` or `logging` directly. Get a
-  logger via `log = structlog.get_logger()`.
+- **Logging:** follow the project choice in `CLAUDE.md` / `pyproject.toml`.
+  `structlog` is a good default for services; stdlib `logging` is fine for
+  small libraries and CLIs. Avoid `print` for non-CLI diagnostics.
 
 ## External-reference provenance (implement phase)
 

@@ -16,14 +16,15 @@ branching is not an optional courtesy step.
   `<type>/<slug>`, where `<type>` is one of `feat` `fix` `chore` `docs`
   `refactor`, e.g. `chore/bump-ruff`. Do not invent a fake issue
   number.
-- Anything past XS should get a GitHub issue first — issues are the
-  cross-session persistence layer. The spec number, the issue number,
-  and the branch number are the same number; that shared id ties
-  spec ↔ issue ↔ branch ↔ PR together. The number is an identifier,
-  not an execution order — gaps in `docs/specs/` are expected (issue
-  numbers are also consumed by bugs and questions), and specs ship in
-  whatever order triage dictates. See `docs/specs/README.md` →
-  "Numbering".
+- Anything past XS should get a GitHub issue first unless the repo is
+  explicitly local-only — issues are the cross-session persistence layer.
+  The spec number, the issue number, and the branch number are the same
+  number; that shared id ties spec ↔ issue ↔ branch ↔ PR together. In
+  local-only mode, use the next local spec number and a branch like
+  `spec-NNNN-<slug>`. The number is an identifier, not an execution
+  order — gaps in `docs/specs/` are expected (issue numbers are also
+  consumed by bugs and questions), and specs ship in whatever order triage
+  dictates. See `docs/specs/README.md` → "Numbering".
 
 One branch per spec / unit of work.
 
@@ -46,7 +47,8 @@ direct ask. Workflow: make the change, show `git status` and
 
 ## Pull requests
 
-Open with `gh pr create --fill --web`. The PR body must contain a
-closing keyword line — `Closes #<issue-number>` — so the merge
-auto-closes the issue. Closing keywords work in the PR body, not in
-feature-branch commit messages. Run `/review` before opening the PR.
+Open with `gh pr create --fill --web`. In GitHub-backed mode, the PR body
+must contain a closing keyword line — `Closes #<issue-number>` — so the
+merge auto-closes the issue. Closing keywords work in the PR body, not in
+feature-branch commit messages. In local-only mode, omit the closing
+keyword. Run `/review` before opening the PR.

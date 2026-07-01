@@ -24,7 +24,7 @@ python/
 ├── .gitignore                             # Python ignores, incl. .env* (.env.*.example kept)
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .claude/
-│   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse ruff/mypy + PreCompact preserve-context + Stop gate
+│   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse format-only + PreCompact preserve-context
 │   ├── hooks/
 │   │   ├── branch-check.sh                # SessionStart: warn when a session opens on main
 │   │   ├── block-destructive.sh           # PreToolUse: block unrecoverable cmds (rm -rf /, git clean -fd, mkfs, dd, terraform destroy, etc.)
@@ -99,23 +99,44 @@ python/
   placeholder walk, the `.env` leak check, and the agent's own searches:
   `brew install ripgrep`. Claude Code ships a bundled `rg` inside its
   shell, so it always works there; a plain terminal needs the real
-  binary. `bootstrap.sh` hard-fails early if `rg` is missing.
+  binary. `bootstrap.sh` warns if `rg` is missing, but the copy itself
+  continues; install it before the placeholder and public-hygiene checks.
 - `uv`, `git`, and (for PRs/issues) the `gh` CLI.
 
 ## How to use
 
 ```bash
 cd your-project
-bash path/to/agentic-scaffold/python/bootstrap.sh
+bash path/to/agentic-scaffold/python/bootstrap.sh              # default: --python-core
+bash path/to/agentic-scaffold/python/bootstrap.sh --minimal    # thinner starter
+bash path/to/agentic-scaffold/python/bootstrap.sh --full       # full doctrine/docs surface
 ```
 
-The script copies everything except this index README, itself, and
+The script copies the file set selected by the profile table below;
+within that selected set it excludes this index README, itself, and
 `subdir-CLAUDE.md.example`. `README.md.template` is laid down as the
 project's `README.md` (suffix dropped). On a first run, existing files
-are skipped, not overwritten. Re-run with `--update` to refresh the
-managed scaffolding (everything except the project-owned `CLAUDE.md`,
-`README.md`, `pyproject.toml`, and `.gitignore`) to the current
-template.
+are skipped, not overwritten. Re-run with `--update` and the desired
+profile/options to refresh the matching managed scaffolding (everything
+except project-owned files such as `CLAUDE.md`, `README.md`,
+`pyproject.toml`, and `.gitignore`) to the current template.
+
+### Install profiles
+
+| Profile | What it is for | Copies by default |
+| --- | --- | --- |
+| `--minimal` | Small repos that want the core loop without the full Claude surface | `CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `pyproject.toml`, `.gitignore`, pre-commit, CI, default format/safety hooks, standing rules, specs convention, core commands (`/spec`, `/plan`, `/test-first`, `/review-check`, `/review`), and the agents those commands need |
+| `--python-core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
+| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals), opt-in reviewer command stubs, and the inert Claude PR-review workflow example |
+
+Options compose with profiles:
+
+- `--strict-hooks` rewrites `.claude/settings.json` so Edit/Write runs
+  `ruff format`, `ruff check`, and `mypy`, and enables the Stop hook that
+  blocks turn-end while the local gate is red. Without it, Edit/Write
+  formats only; `/review-check` and CI remain the hard gates.
+- `--advanced-docs` copies the advanced docs without using the full
+  profile.
 
 After bootstrap:
 
@@ -134,9 +155,11 @@ After bootstrap:
    `strip-ai-attribution.sh`, which drops any `Co-Authored-By: Claude`
    trailer or "Generated with Claude Code" footer that slips into a
    commit message).
-4. Create the GitHub issue labels the issue forms reference (`feature`,
-   `bug`, `spec-needed`, `triage`) so `.github/ISSUE_TEMPLATE/` resolves
-   them — e.g. `gh label create spec-needed`.
+4. If the project uses GitHub issues, create the labels the issue forms
+   reference (`feature`, `bug`, `spec-needed`, `triage`) so
+   `.github/ISSUE_TEMPLATE/` resolves them — e.g.
+   `gh label create spec-needed`. If not, use the local-only numbering
+   mode in `docs/specs/README.md`.
 5. Write your first spec: `docs/specs/0001-<feature>.md`
 6. For per-subdirectory rules: `cp subdir-CLAUDE.md.example src/<area>/CLAUDE.md`
    and edit heavily.
@@ -183,9 +206,9 @@ After bootstrap:
 | Test-first | `test-first` subagent (`.claude/agents/test-first.md`) | `/test-first [spec-path]` |
 | Analyze (optional consistency check) | Read-only cross-check: every success criterion covered by a test, no undeclared scope, standing rules honored | `/analyze [spec-path]` |
 | Implement | Main Claude session (CLAUDE.md + `.claude/rules/` tell it the rules) | — |
-| Per-edit quality | PostToolUse hook (`.claude/settings.json`) runs ruff format + ruff check + mypy on every Edit/Write | — |
+| Per-edit quality | Default PostToolUse hook (`.claude/settings.json`) runs `ruff format` on every Edit/Write; `--strict-hooks` also runs ruff check + mypy | — |
 | Local quality gate (pre-review) | ruff lint + format + mypy + pytest, refuses pass on failure | `/review-check` |
-| Turn-end gate (automatic) | Stop hook (`.claude/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes — `/review-check` made mechanical | — |
+| Turn-end gate (strict-hooks only) | With `--strict-hooks`, Stop hook (`.claude/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes — `/review-check` made mechanical | — |
 | Verify (collaborative) | `reviewer` subagent (`.claude/agents/reviewer.md`) | `/review [<base>..<head>]` |
 | Verify (adversarial — pair with `/review` on meaningful PRs) | `reviewer-adversarial` subagent (`.claude/agents/reviewer-adversarial.md`) | `/review-adversarial [<base>..<head>]` |
 | Verify (security) | `security-reviewer` (opt-in subagent) | `/security [<base>..<head>]` |
@@ -230,6 +253,16 @@ every session; path-scoped rules (Python conventions, agent-legible
 code) load when matching files are touched. This keeps `CLAUDE.md`
 itself short enough to be read rather than skimmed; the sizing research
 this follows says a bloated root context file gets ignored.
+
+## Local-only mode
+
+The default workflow uses GitHub issues as the durable work-item ID: the
+issue number, spec number, branch, and PR all share one identifier. For a
+local-only repo, skip the GitHub issue/forms/labels setup and number specs
+from the highest existing `docs/specs/NNNN-*.md` + 1. Branches can be
+`spec-NNNN-<slug>` or `<type>/<slug>`, and PR closing keywords are omitted.
+`/spec` already has this fallback; document the choice in `CLAUDE.md` so
+future sessions do not stop to ask for a GitHub issue.
 
 ## Opt-in subagents
 

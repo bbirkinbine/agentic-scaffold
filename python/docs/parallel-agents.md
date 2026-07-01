@@ -115,10 +115,11 @@ answer; each rung catches what the one below it misses:
 2. **`/goal`** — a hard completion condition checked by a separate
    evaluator every turn (v2.1.139+). Survives context drift because the
    evaluator is outside the conversation.
-3. **Stop hook** — `gate-on-stop.sh` mechanically blocks ending a turn
-   on a red gate. Note the cap: Claude Code overrides a Stop hook after
-   8 consecutive blocks without progress, so this is a strong nudge,
-   not an unbounded guarantee.
+3. **Stop hook** (when bootstrap used `--strict-hooks`) —
+   `gate-on-stop.sh` mechanically blocks ending a turn on a red gate.
+   Note the cap: Claude Code overrides a Stop hook after 8 consecutive
+   blocks without progress, so this is a strong nudge, not an unbounded
+   guarantee.
 4. **Fresh-context verification** — `/review` + `/review-adversarial`
    (or a verification teammate): a context that has not seen the
    implementation reasoning judges the result. This is the only rung
