@@ -10,6 +10,12 @@ An `AGENTS.md` stub sits alongside this file as a portable pointer for
 non-Claude agents (Codex, Cursor, Gemini, etc.). `CLAUDE.md` is the
 source of truth; `AGENTS.md` points back here.
 
+> **Profiles.** This file ships in every bootstrap profile and describes
+> the full workflow surface. Some slash commands and `docs/` files it
+> mentions install only under the richer profiles (`--python-core` or
+> `--full`); on a thinner install, treat those as "available if enabled"
+> rather than guaranteed present.
+
 **Standing rules are split between this file and `.claude/rules/`.**
 Rules without a `paths` frontmatter load every session (git workflow,
 commit style, public-repo hygiene); path-scoped rules load when matching
@@ -164,7 +170,7 @@ subagent for wide surveys. **Do not enable `serena` on a fresh or small
 repo.** Enable it only once a repo is large or long-lived — when the
 agent burns most of its turns re-reading files to rebuild the same
 structural map every session. Setup, verification, update, teardown:
-`docs/serena-setup.md`.
+`docs/serena-setup.md` (installed with `--full` / `--advanced-docs`).
 
 ## Subagents (in `.claude/agents/`)
 

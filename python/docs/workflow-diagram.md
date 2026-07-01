@@ -144,7 +144,7 @@ flowchart LR
     W --> CMP["before compaction<br/>(PreCompact)"] --> CMPb["preserve spec path · branch ·<br/>modified files · gate state"]
     W --> STOP["turn end<br/>(Stop, strict-hooks only)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
-    W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: ruff · mypy · pytest — non-skippable<br/>+ claude-review.yml if enabled"]
+    W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: ruff · mypy · pytest · pip-audit — non-skippable<br/>+ claude-review.yml if enabled"]
 
     classDef auto fill:#bfdbfe,stroke:#1e40af,color:#111;
     class SSb,RLb,PREb,POSTb,CMPb,STOPb,PCb,CIb auto;

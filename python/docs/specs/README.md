@@ -8,7 +8,8 @@ or reviewing.
 > a cross-cutting *technical* decision that several features inherit and
 > that is costly to reverse — numbered independently under `docs/adr/`
 > (see `docs/adr/README.md`). When a feature spec's approach hinges on
-> such a decision, link to the ADR instead of re-arguing it.
+> such a decision, link to the ADR instead of re-arguing it. (`docs/adr/`
+> and `/adr` install with `--python-core` and `--full`, not `--minimal`.)
 
 ## Status
 

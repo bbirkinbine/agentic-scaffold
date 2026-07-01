@@ -115,9 +115,9 @@ longer nobody is watching:
 4. A fresh-context `/review` — the only rung that catches "gate green but
    feature wrong."
 
-Detail and the autonomy tiers: `docs/parallel-agents.md`. (`/goal`,
-`/loop`, and `/sandbox` are Claude Code built-ins, not commands in
-`.claude/commands/`.)
+Detail and the autonomy tiers: `docs/parallel-agents.md` (installed with
+`--full` / `--advanced-docs`). (`/goal`, `/loop`, and `/sandbox` are
+Claude Code built-ins, not commands in `.claude/commands/`.)
 
 ## Good to know
 

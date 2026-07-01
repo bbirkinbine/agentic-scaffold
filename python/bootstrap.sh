@@ -337,8 +337,10 @@ sync .github/ISSUE_TEMPLATE/feature.yml
 sync .github/ISSUE_TEMPLATE/bug.yml
 
 # --- managed: default attended Python workflow ---
+# gate-on-stop.sh is intentionally NOT copied here: the default settings.json
+# wires no Stop hook, so the script would be inert. It is synced only in the
+# --strict-hooks block below, where the Stop hook is actually wired.
 if [[ "$PROFILE" != minimal ]]; then
-  sync .claude/hooks/gate-on-stop.sh
   sync .claude/agents/reviewer-adversarial.md
   sync .claude/commands/product-spec.md
   sync .claude/commands/specs-status.md

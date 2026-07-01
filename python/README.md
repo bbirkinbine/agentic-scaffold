@@ -71,7 +71,7 @@ python/
 │           └── SKILL.md                   # Auto-invoked when pyproject.toml adds a dep
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                         # CI gate: ruff + mypy + pytest + pip-audit (advisory gate) on every PR
+│   │   ├── ci.yml                         # CI gate: ruff + mypy + pytest + pip-audit (supply-chain gate) on every PR
 │   │   └── claude-review.yml.example      # Opt-in Claude PR review (inert until renamed; bills an API key)
 │   ├── dependabot.yml                     # weekly dependency + actions update PRs (uv + github-actions)
 │   ├── ISSUE_TEMPLATE/
