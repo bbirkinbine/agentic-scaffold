@@ -81,7 +81,7 @@ Don't run the full loop on tiny work.
 | Trivial — rename, typo, ≤10 lines | Just do it. Skip spec/plan; branch optional. |
 | Small — one function | Branch + one-sentence spec; `/test-first`; skip `/plan`. |
 | Medium — 3–10 files | The full loop above. |
-| Large — new subsystem | Split into medium pieces, one issue + spec each. |
+| Large — new subsystem | Capture the cross-cutting technical decision in an ADR (`/adr`) first, then split into medium pieces, one issue + spec each. |
 
 A throwaway script needs none of this — just write the code.
 
@@ -123,6 +123,9 @@ Detail and the autonomy tiers: `docs/parallel-agents.md`. (`/goal`,
 
 - `docs/workflow-diagram.md` — the same loop as a visual map.
 - `docs/specs/README.md` — spec numbering, the product spec, section shapes.
+- `docs/adr/README.md` — architecture decision records: when a choice is
+  cross-cutting and costly to reverse, log the decision and its rationale
+  (spec-vs-ADR table, numbering, template). Mostly for Large work.
 - `docs/evals.md` — what "eval" means (two senses): the review/analyze
   work you already do for any project, plus the opt-in product-eval layer
   for a product that contains an LLM/AI surface.

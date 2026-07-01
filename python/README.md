@@ -52,6 +52,7 @@ python/
 │   │   ├── specs-status.md                # /specs-status — refresh the status dashboard in docs/specs/README.md and print it in chat
 │   │   ├── scope-check.md                 # /scope-check — five forcing questions before /spec
 │   │   ├── clarify.md                     # /clarify — interrogate a draft spec; writes answers back in
+│   │   ├── adr.md                         # /adr <title> — create docs/adr/NNNN-<slug>.md (architecture decision record)
 │   │   ├── plan.md                        # /plan — invoke planner subagent
 │   │   ├── test-first.md                  # /test-first — invoke test-first subagent
 │   │   ├── analyze.md                     # /analyze — read-only spec ↔ tests ↔ diff consistency check
@@ -70,8 +71,9 @@ python/
 │           └── SKILL.md                   # Auto-invoked when pyproject.toml adds a dep
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                         # CI gate: ruff + mypy + pytest on every PR
+│   │   ├── ci.yml                         # CI gate: ruff + mypy + pytest + pip-audit (advisory gate) on every PR
 │   │   └── claude-review.yml.example      # Opt-in Claude PR review (inert until renamed; bills an API key)
+│   ├── dependabot.yml                     # weekly dependency + actions update PRs (uv + github-actions)
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── feature.yml                    # feature issue form; fields feed the spec
 │   │   └── bug.yml                        # bug issue form
@@ -83,6 +85,8 @@ python/
 │   ├── plugin-packaging.md                # Plugin/marketplace distribution path — documented, not yet adopted (managed)
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
 │   ├── evals.md                           # When to add evals (opt-in, LLM/AI-surface projects) + how to keep them honest (managed)
+│   ├── adr/
+│   │   └── README.md                      # Architecture Decision Records: spec-vs-ADR, numbering, status, template (managed)
 │   └── specs/
 │       └── README.md                      # Spec numbering, status vocabulary, optional sections
 └── subdir-CLAUDE.md.example               # Per-area CLAUDE.md template
@@ -173,6 +177,7 @@ After bootstrap:
 | Scope check (optional pre-spec) | You answer five forcing questions; output feeds the spec | `/scope-check <desc>` |
 | Spec | You write `docs/specs/NNNN-<feature>.md` (seeded with status header) | `/spec <name>` |
 | Clarify (optional post-draft) | Agent interrogates the draft spec's underspecified areas (max 5 questions), writes answers back into the spec | `/clarify [spec-path]` |
+| Architecture decision (Large / cross-cutting work) | You write `docs/adr/NNNN-<slug>.md` (independent numbering) recording a technical decision and its rationale; `/adr` drafts the skeleton | `/adr <title>` |
 | Branch | Main session creates `<issue#>-<slug>` (or `<type>/<slug>`) automatically — see `.claude/rules/git-workflow.md` | — |
 | Plan | `planner` subagent (`.claude/agents/planner.md`) | `/plan [spec-path]` |
 | Test-first | `test-first` subagent (`.claude/agents/test-first.md`) | `/test-first [spec-path]` |
@@ -187,6 +192,7 @@ After bootstrap:
 | Verify (performance) | `performance-reviewer` (opt-in subagent) | `/performance [<base>..<head>]` |
 | Verify (evals — LLM/AI-surface projects only) | `evaluator` (opt-in subagent) judges non-deterministic output quality against a rubric; most projects skip it | `/eval [spec-path]` |
 | CI gate (every PR) | GitHub Actions runs ruff + mypy + pytest — the non-skippable backstop | `.github/workflows/ci.yml` |
+| Supply-chain gate (every PR) | A second CI job runs `pip-audit` on the locked dep tree; Dependabot opens the weekly fix PRs | `.github/workflows/ci.yml` · `.github/dependabot.yml` |
 | Status overview (any time) | Live dashboard in `docs/specs/README.md` (struck-through = shipped/abandoned/superseded), auto-refreshed by the `specs-status.sh` hook on every spec change; `/specs-status` forces a refresh and prints the table in chat | `/specs-status [filter]` |
 
 On multi-day features, append a `## Phase handoff` section to the spec

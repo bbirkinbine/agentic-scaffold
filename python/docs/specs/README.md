@@ -3,6 +3,13 @@
 Short design docs for non-trivial features. Read these before implementing
 or reviewing.
 
+> **Specs vs ADRs.** A spec captures *what* a unit of work delivers, and
+> is numbered by its issue. An **architecture decision record** captures
+> a cross-cutting *technical* decision that several features inherit and
+> that is costly to reverse — numbered independently under `docs/adr/`
+> (see `docs/adr/README.md`). When a feature spec's approach hinges on
+> such a decision, link to the ADR instead of re-arguing it.
+
 ## Status
 
 The single place to see, at a glance, where every spec stands. The list

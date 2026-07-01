@@ -37,9 +37,12 @@
 #     python-docstrings / dependency-hygiene) + the default slash
 #     commands (product-spec, spec, specs-status, scope-check, clarify,
 #     plan, test-first, analyze, review-check, review,
-#     review-adversarial, security, performance, eval)
+#     review-adversarial, security, performance, eval, adr)
 #   - docs/specs/README.md — the specs convention + the live status
 #     dashboard the specs-status hook keeps current
+#   - docs/adr/README.md — the architecture-decision-record convention
+#     (numbering, status vocabulary, template) for large/cross-cutting
+#     technical decisions; pairs with the /adr command
 #   - docs/workflow-diagram.md — visual map of the agentic loop
 #   - docs/parallel-agents.md — worktrees, agent teams, unattended runs
 #   - docs/plugin-packaging.md — plugin/marketplace distribution path
@@ -47,8 +50,9 @@
 #   - docs/evals.md — when to add evals (opt-in, LLM/AI-surface projects)
 #     and how to keep them honest; pairs with the /eval command
 #   - docs/agent-handoff.md — operational runbook stub (project-owned)
-#   - the .github/ tree: CI workflow, opt-in Claude review workflow
-#     (.example, inert until renamed), PR template, issue forms
+#   - the .github/ tree: CI workflow (incl. the pip-audit advisory gate),
+#     Dependabot config, opt-in Claude review workflow (.example, inert
+#     until renamed), PR template, issue forms
 #
 # What it also creates (only if absent):
 #   - src/{{PACKAGE_NAME}}/__init__.py + tests/test_smoke.py — a starter
@@ -221,6 +225,7 @@ sync .claude/commands/spec.md
 sync .claude/commands/specs-status.md
 sync .claude/commands/scope-check.md
 sync .claude/commands/clarify.md
+sync .claude/commands/adr.md
 sync .claude/commands/plan.md
 sync .claude/commands/test-first.md
 sync .claude/commands/analyze.md
@@ -234,6 +239,7 @@ sync .claude/skills/python-module-split/SKILL.md
 sync .claude/skills/python-docstrings/SKILL.md
 sync .claude/skills/dependency-hygiene/SKILL.md
 sync docs/specs/README.md
+sync docs/adr/README.md
 sync docs/workflow-diagram.md
 sync docs/parallel-agents.md
 sync docs/plugin-packaging.md
@@ -241,6 +247,7 @@ sync docs/serena-setup.md
 sync docs/evals.md
 sync .github/workflows/ci.yml
 sync .github/workflows/claude-review.yml.example
+sync .github/dependabot.yml
 sync .github/pull_request_template.md
 sync .github/ISSUE_TEMPLATE/feature.yml
 sync .github/ISSUE_TEMPLATE/bug.yml

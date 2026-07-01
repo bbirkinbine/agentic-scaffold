@@ -85,7 +85,7 @@ own failure mode:
 | Trivial — rename, typo, ≤ ~10 lines | Branch optional; skip spec and plan; just do it. |
 | Small — one function, one file | Branch; spec = one sentence; skip `/plan`; `/test-first` still required. |
 | Medium — 3–10 files | Full loop. |
-| Large — refactor or new subsystem | Full loop; split into medium tasks; do not run it all in one session. |
+| Large — refactor or new subsystem | Record the cross-cutting technical decision as an ADR (`/adr`) first; full loop; split into medium tasks; do not run it all in one session. |
 
 ## Workflow expectations (Spec → Plan → Test-first → Implement → Verify)
 
@@ -119,7 +119,11 @@ standing consent to resolve `[ask-user]` findings too.
   On ambiguous features, `/scope-check` before and `/clarify` after the
   draft. Product-level direction lives in `docs/specs/0000-product.md`
   (written by the `/product-spec` interview, if present); feature specs
-  link to it rather than restating product rationale.
+  link to it rather than restating product rationale. Cross-cutting
+  *technical* decisions — ones costly to reverse that several features
+  inherit (storage engine, async/sync boundary, public API shape, auth
+  model) — go in an ADR (`/adr`, see `docs/adr/README.md`), not the
+  feature spec.
 - **Plan.** For tasks that touch > 3 files: `/plan` first. Review the
   plan before any writes happen.
 - **Test-first.** Tests come before implementation. `/test-first` writes
@@ -193,6 +197,7 @@ quality against a rubric; see `docs/evals.md`).
 | `/scope-check <desc>` | Optional pre-spec: five forcing questions on ambiguous features |
 | `/spec <name>` | Create `docs/specs/NNNN-<slug>.md` scaffold; stops for human edit |
 | `/clarify [spec]` | Interrogate a draft spec's underspecified areas; writes answers back in |
+| `/adr <title>` | Record an architecture decision at `docs/adr/NNNN-<slug>.md` (independent numbering; for large/cross-cutting technical choices) |
 | `/specs-status [filter]` | Refresh the `## Status` dashboard in `docs/specs/README.md` and print the status table in chat |
 | `/plan [spec]` | Invoke `planner` on the spec |
 | `/test-first [spec]` | Invoke `test-first` |
@@ -238,7 +243,11 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
   footer from the message. `uv run pre-commit install` wires both hook
   types (`default_install_hook_types` in `.pre-commit-config.yaml`).
 - **CI** (`.github/workflows/ci.yml`) runs the full gate on every PR —
-  the non-skippable backstop.
+  the non-skippable backstop. A second `audit` job runs `pip-audit`
+  against the locked dependency tree, so a known CVE fails the PR;
+  Dependabot (`.github/dependabot.yml`) opens the weekly update PRs that
+  fix them. For an unfixable transitive advisory, ignore it explicitly
+  with `pip-audit --ignore-vuln GHSA-...` and a comment.
 
 ## Beyond a single session
 

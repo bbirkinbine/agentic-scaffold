@@ -52,6 +52,7 @@ If stdlib would do, recommend skipping the dep.
 
 - Verification command: `uv run pip-audit`. Lists CVEs across the dependency tree.
 - If the proposed version has known advisories, flag with severity and recommend the patched version (or a different package).
+- CI runs `pip-audit` on every PR and Dependabot (`.github/dependabot.yml`) opens patch PRs, so this is the *pre-merge* backstop, not the only check. Still run it *before* adding — catching a vulnerable dep here is cheaper than a red PR after it lands.
 
 ### 6. Vendoring / forking flags
 
