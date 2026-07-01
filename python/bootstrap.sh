@@ -42,8 +42,9 @@
 #     .pre-commit-config.yaml, default settings/hooks (format-only edit
 #     hook, branch warning, destructive-command block, specs dashboard,
 #     commit-message attribution strip), standing rules, docs/specs/README.md,
-#     CI, core commands (spec / plan / test-first / review-check / review),
-#     and the core agents those commands need.
+#     docs/project-types.md (the orientation map), CI, core commands
+#     (spec / plan / test-first / review-check / review), and the core
+#     agents those commands need.
 #   - python-core and full: extra hooks, skills,
 #     specs-status, product-spec, scope-check, clarify, adr, analyze,
 #     review-adversarial, docs/adr/README.md, docs/workflow-diagram.md,
@@ -331,6 +332,7 @@ sync .claude/commands/test-first.md
 sync .claude/commands/review-check.md
 sync .claude/commands/review.md
 sync docs/specs/README.md
+sync docs/project-types.md
 sync .github/workflows/ci.yml
 sync .github/pull_request_template.md
 sync .github/ISSUE_TEMPLATE/feature.yml

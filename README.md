@@ -24,7 +24,12 @@ bash path/to/agentic-scaffold/python/bootstrap.sh   # wherever you cloned this r
 # then follow python/WORKFLOW.md
 ```
 
-For the full file inventory and the opt-in pieces, see
+New to the scaffolding? [`python/docs/project-types.md`](python/docs/project-types.md)
+is the orientation map: which flavor and profile to pick, what each one
+installs, and when to reach for each agent, skill, and command;
+[`python/docs/workflow-diagram.md`](python/docs/workflow-diagram.md) draws
+the same loop as Mermaid diagrams. For the
+full file inventory and the opt-in pieces, see
 [`python/README.md`](python/README.md). This page deliberately doesn't
 list the commands, subagents, or skills — they change as the scaffold
 evolves, and the two READMEs under `python/` are the source of truth.

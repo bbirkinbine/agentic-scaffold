@@ -42,7 +42,8 @@ is a fresh agent with its own clean context.
    instead of a GitHub issue number.
 7. **Optional — `/product-spec` if installed.** Interviews you and writes
    `docs/specs/0000-product.md`, the product-level "what is this, and who
-   is it for." Skip it for a small project.
+   is it for." Skip it for a small project. See "Authoring the product
+   spec (PRD): the interview" below for when and how.
 
 ## Every feature (the loop)
 
@@ -54,11 +55,15 @@ is already obvious.
    report (`feature` is one of its labels). Its number names the spec,
    the branch, and the PR — one id ties them together. In local-only mode,
    `/spec` uses the next local `docs/specs/NNNN-*.md` number instead.
-2. **`/spec <name>`** — write a short spec: goal, success criteria,
-   non-goals. This is the source of truth every later step checks
-   against.
+2. **`/spec <name>`** — write a short spec (goal, success criteria,
+   non-goals), or — if you have already discussed the feature in this
+   session — have `/spec` draft it from that discussion. Either way you
+   review and edit it before moving on; this is the source of truth every
+   later step checks against.
    - *Optional, if installed:* `/scope-check` before (fuzzy goal),
      `/clarify` after (open questions) to sharpen it.
+   - See "Authoring a spec: three styles" below for the write-it-yourself,
+     discuss-then-draft, and let-the-agent-interview-you flows.
 3. **Make a branch** named `<issue#>-<slug>` in GitHub-backed mode, or
    `spec-NNNN-<slug>` / `<type>/<slug>` in local-only mode. Never build on
    `main`.
@@ -82,6 +87,133 @@ is already obvious.
 9. **Commit, then open the PR.** You write the commit message. In
    GitHub-backed mode, the PR body says `Closes #<issue>` so merging
    closes the issue; local-only mode omits the closing keyword.
+
+## The planning artifacts, broad to narrow
+
+Three documents plan the work, and they nest — broadest to narrowest:
+
+1. **Product spec (PRD)** — `docs/specs/0000-product.md`. The product
+   itself: who it is for, what success looks like, what would kill it.
+   Standing context that everything below links up to.
+2. **ADR** — `docs/adr/NNNN-*.md`. A cross-cutting technical decision that
+   several features inherit and is costly to reverse. Sits between the
+   product and the feature work that lives under the decision.
+3. **Spec** — `docs/specs/NNNN-*.md`. One unit of work. Links up to the
+   product spec, and to any ADR its approach depends on.
+
+This is a *hierarchy*, not a mandatory pipeline. Most features are just
+"product spec as standing context → spec → build" with **no ADR at all** —
+the product spec is written once (day zero, or when the backlog outgrows
+your head) and refreshed rarely, ADRs appear only on Large cross-cutting
+work, and specs are the everyday artifact. The map form of this nesting is
+in [`docs/workflow-diagram.md`](docs/workflow-diagram.md). The three
+authoring guides below run in that broad-to-narrow order.
+
+### Authoring the product spec (PRD): the interview
+
+**When to reach for it.** The product spec (`docs/specs/0000-product.md`)
+is the PRD-level layer — the problem and who it is *for* and *not for*,
+success metrics, kill criteria, product non-goals, constraints. Feature
+specs link up to it instead of restating product rationale. Write it when
+the backlog outgrows your head, or before any multi-spec autonomous run; a
+small project can lean on the README purpose paragraph until then. One
+file, reserved number `0000`, status `evergreen` — revised in place, never
+shipped or closed.
+
+**The flow is an interview, by design.** Unlike `/spec` and `/adr` (below),
+`/product-spec` does not draft from inference — a blank PRD template gets
+ignored and an AI-guessed one is worse than none, so it asks and you
+answer:
+
+```text
+/product-spec        # create mode: 7 questions, one at a time — you answer
+                     # → writes docs/specs/0000-product.md from your answers
+...
+/product-spec        # later: refresh mode — asks only what has gone stale (max 3),
+                     #        or says "product spec is current" and stops
+```
+
+Two modes: **create** (file absent — the seven questions) and **refresh**
+(file exists — it compares against the open issues and asks only about
+sections that are missing, vague, or contradicted). You can hand-write the
+file instead, but the interview exists because that is what reliably gets
+it written in practice. `/product-spec` installs with `--python-core` and `--full`.
+
+### Authoring an ADR: when, and two styles
+
+**When to reach for an ADR.** An ADR (`docs/adr/NNNN-<slug>.md`) records a
+*cross-cutting technical decision* — one that several features inherit and
+that is costly to reverse (a storage engine, an async/sync boundary, a
+public API shape, an auth model, a serialization format). If a decision
+affects only the feature in front of you, it belongs in that feature
+spec's `## Sketch`, not an ADR. Mostly **Large** work. ADRs are numbered
+independently of issues (the next number, not an issue number). The full
+spec-vs-ADR decision table is in
+[`docs/adr/README.md`](docs/adr/README.md).
+
+`/adr` is one-shot and stops for your review — there is no separate
+interview command, because the design discussion *is* the interview. Two
+styles:
+
+**1. Write it yourself.** Run `/adr "<decision title>"`, get the Context /
+Decision / Consequences / Alternatives skeleton, fill it in.
+
+**2. Discuss, then draft.** Weigh the options with the agent — constraints,
+trade-offs, what argues against each — then run `/adr`. It drafts the four
+sections from that discussion and marks anything it guessed with
+`<!-- assumption -->`.
+
+```text
+You:  Postgres or SQLite for the event store? ... (weigh durability,
+      concurrency, ops cost)
+...   (back-and-forth)
+You:  /adr "event store engine"
+AI:   writes docs/adr/00NN-event-store-engine.md from the discussion, then stops
+```
+
+Either way you review and edit the rationale before the decision is acted
+on. An accepted ADR changes later by being *superseded*, not edited — a
+new ADR that links back to it (see [`docs/adr/README.md`](docs/adr/README.md)).
+
+### Authoring a spec: three styles
+
+The spec is the one artifact worth getting right — every later step checks
+against it. `/spec` is one-shot (it writes the file and stops for your
+review); it is not itself an interview. Pick the style that matches how
+much you have already thought the feature through:
+
+**1. You write it.** You already know what you want. Run `/spec <name>`,
+get the skeleton, and fill `## Goal` / `## Success criteria` /
+`## Non-goals` by hand.
+
+**2. Discuss, then draft.** Talk the feature through with the agent first
+— this is ordinary conversation, not a command — then run `/spec`. It
+drafts the spec from that discussion and marks anything it had to guess
+with `<!-- assumption -->`.
+
+```text
+You:  Add per-account user prefs — theme + default timezone.
+      Skip cross-device sync for now.
+...   (back-and-forth as needed)
+You:  /spec add-user-prefs
+AI:   writes docs/specs/00NN-add-user-prefs.md from the discussion, then stops
+```
+
+**3. Let the agent interview you.** The goal is fuzzy and you want the
+questions driven for you. `/scope-check` and `/clarify` are the turn-by-turn
+Q&A passes (one question at a time); `/spec` sits between them:
+
+```text
+/scope-check add-user-prefs   # AI asks 5 forcing questions, you answer
+/spec add-user-prefs          # AI drafts the spec from those answers
+/clarify                      # AI asks up to 5 more, folds each answer back in
+/plan
+```
+
+(`/scope-check` and `/clarify` install with `--python-core` and `--full`,
+not `--minimal`.) Whichever style you use, `/spec` stops after writing —
+you review and edit before `/plan`. The spec stays human-owned; drafting
+just gets you to a reviewable first pass faster.
 
 ## Scale to the task
 
@@ -136,7 +268,11 @@ Some files below depend on the bootstrap profile. `--minimal` installs the
 core loop; `--python-core` adds ADR/status/workflow docs; `--full` or
 `--advanced-docs` adds the advanced doctrine docs.
 
-- `docs/workflow-diagram.md` — the same loop as a visual map.
+- [`docs/project-types.md`](docs/project-types.md) — the orientation map:
+  flavors, profiles, the capability matrix, and when to reach for each
+  agent, skill, and command. Start here if you are new to the scaffolding.
+- [`docs/workflow-diagram.md`](docs/workflow-diagram.md) — the same loop as
+  a visual map (Mermaid diagrams).
 - `docs/specs/README.md` — spec numbering, local-only mode, the product spec, section shapes.
 - `docs/adr/README.md` — architecture decision records: when a choice is
   cross-cutting and costly to reverse, log the decision and its rationale

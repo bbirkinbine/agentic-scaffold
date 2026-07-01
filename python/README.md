@@ -79,6 +79,7 @@ python/
 │   │   └── bug.yml                        # bug issue form
 │   └── pull_request_template.md           # PR body carrying the Closes #N line
 ├── docs/
+│   ├── project-types.md                   # Orientation: flavors, profiles, capability matrix, when to use each agent/skill (managed; all profiles)
 │   ├── agent-handoff.md                   # Operational runbook (project-owned; current state, risks, rollback)
 │   ├── workflow-diagram.md                # Visual map of the agentic loop (Mermaid; managed)
 │   ├── parallel-agents.md                 # Degrees of autonomy, worktree parallelism, agent teams, completion ladder, unattended runs (managed)
@@ -122,6 +123,10 @@ except project-owned files such as `CLAUDE.md`, `README.md`,
 `pyproject.toml`, and `.gitignore`) to the current template.
 
 ### Install profiles
+
+For the decision trees, the full capability matrix, and "when do I run each
+agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
+(copied into every project). Quick summary:
 
 | Profile | What it is for | Copies by default |
 | --- | --- | --- |
@@ -192,15 +197,18 @@ After bootstrap:
 
 ## The agentic loop this scaffolding enables
 
-`Spec → Plan → Test-first → Implement → Verify`, where:
+[`docs/workflow-diagram.md`](docs/workflow-diagram.md) draws this whole
+section as Mermaid diagrams (day zero, the per-feature loop, the automation
+layer); [`docs/project-types.md`](docs/project-types.md) maps each profile
+to the pieces below. `Spec → Plan → Test-first → Implement → Verify`, where:
 
 | Phase | Driven by | Slash command |
 | --- | --- | --- |
 | Product spec (optional, project-level, once) | Agent interviews you (seven questions) and writes `docs/specs/0000-product.md` — the PRD-level layer feature specs link up to | `/product-spec [name]` |
 | Scope check (optional pre-spec) | You answer five forcing questions; output feeds the spec | `/scope-check <desc>` |
-| Spec | You write `docs/specs/NNNN-<feature>.md` (seeded with status header) | `/spec <name>` |
+| Spec | You write `docs/specs/NNNN-<feature>.md`, or `/spec` drafts it from the current discussion; you then review and edit | `/spec <name>` |
 | Clarify (optional post-draft) | Agent interrogates the draft spec's underspecified areas (max 5 questions), writes answers back into the spec | `/clarify [spec-path]` |
-| Architecture decision (Large / cross-cutting work) | You write `docs/adr/NNNN-<slug>.md` (independent numbering) recording a technical decision and its rationale; `/adr` drafts the skeleton | `/adr <title>` |
+| Architecture decision (Large / cross-cutting work) | You write `docs/adr/NNNN-<slug>.md` (independent numbering), or `/adr` drafts it from the current discussion; you then review and edit the rationale | `/adr <title>` |
 | Branch | Main session creates `<issue#>-<slug>` (or `<type>/<slug>`) automatically — see `.claude/rules/git-workflow.md` | — |
 | Plan | `planner` subagent (`.claude/agents/planner.md`) | `/plan [spec-path]` |
 | Test-first | `test-first` subagent (`.claude/agents/test-first.md`) | `/test-first [spec-path]` |

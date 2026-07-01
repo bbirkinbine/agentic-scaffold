@@ -1,5 +1,5 @@
 ---
-description: Create a new spec at docs/specs/NNNN-<slug>.md with goal / success / non-goals scaffolding.
+description: Create a spec at docs/specs/NNNN-<slug>.md. Drafts goal / success / non-goals from the current discussion when one exists; otherwise lays down a skeleton to fill in. Stops for human review either way.
 argument-hint: <feature name>
 ---
 
@@ -24,7 +24,23 @@ Procedure:
 2. Derive a slug from `$ARGUMENTS` (lowercase, hyphen-separated, no punctuation).
 3. Title-case `$ARGUMENTS` for the H1.
 4. Determine today's date in `YYYY-MM-DD` (UTC or local, consistent with prior specs).
-5. Write the file at `docs/specs/NNNN-<slug>.md` using this skeleton (substitute `NNNN`, the title-cased name, and today's date):
+5. Decide how to fill the body:
+   - **Draft mode — when the current conversation already contains a
+     substantive discussion of this feature or fix** (goals, desired
+     behavior, constraints, edge cases): populate `## Goal`,
+     `## Success criteria`, and `## Non-goals` from that discussion, as
+     concrete prose rather than placeholders. Write success criteria as
+     observable, testable outcomes. Keep it reviewable in under ten
+     minutes. Where you had to make a call the discussion did not settle,
+     mark it inline as `<!-- assumption: ... -->` so the human can confirm
+     or correct it. Do NOT invent facts, citations, or
+     `## External references` provenance that did not come from the
+     discussion — an unknown is an open question, not a fabricated answer.
+   - **Skeleton mode — when there is no prior discussion to draw on:**
+     write the placeholder skeleton below for the human to fill in.
+
+   Either mode writes `docs/specs/NNNN-<slug>.md` in this shape
+   (substitute `NNNN`, the title-cased name, and today's date):
 
 ```markdown
 # NNNN — <Title-cased feature name>
@@ -56,4 +72,8 @@ If the work is blocked on other specs shipping first, add a
 `**Depends on:** NNNN` line directly under `**Last updated:**` —
 ordering lives there, never in the spec number itself.
 
-Stop after writing the file. Do NOT proceed to planning or implementation. The human reviews and edits the spec before any other phase. Surface the path of the file you wrote.
+Stop after writing the file — in either mode. Do NOT proceed to planning
+or implementation. A drafted spec is a first pass for the human to review
+and edit, not an approved spec: surface the path you wrote, and in draft
+mode list any `<!-- assumption: ... -->` markers you left so they are easy
+to resolve. The human owns the spec before any other phase begins.

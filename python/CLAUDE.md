@@ -123,7 +123,10 @@ standing consent to resolve `[ask-user]` findings too.
   `docs/specs/NNNN-<feature>.md` (see `docs/specs/README.md` for the
   numbering, local-only mode, required sections, and
   `## External references` provenance). One paragraph minimum: goal,
-  success criteria, non-goals.
+  success criteria, non-goals. When the feature has already been discussed
+  in-session, `/spec` can draft the body from that discussion (marking any
+  assumptions inline); it still stops for the human to review and edit
+  before `/plan`.
   On ambiguous features, use `/scope-check` before and `/clarify` after
   the draft if those commands are installed. Product-level direction
   lives in `docs/specs/0000-product.md` (written by the `/product-spec`
@@ -204,7 +207,9 @@ quality against a rubric; see `docs/evals.md`).
 Bootstrap profiles decide which commands are installed. `--minimal`
 includes only `/spec`, `/plan`, `/test-first`, `/review-check`, and
 `/review`; `--python-core` adds the attended workflow helpers;
-`--full` adds the optional-reviewer stubs.
+`--full` adds the optional-reviewer stubs. `docs/project-types.md` maps
+each profile to the commands, agents, and skills it ships, and when to
+reach for each.
 
 | Command | Purpose |
 | --- | --- |

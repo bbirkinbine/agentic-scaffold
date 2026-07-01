@@ -33,8 +33,12 @@ re-arguing the decision.
 ADRs are numbered **independently of issues** — this is the deliberate
 difference from specs, where the number *is* the issue number. An ADR is
 a sequential decision log: the next ADR is the highest existing number
-plus one. Create the file with `/adr <title>` or by hand. Once assigned,
-a number never changes, even after the ADR is superseded.
+plus one. Create the file with `/adr <title>` (which drafts the four
+sections from an in-session design discussion when one exists, or lays
+down a skeleton to fill in) or by hand — see
+[`../../WORKFLOW.md`](../../WORKFLOW.md) → "Authoring an ADR: when, and two
+styles." Once assigned, a number never changes, even after the ADR is
+superseded.
 
 ## Status header
 

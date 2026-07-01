@@ -12,6 +12,10 @@
 > GitHub and in Obsidian (VS Code needs the "Markdown Preview Mermaid
 > Support" extension), and degrade to readable source everywhere else. This
 > doc is generic scaffolding; nothing here is project-specific.
+>
+> New here? Start with [`project-types.md`](project-types.md) to choose a
+> flavor and profile and see which agents, skills, and commands you get.
+> This file is the loop those pieces run inside.
 
 ---
 
@@ -33,11 +37,41 @@ yours, **gates** are automated, **subagents** run in fresh context.
 
 ---
 
+## The planning artifacts (how the three docs nest)
+
+Three documents plan the work, broadest to narrowest. This is a
+*hierarchy*, not a per-feature pipeline: the product spec is standing
+context, ADRs appear only on Large cross-cutting work, and most features
+go straight from product context to a spec (the dashed path).
+
+```mermaid
+flowchart TD
+    P["Product spec (PRD)<br/>docs/specs/0000-product.md<br/>who it is for · success · kill criteria<br/>written once · evergreen"]
+    P --> A["ADR<br/>docs/adr/NNNN-*.md<br/>a cross-cutting technical decision<br/>(Large work only)"]
+    A --> S1["Spec<br/>docs/specs/NNNN-*.md<br/>one unit of work"]
+    A --> S2["Spec<br/>another unit of work"]
+    P -.->|"most features: no ADR"| S3["Spec<br/>one unit of work"]
+
+    classDef prd fill:#fde68a,stroke:#b45309,color:#111;
+    classDef adr fill:#ddd6fe,stroke:#6d28d9,color:#111;
+    class P prd;
+    class A adr;
+```
+
+Each narrower artifact links *up* to the broader one: a feature spec links
+to the product spec instead of restating product rationale, and to any ADR
+its approach depends on. Authoring flows for all three — in this same
+broad-to-narrow order — are in [`../WORKFLOW.md`](../WORKFLOW.md) → "The
+planning artifacts, broad to narrow."
+
+---
+
 ## Day zero (once per project)
 
 ```mermaid
 flowchart TD
-    A["git init + bootstrap.sh"] --> B["Fill template placeholders"]
+    A0["Choose flavor + profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks?"] --> A["git init + bootstrap.sh --&lt;profile&gt;"]
+    A --> B["Fill template placeholders"]
     B --> C["new-project-checklist:<br/>README ack · GitHub About · identity (git user.email)"]
     C --> D{"Opt-in for THIS repo?"}
     D -->|"network / auth / untrusted input / secrets"| D1["copy security-reviewer"]
@@ -56,10 +90,12 @@ flowchart TD
     class G optional;
 ```
 
-The identity check is load-bearing: `git config user.email` is baked into
-the first commit forever and leaks once the repo flips public. Opt-ins are
-decided *now*, not retroactively — see [`../WORKFLOW.md`](../WORKFLOW.md)
-"Day zero."
+The profile decides how much scaffolding lands — see
+[`project-types.md`](project-types.md) for the choice and the full list of
+what each profile installs. The identity check is load-bearing:
+`git config user.email` is baked into the first commit forever and leaks
+once the repo flips public. Opt-ins are decided *now*, not retroactively —
+see [`../WORKFLOW.md`](../WORKFLOW.md) "Day zero."
 
 `/product-spec` is the product-level layer — the job a PRD does on a
 team. It interviews you (seven questions, one at a time) and writes
@@ -231,6 +267,8 @@ Section shapes are in [`specs/README.md`](specs/README.md).
 
 ## Go deeper
 
+- [`project-types.md`](project-types.md) — choose a flavor and profile,
+  and the matrix of which agents, skills, and commands each one installs.
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the step-by-step walkthrough:
   day-zero setup and the per-feature loop, one line of why per step.
 - `../CLAUDE.md` + `.claude/rules/` — the rules the agent reads every
