@@ -139,7 +139,7 @@ else
   while IFS=$'\t' read -r num st title slug dep; do
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(rank_of "$st")" "$num" "$st" "$title" "$slug" "$dep" >> "$ranked"
   done < "$rows"
-  while IFS=$'\t' read -r rank num st title slug dep; do
+  while IFS=$'\t' read -r _ num st title slug dep; do
     render_row "$num" "$st" "$title" "$slug" "$dep"
   done < <(sort -t"$(printf '\t')" -k1,1n -k2,2 "$ranked") >> "$body"
   rm -f "$ranked"

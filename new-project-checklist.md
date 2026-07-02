@@ -92,6 +92,17 @@ carries the latest conventions and is updated first.
 - [ ] Description sentence in the About sidebar matches the first line of
       `README.md`.
 - [ ] Repo visibility is correct (public unless there's a reason).
+- [ ] Protect `main`, so "CI is the gate you can't skip" is enforced
+      rather than aspirational. Settings → Rules → Rulesets → New branch
+      ruleset targeting the default branch: **require a pull request
+      before merging**, **require status checks** (`quality` and `audit`,
+      the two jobs in the scaffold's `ci.yml`), **block force pushes**.
+      Without this, nothing stops a direct push to `main` from a plain
+      terminal — the `no-commit-to-branch` pre-commit hook is local and
+      bypassable by design. Skip for local-only repos. On the Free plan,
+      rules on a **private** repo are not enforced — set the ruleset up
+      anyway and it takes effect at the public flip (re-check it then;
+      see below).
 
 ## First commit hygiene
 
@@ -109,6 +120,10 @@ carries the latest conventions and is updated first.
 - Forking someone else's repo: don't add the AI acknowledgement unless
   you're going to substantially rewrite — small contributions to upstream
   follow upstream's conventions.
+- First installable artifact (PyPI package, CLI, container image): define
+  the release story then — tags, changelog, publish workflow. The
+  scaffolding deliberately ships none; add one when something ships, not
+  before.
 
 ## Before flipping a private repo to public
 
@@ -196,8 +211,11 @@ the private phase, this is the moment to catch and fix them.
 - GitHub's secret scanning runs automatically on public repos and emails
   alerts for known token formats. Treat any alert as a real compromise
   and rotate. Don't dismiss alerts as false positives without checking.
-- Branch protection and required reviews aren't applied automatically;
-  configure them under Settings → Branches if you want them.
+- Branch protection isn't applied automatically, and rulesets created
+  while the repo was private on the Free plan only start enforcing now —
+  verify the `main` ruleset from the "On GitHub" section above is
+  present and active (required PR, required `quality` + `audit` checks,
+  force pushes blocked).
 - If anything sensitive slipped through and you discover it later, your
   options are: (1) rewrite history with `git filter-repo` and force-push
   (still leaks to anyone who already cloned, but at least removes from

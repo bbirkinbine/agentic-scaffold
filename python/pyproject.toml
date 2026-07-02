@@ -14,6 +14,7 @@ dev = [
   # Optional verification depth — cheap when an agent does the labor.
   # Uncomment per project once there is real logic worth the rigor:
   # "pytest-cov",       # line-coverage report: uv run pytest --cov (CI does not gate on it)
+  # "diff-cover",       # gate coverage on the diff only (needs pytest-cov's coverage.xml)
   # "hypothesis",       # property-based tests; pairs well with /test-first
   # "mutmut",           # mutation testing; catches tautological test suites
 ]
@@ -34,6 +35,7 @@ select = [
   "ANN",           # annotations (force type hints)
   "TID",           # tidy imports
   "PTH",           # use pathlib
+  "S",             # flake8-bandit security checks (tests ignore S101 below)
 ]
 
 [tool.ruff.lint.per-file-ignores]

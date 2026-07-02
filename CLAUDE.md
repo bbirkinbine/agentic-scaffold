@@ -94,7 +94,16 @@ apply to this repo itself, not just to repos bootstrapped from it.
 ```bash
 bash -n python/bootstrap.sh
 bash -n python/.claude/hooks/*.sh
+shellcheck --severity=warning python/bootstrap.sh python/.claude/hooks/*.sh scripts/smoke-test.sh
+bash scripts/smoke-test.sh <profile>   # for changes to bootstrap.sh, pyproject.toml,
+                                       # hooks, or anything the bootstrap copies
 ```
+
+`scripts/smoke-test.sh` bootstraps a profile into a temp dir, asserts
+the installed file set, fills the day-zero placeholders, and runs the
+fresh project's full quality gate. CI (`.github/workflows/ci.yml`) runs
+the shell checks plus the smoke test for every profile on each push and
+PR — a red run means the template would ship broken projects.
 
 `{{PLACEHOLDER}}` markers throughout the repo (in `*.template` files
 and in `python/CLAUDE.md` / `python/pyproject.toml`) are intentional —

@@ -1,0 +1,61 @@
+name: CI
+
+# CI for the scaffold repo itself. Everything here propagates by copy
+# into new projects (and into existing ones via bootstrap.sh --update),
+# so a broken template ships broken projects. Two jobs:
+#   shell — syntax + shellcheck over bootstrap.sh and the hook scripts.
+#   smoke — bootstrap every profile into a temp dir, assert the file
+#           set, fill the day-zero placeholders, and run the full
+#           quality gate. Proves "green from the first run" stays true.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax-check shell scripts (bash -n)
+        run: |
+          bash -n python/bootstrap.sh
+          bash -n python/.claude/hooks/*.sh
+          bash -n scripts/smoke-test.sh
+
+      # --severity=warning: the info-level SC2016 hits are intentional
+      # single-quoted regex patterns in the hook scripts.
+      - name: shellcheck
+        run: |
+          shellcheck --severity=warning \
+            python/bootstrap.sh \
+            python/.claude/hooks/*.sh \
+            scripts/smoke-test.sh
+
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: minimal
+          - profile: python-core
+          - profile: full
+          - profile: python-core
+            strict: --strict-hooks
+    name: smoke (${{ matrix.profile }}${{ matrix.strict && ' strict' || '' }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Bootstrap a project and run its quality gate
+        run: bash scripts/smoke-test.sh ${{ matrix.profile }} ${{ matrix.strict || '' }}

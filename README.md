@@ -9,6 +9,8 @@ set of conventions for anything else (infra, shell, FPGA, ...).
 > Published as a personal reference, not a managed product. Issues and
 > PRs are welcome but won't get fast turnaround. The scaffolding evolves
 > as the workflow does — pin a commit if you depend on a snapshot.
+> CI smoke-tests `bootstrap.sh` on every push: each profile is installed
+> into a clean directory and must pass the quality gate it ships with.
 
 ## Python projects
 
