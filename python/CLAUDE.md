@@ -25,6 +25,13 @@ file. When the human corrects a recurring mistake, encode the fix in
 this file or the relevant rule in the same change — standing
 instructions are the error log that compounds.
 
+**Personal preferences stay out of the shared files.** Machine-local or
+per-person overrides go in `CLAUDE.local.md` (instructions) and
+`.claude/settings.local.json` (settings) — both gitignored by the
+scaffold. This file, `.claude/settings.json`, and `.claude/rules/` are
+team-shared; don't encode one person's editor, pace, or verbosity
+preferences in them.
+
 ## Stack
 
 - Python 3.12 (managed by `uv`)
@@ -232,6 +239,16 @@ reach for each.
 
 Defense in depth, soft to hard — each is one layer, none is a guarantee:
 
+- **Permission deny rules** (`.claude/settings.json` →
+  `permissions.deny`) block the Read tool on `.env` / `.env.*` files and
+  `*.pem` / `*.key` material. They gate the Read tool only — Bash can
+  still print a file, so the behavioral rule in
+  `.claude/rules/public-repo-hygiene.md` ("Secrets must not enter the
+  context window") is the other half of this layer.
+- **Status line** (`statusline.sh`) keeps branch · model · context %
+  visible under the prompt every turn — the branch discipline and the
+  session-hygiene thresholds (`WORKFLOW.md` → "Session hygiene") both
+  lean on it.
 - **SessionStart** (`branch-check.sh`) warns when a session opens on
   `main`.
 - **PreToolUse** (`block-destructive.sh`) blocks unrecoverable Bash

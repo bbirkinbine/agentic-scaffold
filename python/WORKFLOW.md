@@ -236,6 +236,30 @@ append a `## Phase handoff` block to the spec, run `/clear`, and resume
 fresh. Boundaries worth a reset: after `/plan` is approved, and after
 `/review-check` is green. Section shape: `docs/specs/README.md`.
 
+## Session hygiene
+
+Context is the resource the whole loop runs on; treat it deliberately.
+
+- **Audit what loads by default.** Once per project (and after adding
+  any MCP server or skill), open a fresh empty session and run
+  `/context` — it shows what is consuming context before you have done
+  anything. A stale MCP server or rarely-used skill that loads every
+  session is pure overhead; scope it to the projects that use it.
+- **Watch the percentage, not the limit.** The status line shows context
+  usage every turn. Output quality degrades well before the hard limit
+  — practitioners commonly report a soft zone around 40–50% — so treat
+  a rising number as the cue to reach a phase boundary, not as budget
+  still available.
+- **Compact deliberately, and not forever.** Prefer a manual `/compact`
+  at a natural boundary over waiting for automatic compaction at the
+  limit. But repeated compaction of one long thread accumulates drift:
+  after a compact or two, write the `## Phase handoff` block into the
+  spec and `/clear` instead. The spec is the durable memory; the
+  conversation is not.
+- **Audit memories occasionally.** `/memory` lists what Claude has
+  auto-remembered about the project. A stale entry steers every future
+  session; prune it like you would a wrong line in `CLAUDE.md`.
+
 ## The completion ladder
 
 "The agent said done, but it wasn't" has layered fixes — use more the

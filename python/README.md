@@ -24,9 +24,10 @@ python/
 ├── .gitignore                             # Python ignores, incl. .env* (.env.*.example kept)
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .claude/
-│   ├── settings.json                      # SessionStart branch check + PreToolUse deny-list + PostToolUse format-only + PreCompact preserve-context
+│   ├── settings.json                      # permissions deny (.env/key reads) + status line + SessionStart branch check + PreToolUse deny-list + PostToolUse format-only + PreCompact preserve-context
 │   ├── hooks/
 │   │   ├── branch-check.sh                # SessionStart: warn when a session opens on main
+│   │   ├── statusline.sh                  # statusLine: branch · model · context % under the prompt
 │   │   ├── block-destructive.sh           # PreToolUse: block unrecoverable cmds (rm -rf /, git clean -fd, mkfs, dd, terraform destroy, etc.)
 │   │   ├── gate-on-stop.sh                # Stop: block turn-end while ruff/mypy/pytest are red and src/ has pending changes (8-block cap applies)
 │   │   ├── specs-status.sh                # PostToolUse: regenerate the status dashboard in docs/specs/README.md when a spec changes

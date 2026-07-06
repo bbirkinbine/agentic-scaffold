@@ -52,6 +52,7 @@ must pyproject.toml
 must .pre-commit-config.yaml
 must .claude/settings.json
 must .claude/hooks/block-destructive.sh
+must .claude/hooks/statusline.sh
 must .claude/rules/git-workflow.md
 must .claude/agents/reviewer.md
 must .claude/commands/spec.md
@@ -106,6 +107,18 @@ else
     echo "SMOKE FAIL: Stop hook wired without --strict-hooks" >&2
     exit 1
   fi
+fi
+
+# Both settings variants (default file and the strict-hooks heredoc in
+# bootstrap.sh) must carry the secrets read-deny and the status line —
+# they are two copies of the same file and drift silently otherwise.
+if ! grep -q '"deny"' .claude/settings.json; then
+  echo "SMOKE FAIL: settings.json has no permissions deny list" >&2
+  exit 1
+fi
+if ! grep -q 'statusline.sh' .claude/settings.json; then
+  echo "SMOKE FAIL: settings.json has no statusLine wiring" >&2
+  exit 1
 fi
 
 # --- day-zero placeholder fill (the steps WORKFLOW.md prescribes) ---

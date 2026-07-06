@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/hooks/statusline.sh"
+  },
   "hooks": {
     "SessionStart": [
       {

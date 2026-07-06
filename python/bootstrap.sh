@@ -40,7 +40,8 @@
 #   - All profiles: CLAUDE.md, README.md (from README.md.template),
 #     WORKFLOW.md, AGENTS.md, pyproject.toml, .gitignore,
 #     .pre-commit-config.yaml, default settings/hooks (format-only edit
-#     hook, branch warning, destructive-command block, specs dashboard,
+#     hook, branch warning, destructive-command block, secrets read-deny,
+#     status line, specs dashboard,
 #     commit-message attribution strip), standing rules, docs/specs/README.md,
 #     docs/project-types.md (the orientation map), CI, core commands
 #     (spec / plan / test-first / review-check / review), and the core
@@ -211,6 +212,20 @@ write_strict_settings() {
   mkdir -p "$(dirname "$dst")"
   cat > "$dst" <<'JSON'
 {
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/hooks/statusline.sh"
+  },
   "hooks": {
     "SessionStart": [
       {
@@ -316,6 +331,7 @@ sync .pre-commit-config.yaml
 sync .claude/settings.json
 sync .claude/hooks/branch-check.sh
 sync .claude/hooks/block-destructive.sh
+sync .claude/hooks/statusline.sh
 sync .claude/hooks/specs-status.sh
 sync .claude/hooks/strip-ai-attribution.sh
 sync .claude/rules/git-workflow.md

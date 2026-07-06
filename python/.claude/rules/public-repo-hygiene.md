@@ -56,3 +56,21 @@ A hit means either rewriting history (destructive — every SHA changes,
 and forks or caches may already hold the old state) or, better, not
 flipping until it is clean. Catching it before the flip is the cheap
 path.
+
+## Secrets must not enter the context window either
+
+A secret that never lands in a commit can still leak by being *read*:
+anything a tool prints enters the conversation context, and transcripts
+travel further than the repo (pasted into issues, shared session logs,
+bug reports). Two layers keep secrets out of context:
+
+- **Mechanical:** `permissions.deny` in `.claude/settings.json` blocks
+  the Read tool on `.env` / `.env.*` files and `*.pem` / `*.key`
+  material anywhere in the tree. This intentionally also blocks
+  `.env.*.example` — an example file is small; the human pastes its
+  contents into chat on the rare occasion the agent needs to see one.
+- **Behavioral (this rule):** the deny list only gates the Read tool.
+  Do not route around it — no `cat .env`, `printenv`, `env`, sourcing
+  env files, or echoing credential-bearing variables through Bash. If a
+  command's output could contain a live credential, don't run it;
+  describe what you need and let the human run it outside the session.

@@ -83,6 +83,12 @@ carries the latest conventions and is updated first.
 - [ ] Add `.gitignore` — start from `~/.gitignore_global` (covered by
       `core.excludesfile`) and add per-language patterns. Whitelist any
       `.env.*.example` files explicitly (`!.env.*.example`).
+- [ ] Gitignore the Claude Code personal overlays — `CLAUDE.local.md`
+      and `.claude/settings.local.json`. Personal preferences (pace,
+      verbosity, machine-local paths) go there, not in the shared
+      `CLAUDE.md` / `.claude/settings.json`. The Python bootstrap's
+      `.gitignore` already covers both; non-Python repos add the two
+      lines by hand.
 
 ## On GitHub (after `git push`)
 

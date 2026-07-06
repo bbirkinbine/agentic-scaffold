@@ -7,6 +7,11 @@
 > `AGENTS.md` stub (see `AGENTS.md.template` in the agentic-scaffold
 > repo) sits alongside this file as a portable pointer for non-Claude
 > agents that look for that filename by convention.
+>
+> Personal, machine-local preferences do not belong in this file — put
+> them in `CLAUDE.local.md` (instructions) or
+> `.claude/settings.local.json` (settings), and keep both gitignored.
+> This file is the team-shared contract.
 
 ---
 
