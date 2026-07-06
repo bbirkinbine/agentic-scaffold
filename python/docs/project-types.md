@@ -103,7 +103,7 @@ Read top-down: everything in a tier includes the tiers above it.
 ### Added by `--full` (or `--advanced-docs` for the docs only)
 
 - **Docs:** `docs/parallel-agents.md`, `docs/plugin-packaging.md`,
-  `docs/serena-setup.md`, `docs/evals.md`
+  `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`
 - **Commands (`--full` only):** `/security`, `/performance`, `/eval`
   (stubs — each requires its opt-in agent, below)
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
@@ -201,12 +201,12 @@ need into `.claude/agents/` and add a one-line mention in `CLAUDE.md`.
 | --- | --- | --- | --- |
 | A network surface, auth, untrusted input, secrets, or external deserialization | `security-reviewer` + `/security` | Pure-local tooling with no trust boundary | agent header |
 | A hot path, DB queries on user-sized data, async, or a latency SLO | `performance-reviewer` + `/performance` | Nothing runs under load | agent header |
-| A product LLM/AI surface (summarizer, RAG, chatbot, agent trajectory, NL classifier) | `evaluator` + `/eval` | Deterministic product — tests suffice | [`evals.md`](evals.md) |
+| A product LLM/AI surface (summarizer, RAG, chatbot, agent trajectory, NL classifier) | `evaluator` + `/eval`; build to the [`llm-product.md`](llm-product.md) conventions | Deterministic product — tests suffice | [`evals.md`](evals.md) · [`llm-product.md`](llm-product.md) |
 | A large, long-lived repo where the agent re-maps structure every session | `serena` MCP | Fresh or small repo — grep is enough | [`serena-setup.md`](serena-setup.md) |
 | Two+ features independent at the file level, or a long unattended run | Worktrees / completion ladder | You are at the keyboard on one feature | [`parallel-agents.md`](parallel-agents.md) |
 
-`evals.md`, `serena-setup.md`, and `parallel-agents.md` install with
-`--full` or `--advanced-docs`. The optional agents themselves are always
+`evals.md`, `llm-product.md`, `serena-setup.md`, and `parallel-agents.md`
+install with `--full` or `--advanced-docs`. The optional agents themselves are always
 available in the scaffold's `.claude/agents/optional/`, whatever profile
 you installed.
 

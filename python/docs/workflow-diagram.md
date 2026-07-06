@@ -235,7 +235,7 @@ the *Skip when* column is as load-bearing as the *Reach for* column.
 | Want proof tests cover the spec before implementing | `/analyze` after `/test-first` | Trivial/small tasks; one-criterion specs |
 | Network surface, auth, untrusted input, secrets | `security-reviewer` (opt-in, decide at day zero) | Pure-local tooling with no trust boundary |
 | Hot path, DB on user-sized data, async, latency SLO | `performance-reviewer` (opt-in) | Nothing runs under load |
-| Product contains an LLM/AI surface whose output is judged for quality | `evaluator` + `/eval` (opt-in; [`evals.md`](evals.md)) | Deterministic product — tests suffice, no LLM surface |
+| Product contains an LLM/AI surface whose output is judged for quality | `evaluator` + `/eval` (opt-in; [`evals.md`](evals.md)); build it per [`llm-product.md`](llm-product.md) | Deterministic product — tests suffice, no LLM surface |
 | Agent burns turns re-mapping a large, long-lived repo | `serena` MCP ([`serena-setup.md`](serena-setup.md)) | Fresh or small repo — grep is enough |
 | Two+ features independent at the file level | Worktrees, one agent each ([`parallel-agents.md`](parallel-agents.md)) | Tasks share files, or work is exploratory |
 | Long run with nobody watching | Completion ladder rungs 2–4 + `/sandbox` | You're at the keyboard — checkpoints suffice |
@@ -286,3 +286,6 @@ Section shapes are in [`specs/README.md`](specs/README.md).
 - [`evals.md`](evals.md) — the two senses of "eval": the output/trajectory
   review you already do (`/review`, `/analyze`, completion ladder), plus the
   opt-in product-eval layer for an LLM/AI-surface product.
+- [`llm-product.md`](llm-product.md) — construction-side conventions for
+  that surface: the call seam, testing without live calls, prompt
+  versioning, model pinning.

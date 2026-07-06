@@ -125,7 +125,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-06-25)
+## Open work / current state (updated 2026-07-06)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -153,7 +153,20 @@ the genuine gap. The merge added `python/docs/evals.md` (teaches both
 senses, maps the first onto existing tools), an opt-in `evaluator` subagent
 and `/eval` command for the second (mirrors the security/performance opt-in
 pattern), and threaded the "LLM/AI-surface projects only" framing through
-the workflow docs and diagram.
+the workflow docs and diagram. Its construction-side companion
+`python/docs/llm-product.md` landed 2026-07-06: the conventions for
+*building* an LLM surface (single call seam, testing without live API
+calls, prompts-are-code, model pinning, output-as-untrusted-input),
+installed with `--full` / `--advanced-docs` alongside `evals.md`.
+
+A settings-hardening pass also merged 2026-07-06 (branch
+`feat/ndc-tips-hardening`, since deleted), prompted by reviewing a
+Claude Code talk from NDC AI 2026 against the scaffold:
+`permissions.deny` on `.env*` / key-material reads (mirrored in the
+strict-hooks heredoc, with a smoke-test drift guard), a status-line
+hook (branch · model · context %), documented `CLAUDE.local.md` /
+`settings.local.json` personal overlays, and a WORKFLOW.md
+"Session hygiene" section.
 
 Open: the refreshed scaffolding has not yet been validated end-to-end
 on a real project — exercise `bootstrap.sh` and the issue-first

@@ -87,6 +87,7 @@ python/
 │   ├── plugin-packaging.md                # Plugin/marketplace distribution path — documented, not yet adopted (managed)
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
 │   ├── evals.md                           # When to add evals (opt-in, LLM/AI-surface projects) + how to keep them honest (managed)
+│   ├── llm-product.md                     # Building an LLM/agent surface: call seam, testing without live calls, prompt versioning, model pinning (managed)
 │   ├── adr/
 │   │   └── README.md                      # Architecture Decision Records: spec-vs-ADR, numbering, status, template (managed)
 │   └── specs/
@@ -133,7 +134,7 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 | --- | --- | --- |
 | `--minimal` | Small repos that want the core loop without the full Claude surface | `CLAUDE.md`, `AGENTS.md`, `WORKFLOW.md`, `pyproject.toml`, `.gitignore`, pre-commit, CI, default format/safety hooks, standing rules, specs convention, core commands (`/spec`, `/plan`, `/test-first`, `/review-check`, `/review`), and the agents those commands need |
 | `--python-core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
-| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals), opt-in reviewer command stubs, and the inert Claude PR-review workflow example |
+| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product), opt-in reviewer command stubs, and the inert Claude PR-review workflow example |
 
 Options compose with profiles:
 
@@ -361,6 +362,11 @@ Driven by `/eval`; full doctrine and the decision rule live in
 
 A deterministic CLI, library, or IaC/homelab tool needs none of this —
 tests suffice. This is the most-skipped opt-in of the three.
+
+The evaluator judges the LLM surface; `docs/llm-product.md` (installed
+with `--full` / `--advanced-docs`) covers building it — the single call
+seam, testing without live API calls, prompt versioning, model pinning,
+and when the surface also trips the `security-reviewer` opt-in.
 
 To enable for a project:
 

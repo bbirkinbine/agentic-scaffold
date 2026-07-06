@@ -6,7 +6,10 @@
 > other names, and scopes the single net-new, opt-in piece: evals for a
 > *product that contains an LLM/AI surface*. If you ship no such surface,
 > Section 2 is all that applies to you — the rest is for the subset of
-> projects whose product is (or embeds) an agent.
+> projects whose product is (or embeds) an agent. This doc covers
+> *judging* that surface; how to *build* it — the call seam, prompt
+> versioning, model pinning, testing without live calls — is
+> [`llm-product.md`](llm-product.md).
 
 ---
 

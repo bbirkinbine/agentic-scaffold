@@ -14,8 +14,8 @@
 #                  without advanced/experimental doctrine docs.
 #   --full         Everything in python-core plus optional-reviewer command
 #                  stubs and advanced docs (parallel agents, plugin path,
-#                  serena, evals). Optional reviewer agents are still not
-#                  copied; enable them per project.
+#                  serena, evals, llm-product). Optional reviewer agents are
+#                  still not copied; enable them per project.
 #
 # Options:
 #   --strict-hooks  Make Claude hooks enforce ruff check + mypy after edits
@@ -51,7 +51,8 @@
 #     review-adversarial, docs/adr/README.md, docs/workflow-diagram.md,
 #     docs/agent-handoff.md, and Dependabot.
 #   - full or --advanced-docs: docs/parallel-agents.md,
-#     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md.
+#     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
+#     docs/llm-product.md.
 #   - full only: command stubs for security / performance / eval and the
 #     inert Claude PR-review workflow example.
 #
@@ -387,6 +388,7 @@ if [[ "$PROFILE" == full || "$ADVANCED_DOCS" == 1 ]]; then
   sync docs/plugin-packaging.md
   sync docs/serena-setup.md
   sync docs/evals.md
+  sync docs/llm-product.md
 fi
 
 if [[ "$PROFILE" == full ]]; then

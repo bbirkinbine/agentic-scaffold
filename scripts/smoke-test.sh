@@ -77,11 +77,13 @@ case "$PROFILE" in
     must .claude/agents/reviewer-adversarial.md
     must .github/dependabot.yml
     must_not docs/parallel-agents.md
+    must_not docs/llm-product.md
     must_not .claude/commands/security.md
     ;;
   full)
     must docs/parallel-agents.md
     must docs/evals.md
+    must docs/llm-product.md
     must .claude/commands/security.md
     must .github/workflows/claude-review.yml.example
     ;;
