@@ -57,6 +57,23 @@ Specifically argue against:
 8. **Public-repo hygiene.** Secrets, internal hostnames, coworker names, employer references, or private-tracker IDs in the diff or commit message?
 9. **Simpler alternative.** Could a smaller change have hit the same success criteria? Is anything in this diff load-bearing for a future feature that hasn't been written yet?
 
+**Design quality (structure).** Correct-and-tested is not well-shaped, and
+badly-structured code is the failure mode that passes a spec-and-tests review
+and rots the codebase anyway. Argue against *concrete* structural defects —
+never hypothetical ones. The scope discipline below still governs: point at a
+real seam, not a wish for more abstraction.
+
+- **Dependency-rule / concern-mixing.** Domain or business logic importing a DB
+  driver, `requests`, or a framework directly; a single function mixing SQL +
+  business rule + HTTP/format shaping. Name the seam.
+- **Coupling / cohesion.** One conceptual change that forces edits across many
+  files (shotgun surgery), or one module that changes for many unrelated reasons
+  (divergent change).
+- **Testability as a design signal.** Core logic that can't be tested without a
+  real database or a pile of mocks — name the missing injection or port.
+- **Tests coupled to internals.** Assertions on private methods or mock
+  call-order that will break on a behavior-preserving refactor.
+
 Be direct. "Don't merge this until X" is a useful answer. So is "I tried to find a problem here and couldn't." Bias toward finding the failure mode rather than approving fast.
 
 **Scope discipline.** An adversarial reviewer always finds *something* — that
