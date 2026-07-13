@@ -209,9 +209,10 @@ must raise and test the limit. CI must measure the complete root-to-working-
 directory instruction chain, not just the root file. Prefer concise root
 guidance plus nested `AGENTS.md` files for genuinely subtree-specific rules;
 do not split global rules into nested files merely to evade the limit.
-At this plan's verification baseline, `python/CLAUDE.md` plus the five
-behavioral files under `python/.claude/rules/` total 29,300 bytes, so a direct
-concatenation leaves little headroom under the default.
+As of 2026-07-13, `python/CLAUDE.md` plus the five behavioral files under
+`python/.claude/rules/` total 29,121 bytes, so a direct concatenation leaves
+little headroom under the default. Re-measure before implementing; the chain
+grows as the workflow docs evolve.
 
 The shared contract should use client-neutral language. Client-specific
 commands belong in a command/skill mapping table, not in the core rules.

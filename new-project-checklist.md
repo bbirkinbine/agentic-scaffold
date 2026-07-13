@@ -72,6 +72,9 @@ carries the latest conventions and is updated first.
 - [ ] Copy [`CLAUDE.md.template`](CLAUDE.md.template) → `./CLAUDE.md`,
       fill in placeholders, delete the validation-gates block that
       doesn't apply to this repo's stack.
+- [ ] Copy [`AGENTS.md.template`](AGENTS.md.template) → `./AGENTS.md` —
+      the pointer stub for non-Claude agents that look for that
+      filename; the content stays in `CLAUDE.md`.
 - [ ] Copy [`README.md.template`](README.md.template) → `./README.md`,
       fill in placeholders. **Do not remove the Acknowledgements
       section** — that's the single attribution surface.

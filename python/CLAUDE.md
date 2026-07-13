@@ -202,7 +202,8 @@ structural map every session. Setup, verification, update, teardown:
 - `test-first` — writes failing pytest tests from a spec; never writes
   implementation.
 - `reviewer` — independent diff reviewer; checks spec match, test
-  quality, edge cases, file size, public-repo hygiene.
+  quality, edge cases, design quality (coupling, dependency direction,
+  testability), docs drift, file size, public-repo hygiene.
 - `reviewer-adversarial` — same independence, adversarial framing;
   argues against the change. Pair with `reviewer` on meaningful
   features; same output schema for side-by-side reading.

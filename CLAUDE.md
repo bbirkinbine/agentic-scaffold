@@ -125,7 +125,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-07-06)
+## Open work / current state (updated 2026-07-13)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -168,7 +168,20 @@ hook (branch · model · context %), documented `CLAUDE.local.md` /
 `settings.local.json` personal overlays, and a WORKFLOW.md
 "Session hygiene" section.
 
-Open: the refreshed scaffolding has not yet been validated end-to-end
-on a real project — exercise `bootstrap.sh` and the issue-first
-`/spec` → `/product-spec` flow on the next new repo and feed
-corrections back here.
+A review-and-docs tightening pass landed 2026-07-09 through 2026-07-13:
+CI action pins bumped to current majors, a design-quality (structure)
+dimension added to both reviewer agents, and a docs-sync gate at spec
+completion — agents create and update docs by decision rule rather than
+waiting for a human ask, and both reviewers now flag docs drift. The
+same window added `docs/codex-portability.md`, the plan for making the
+scaffold dual-client (a shared client-neutral contract rendered into
+both Claude Code and Codex surfaces).
+
+Open:
+
+- The refreshed scaffolding has not yet been validated end-to-end on a
+  real project — exercise `bootstrap.sh` and the issue-first
+  `/spec` → `/product-spec` flow on the next new repo and feed
+  corrections back here.
+- The Codex portability plan (`docs/codex-portability.md`) is documented
+  but not started.

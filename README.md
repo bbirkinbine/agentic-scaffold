@@ -38,14 +38,19 @@ evolves, and the two READMEs under `python/` are the source of truth.
 
 ## Non-Python repos
 
-Copy the two top-level templates and fill the `{{...}}` placeholders:
+Copy the three top-level templates and fill the `{{...}}` placeholders:
 
 ```bash
 cd your-project                              # the new repo you're starting
 cp path/to/agentic-scaffold/CLAUDE.md.template  ./CLAUDE.md
+cp path/to/agentic-scaffold/AGENTS.md.template  ./AGENTS.md
 cp path/to/agentic-scaffold/README.md.template  ./README.md
 rg '{{' .   # find every placeholder, then replace it
 ```
+
+`AGENTS.md` is a pointer stub for non-Claude agents (Codex, Cursor,
+Gemini, ...) that look for that filename by convention; the content
+lives in `CLAUDE.md`.
 
 ## Both flavors
 
