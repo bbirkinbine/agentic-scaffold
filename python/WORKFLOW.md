@@ -84,9 +84,19 @@ is already obvious.
      `/review-check` can't assert. Most projects ship no LLM surface and
      skip this entirely; install the full/advanced docs for the detailed
      decision rule.
-9. **Commit, then open the PR.** You write the commit message. In
-   GitHub-backed mode, the PR body says `Closes #<issue>` so merging
-   closes the issue; local-only mode omits the closing keyword.
+9. **Sync the docs.** Sweep `docs/` for statements the diff made false
+   — commands, file lists, described behavior, architecture notes — and
+   fix them on the same branch. Reference docs must match the code
+   after every spec. `README.md` is the front page and is deliberately
+   high-level: update it only when the pitch, install steps, or
+   user-facing surface changed, not on every merge. The agent may also
+   *create* a doc here — when the spec introduced something needing
+   standing explanation that outlives the spec and fits neither
+   docstrings nor the README — but extending an existing doc beats
+   adding a file, since every doc joins the sweep above.
+10. **Commit, then open the PR.** You write the commit message. In
+    GitHub-backed mode, the PR body says `Closes #<issue>` so merging
+    closes the issue; local-only mode omits the closing keyword.
 
 ## The planning artifacts, broad to narrow
 

@@ -56,6 +56,7 @@ Specifically argue against:
 7. **File size.** Anything ≥ 300 lines? Anything trending that way?
 8. **Public-repo hygiene.** Secrets, internal hostnames, coworker names, employer references, or private-tracker IDs in the diff or commit message?
 9. **Simpler alternative.** Could a smaller change have hit the same success criteria? Is anything in this diff load-bearing for a future feature that hasn't been written yet?
+10. **Docs drift.** What does `docs/` still claim that this diff made false — commands, file lists, described behavior? Stale `docs/` content is `[auto-fix]`. The README is deliberately high-level: flag it only if the diff changes the pitch, install steps, or user-facing surface — and README churn on an internal change is itself a finding.
 
 **Design quality (structure).** Correct-and-tested is not well-shaped, and
 badly-structured code is the failure mode that passes a spec-and-tests review

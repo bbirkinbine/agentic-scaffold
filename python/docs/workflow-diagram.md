@@ -133,7 +133,8 @@ flowchart TD
       DONE -->|"no — fix and go again"| IMPL
     end
 
-    DONE -->|"yes ★"| SHIP["Commit + open PR (Closes #N)<br/>you write the message"]
+    DONE -->|"yes ★"| DOCS["Sync docs/ to the change<br/>README only if the surface changed"]
+    DOCS --> SHIP["Commit + open PR (Closes #N)<br/>you write the message"]
     SHIP --> MERGE["CI green → merge → next feature"]
 
     classDef checkpoint fill:#fde68a,stroke:#b45309,color:#111;

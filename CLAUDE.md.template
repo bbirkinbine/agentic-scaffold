@@ -149,7 +149,11 @@ packer validate .
 Don't claim a change is "ready" without at least:
 
 1. A clean run of the gates above for the affected file(s).
-2. An updated README if the change affects how the project builds or runs.
+2. A sweep of `docs/` (if the repo has one) for statements the change
+   made false — reference docs must match the code they describe.
+3. An updated README if the change affects how the project builds,
+   runs, or presents itself. The README is deliberately high-level;
+   don't churn it on internal changes.
 
 ---
 

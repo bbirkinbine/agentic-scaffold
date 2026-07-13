@@ -162,6 +162,20 @@ standing consent to resolve `[ask-user]` findings too.
   `/eval` is part of Verify too — it judges output quality a test can't
   assert (`docs/evals.md`). Deterministic projects ship no LLM surface
   and skip it.
+- **Docs sync.** Before committing, sweep `docs/` for statements the
+  diff made false — commands, file lists, described behavior,
+  architecture notes — and update them on the same branch. Two tiers:
+  `docs/` is reference and must match the code after every spec;
+  `README.md` is the front page and changes only when the pitch,
+  install steps, or user-facing surface changed — never churn it on an
+  internal change. Docstrings do not count as the docs sweep.
+  Creating a new doc under `docs/` is also in scope, human-asked or on
+  your own judgment: create one when a spec introduces something that
+  needs standing explanation — a subsystem, an operational procedure, a
+  user-facing surface — and the explanation outlives the spec and fits
+  neither docstrings nor the README. Every doc is a maintenance
+  liability under this sync rule, so prefer extending an existing doc
+  over adding a file, and call out any new doc in the PR body.
 - **Bug fixes — confirm the cause before the fix.** Reproduce the
   failure first, then have `/test-first` write a test that fails *for
   the reason you believe is the cause*. A reproducing test that fails
