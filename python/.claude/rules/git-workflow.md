@@ -52,3 +52,21 @@ must contain a closing keyword line — `Closes #<issue-number>` — so the
 merge auto-closes the issue. Closing keywords work in the PR body, not in
 feature-branch commit messages. In local-only mode, omit the closing
 keyword. Run `/review` before opening the PR.
+
+### Close-tasks ride in the PR they belong to
+
+A change's own bookkeeping — flipping the spec's `**Status:**` to
+`shipped`, regenerating the `docs/specs/README.md` dashboard, updating the
+`CLAUDE.md` "current state" block, ticking a todo/checklist item — belongs
+**in the feature branch itself**, committed before the PR is opened (or
+pushed to the same branch before it merges), so one merge completes the
+work. `shipped` in an open PR means "ships when this PR merges" — that is
+the intended reading, not a lie about current state.
+
+**Do not open a separate follow-up PR after merge** just to mark the spec
+shipped or do small post-merge cleanup — that is a wasted PR and a wasted
+review. If such cleanup was missed and its feature PR is already merged,
+fold it into the next PR that touches the same area rather than spawning a
+standalone one; a standalone cleanup PR is justified only when it carries
+real standing value on its own (e.g. it also changes a rule or doc that
+outlives the cleanup).

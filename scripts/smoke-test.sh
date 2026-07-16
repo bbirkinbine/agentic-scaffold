@@ -123,6 +123,19 @@ if ! grep -q 'statusline.sh' .claude/settings.json; then
   exit 1
 fi
 
+# The close-tasks-ride-in-the-PR rule must survive into every generated repo
+# (git-workflow.md is MANAGED, CLAUDE.md is project-owned) so post-merge status
+# flips don't become wasted cleanup PRs. Content-grep both, like the drift
+# guards above.
+if ! grep -q 'Close-tasks ride in the PR' .claude/rules/git-workflow.md; then
+  echo "SMOKE FAIL: git-workflow.md lost the close-tasks-in-PR rule" >&2
+  exit 1
+fi
+if ! grep -q 'close-tasks are part of this sweep' CLAUDE.md; then
+  echo "SMOKE FAIL: CLAUDE.md lost the close-tasks docs-sync clause" >&2
+  exit 1
+fi
+
 # --- day-zero placeholder fill (the steps WORKFLOW.md prescribes) ---
 # sed -i.bak works on both BSD (macOS) and GNU sed.
 sed -i.bak 's/{{PROJECT_NAME}}/smoketest/' pyproject.toml

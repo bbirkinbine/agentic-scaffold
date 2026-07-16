@@ -93,10 +93,14 @@ is already obvious.
    *create* a doc here — when the spec introduced something needing
    standing explanation that outlives the spec and fits neither
    docstrings nor the README — but extending an existing doc beats
-   adding a file, since every doc joins the sweep above.
+   adding a file, since every doc joins the sweep above. Flip the active
+   spec's `**Status:**` to `shipped` here too, on this same branch, so it
+   ships with the feature — never in a separate post-merge cleanup PR.
 10. **Commit, then open the PR.** You write the commit message. In
     GitHub-backed mode, the PR body says `Closes #<issue>` so merging
-    closes the issue; local-only mode omits the closing keyword.
+    closes the issue; local-only mode omits the closing keyword. A
+    change's own close-tasks (the spec `Status` flip above, dashboard
+    regen, todo ticks) ride in this PR, not a follow-up.
 
 ## The planning artifacts, broad to narrow
 
