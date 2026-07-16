@@ -215,7 +215,7 @@ structural map every session. Setup, verification, update, teardown:
 
 Opt-in (copy from the scaffold's `.claude/agents/optional/`):
 `security-reviewer` (network surface, auth, untrusted input, secrets,
-deserialization), `performance-reviewer` (hot paths, DB queries on
+deserialization, LLM surface), `performance-reviewer` (hot paths, DB queries on
 user-sized data, async, load), and `evaluator` (only when the *product*
 contains an LLM/AI surface — authors and runs evals that judge output
 quality against a rubric; see `docs/evals.md`).
