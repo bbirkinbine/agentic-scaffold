@@ -93,7 +93,11 @@ Status vocabulary:
 
 - `draft` — written but not yet acted on. Planner / test-first haven't run.
 - `shipping` — currently being implemented. The spec is in flight.
-- `shipped` — merged. The feature is in the codebase.
+- `shipped` — merged and in the codebase. Flip the spec to `shipped`
+  *within the feature PR* (same branch, before merge) so the status lands
+  with the change; never in a separate post-merge cleanup PR
+  (`.claude/rules/git-workflow.md` → "Close-tasks ride in the PR they
+  belong to"). In an open PR it reads "ships when this merges."
 - `paused` — deliberately set down. Will resume; not abandoned. Note in the spec why.
 - `abandoned` — decided not to build. Spec stays as a design log of "we considered this and skipped." Note why in the spec.
 - `superseded-by-NNNN` — replaced by a newer spec. Link to the successor.
@@ -232,7 +236,9 @@ implementation but weren't in the original spec — a library swap, an
 edge case the planner didn't anticipate, a refactor that broke a
 pattern. Lightweight; one bullet per decision. The spec stays a design
 log, not a living document, but this section keeps the design log
-honest about what shipped.
+honest about what shipped. This is the *one* thing legitimately added
+post-merge — unlike the `**Status:**` flip to `shipped`, which rides
+inside the feature PR (see the status vocabulary above), not a follow-up.
 
 ```markdown
 ## Implementation Notes

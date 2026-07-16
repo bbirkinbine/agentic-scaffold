@@ -175,7 +175,12 @@ standing consent to resolve `[ask-user]` findings too.
   user-facing surface — and the explanation outlives the spec and fits
   neither docstrings nor the README. Every doc is a maintenance
   liability under this sync rule, so prefer extending an existing doc
-  over adding a file, and call out any new doc in the PR body.
+  over adding a file, and call out any new doc in the PR body. The
+  feature's own close-tasks are part of this sweep — flip the active
+  spec's `**Status:**` to `shipped` and let the dashboard regenerate on
+  the *same* branch, so it merges with the feature. Do not leave it for a
+  post-merge follow-up PR (`.claude/rules/git-workflow.md` → "Close-tasks
+  ride in the PR they belong to").
 - **Bug fixes — confirm the cause before the fix.** Reproduce the
   failure first, then have `/test-first` write a test that fails *for
   the reason you believe is the cause*. A reproducing test that fails
