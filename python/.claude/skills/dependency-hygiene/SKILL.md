@@ -5,7 +5,7 @@ description: Quality check before adding a new dependency to pyproject.toml. Fla
 
 # Dependency hygiene
 
-Trigger: an Edit or Write that adds a new entry to `[project] dependencies` or `[tool.uv] dev-dependencies` in `pyproject.toml` — OR a proposal to add one before the edit is made.
+Trigger: an Edit or Write that adds a new entry to `[project] dependencies` or a `[dependency-groups]` group in `pyproject.toml` — OR a proposal to add one before the edit is made.
 
 ## Why this matters
 
@@ -50,7 +50,7 @@ If stdlib would do, recommend skipping the dep.
 
 ### 5. Known advisories
 
-- Verification command: `uv run pip-audit`. Lists CVEs across the dependency tree.
+- Verification command: `uv run --with pip-audit pip-audit` (pip-audit is not a dev dependency; `--with` adds it to the run ephemerally, the same idiom CI uses). Lists CVEs across the dependency tree.
 - If the proposed version has known advisories, flag with severity and recommend the patched version (or a different package).
 - CI runs `pip-audit` on every PR and Dependabot (`.github/dependabot.yml`) opens patch PRs, so this is the *pre-merge* backstop, not the only check. Still run it *before* adding — catching a vulnerable dep here is cheaper than a red PR after it lands.
 
@@ -76,7 +76,7 @@ When this skill fires, produce a short report:
 
 Verification commands the human can run:
 - `uv pip show <pkg>`
-- `uv run pip-audit`
+- `uv run --with pip-audit pip-audit`
 - (etc.)
 ```
 
