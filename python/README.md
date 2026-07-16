@@ -285,7 +285,9 @@ that subagent invoked routinely is worth it.
 Application-security review of a diff. Distinct from the general
 `reviewer` — focuses only on security-relevant findings (injection,
 deserialization, auth/authz, crypto, path/file, SSRF, logging, secrets
-in code). Output is structured like a pentest finding list (severity,
+in code, and — when the product calls a model — the LLM surface: prompt
+injection, model output as untrusted input, tool-call authorization).
+Output is structured like a pentest finding list (severity,
 category, location, evidence, why-it-matters, suggested fix). Manual
 review only — no `pip-audit` / `bandit` / `semgrep` shell-outs.
 
@@ -298,6 +300,9 @@ review only — no `pip-audit` / `bandit` / `semgrep` shell-outs.
   third-party API responses that pass through to internal use).
 - Handles secrets — fetches, stores, rotates, or routes them.
 - Deserializes external data (pickle, yaml, xml, jwt, custom binary).
+- Calls an LLM — prompts assembled from untrusted content, or model
+  output feeding tools, shell, SQL, or file paths (see
+  `docs/llm-product.md`).
 
 To enable for a project:
 
