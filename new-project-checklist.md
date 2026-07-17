@@ -102,16 +102,23 @@ carries the latest conventions and is updated first.
       `README.md`.
 - [ ] Repo visibility is correct (public unless there's a reason).
 - [ ] Protect `main`, so "CI is the gate you can't skip" is enforced
-      rather than aspirational. Settings → Rules → Rulesets → New branch
-      ruleset targeting the default branch: **require a pull request
-      before merging**, **require status checks** (`quality` and `audit`,
-      the two jobs in the scaffold's `ci.yml`), **block force pushes**.
-      Without this, nothing stops a direct push to `main` from a plain
-      terminal — the `no-commit-to-branch` pre-commit hook is local and
-      bypassable by design. Skip for local-only repos. On the Free plan,
-      rules on a **private** repo are not enforced — set the ruleset up
-      anyway and it takes effect at the public flip (re-check it then;
-      see below).
+      rather than aspirational. Run the helper from inside the repo:
+      ```
+      bash path/to/agentic-scaffold/scripts/protect-main.sh
+      ```
+      It reads the repo's shape and applies a ruleset scaled to it —
+      require a PR, require the repo's own CI checks, block force pushes;
+      solo repos get 0 required approvals and non-strict checks, teams get
+      1 approval and strict up-to-date. Preview with `--dry-run` first.
+      It **skips local-only repos** (nothing on a server to protect) and,
+      when there is no CI, applies PR + no-force-push only. Without this,
+      nothing stops a direct push to `main` from a plain terminal — the
+      `no-commit-to-branch` pre-commit hook is local and bypassable by
+      design. On the Free plan, rules on a **private** repo are not
+      enforced — the helper still creates the ruleset (it warns) and it
+      takes effect at the public flip (re-check it then; see below).
+      Manual fallback: Settings → Rules → Rulesets → New branch ruleset
+      targeting the default branch.
 
 ## First commit hygiene
 
@@ -223,8 +230,10 @@ the private phase, this is the moment to catch and fix them.
 - Branch protection isn't applied automatically, and rulesets created
   while the repo was private on the Free plan only start enforcing now —
   verify the `main` ruleset from the "On GitHub" section above is
-  present and active (required PR, required `quality` + `audit` checks,
-  force pushes blocked).
+  present and active (required PR, the repo's required CI checks, force
+  pushes blocked). If you never ran it while private, run
+  `scripts/protect-main.sh` now; if you did, re-run with `--force` to
+  refresh it against the now-public shape (e.g. solo → team).
 - If anything sensitive slipped through and you discover it later, your
   options are: (1) rewrite history with `git filter-repo` and force-push
   (still leaks to anyone who already cloned, but at least removes from
