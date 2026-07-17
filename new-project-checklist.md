@@ -101,6 +101,18 @@ carries the latest conventions and is updated first.
 - [ ] Description sentence in the About sidebar matches the first line of
       `README.md`.
 - [ ] Repo visibility is correct (public unless there's a reason).
+- [ ] Enable auto-delete of merged PR branches, so a merge on GitHub
+      prunes the head branch instead of leaving stale branches to pile
+      up:
+      ```
+      gh repo edit --delete-branch-on-merge
+      ```
+      Run from inside the repo (resolves owner/repo from the remote).
+      This is GitHub's "Automatically delete head branches" toggle
+      (Settings → General → Pull Requests). It prunes only the *remote*
+      branch on merge — deleting the local branch and pruning stale
+      remote-tracking refs (`git fetch --prune`) are separate. GitHub-
+      backed repos only; a local-only repo has nothing to set.
 - [ ] Protect `main`, so "CI is the gate you can't skip" is enforced
       rather than aspirational. Run the helper from inside the repo:
       ```
