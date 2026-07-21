@@ -7,24 +7,28 @@ branching is not an optional courtesy step.
 
 ## Branch naming
 
-- Work tracked by a GitHub issue → `<issue-number>-<slug>`, e.g.
-  `42-add-user-prefs`. Create it with
-  `gh issue develop <N> --name <N>-<slug> --checkout`, which links the
-  branch to the issue in GitHub's UI. Plain `git switch -c <N>-<slug>`
-  also works but loses that linkage.
-- Untracked tiny work with no issue — XS fixes, chores, hotfixes →
+- Spec work (default local mode) → `spec-NNNN-<slug>`, e.g.
+  `spec-0007-add-user-prefs`, where `NNNN` is the spec's number under
+  `docs/specs/`. The spec number and the branch number are the same
+  number; that shared id ties spec ↔ branch ↔ PR together, and the
+  specs themselves are the cross-session persistence layer.
+- Untracked tiny work with no spec — XS fixes, chores, hotfixes →
   `<type>/<slug>`, where `<type>` is one of `feat` `fix` `chore` `docs`
-  `refactor`, e.g. `chore/bump-ruff`. Do not invent a fake issue
+  `refactor`, e.g. `chore/bump-ruff`. Do not invent a fake spec
   number.
-- Anything past XS should get a GitHub issue first unless the repo is
-  explicitly local-only — issues are the cross-session persistence layer.
-  The spec number, the issue number, and the branch number are the same
-  number; that shared id ties spec ↔ issue ↔ branch ↔ PR together. In
-  local-only mode, use the next local spec number and a branch like
-  `spec-NNNN-<slug>`. The number is an identifier, not an execution
-  order — gaps in `docs/specs/` are expected (issue numbers are also
-  consumed by bugs and questions), and specs ship in whatever order triage
-  dictates. See `docs/specs/README.md` → "Numbering".
+- Issue mode (opt-in — for team repos or when the backlog should live
+  as GitHub issues; record the choice in `CLAUDE.md`): anything past XS
+  gets a GitHub issue first, the spec is numbered by the issue, and the
+  branch is `<issue-number>-<slug>`, e.g. `42-add-user-prefs`. Create
+  it with `gh issue develop <N> --name <N>-<slug> --checkout`, which
+  links the branch to the issue in GitHub's UI (plain
+  `git switch -c <N>-<slug>` works but loses that linkage). In this
+  mode issues are the cross-session persistence layer and
+  spec ↔ issue ↔ branch ↔ PR all share one id.
+- Either mode: the number is an identifier, not an execution order —
+  gaps in `docs/specs/` are expected (in issue mode, numbers are also
+  consumed by bugs and questions), and specs ship in whatever order
+  triage dictates. See `docs/specs/README.md` → "Numbering".
 
 One branch per spec / unit of work.
 
@@ -47,11 +51,11 @@ direct ask. Workflow: make the change, show `git status` and
 
 ## Pull requests
 
-Open with `gh pr create --fill --web`. In GitHub-backed mode, the PR body
-must contain a closing keyword line — `Closes #<issue-number>` — so the
+Open with `gh pr create --fill --web`. In issue mode, the PR body must
+contain a closing keyword line — `Closes #<issue-number>` — so the
 merge auto-closes the issue. Closing keywords work in the PR body, not in
-feature-branch commit messages. In local-only mode, omit the closing
-keyword. Run `/review` before opening the PR.
+feature-branch commit messages. In the default local mode, omit the
+closing keyword. Run `/review` before opening the PR.
 
 ### Close-tasks ride in the PR they belong to
 

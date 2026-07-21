@@ -70,7 +70,7 @@ planning artifacts, broad to narrow."
 
 ```mermaid
 flowchart TD
-    A0["Choose flavor + profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks?"] --> A["git init + bootstrap.sh --&lt;profile&gt;"]
+    A0["Choose flavor + profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks? --no-stop-gate?"] --> A["git init + bootstrap.sh --&lt;profile&gt;"]
     A --> B["Fill template placeholders"]
     B --> C["new-project checklist (in the agentic-scaffold repo,<br/>not copied here): README ack · GitHub About · identity (git user.email)"]
     C --> D{"Opt-in for THIS repo?"}
@@ -116,12 +116,12 @@ success criterion in the spec passes.** Then you ship.
 
 ```mermaid
 flowchart TD
-    ISS["Create the issue<br/>its number names the spec · branch · PR"]
+    ISS["Number the work: next spec number<br/>(issue mode: create the issue — its number<br/>names the spec · branch · PR)"]
     ISS --> SPEC["/spec<br/>goal · success criteria · non-goals"]
     SPEC --> PLAN["/plan<br/>agent lists the files to touch + the order"]
     PLAN --> OK1{"★ Plan look right?"}
     OK1 -->|"no — fix the spec"| SPEC
-    OK1 -->|yes| BR["Branch: issue#-slug<br/>(never on main)"]
+    OK1 -->|yes| BR["Branch: spec-NNNN-slug<br/>(issue mode: issue#-slug — never on main)"]
     BR --> TF["/test-first<br/>failing tests from the spec"]
     TF --> IMPL
 
@@ -134,7 +134,7 @@ flowchart TD
     end
 
     DONE -->|"yes ★"| DOCS["Sync docs/ to the change<br/>README only if the surface changed"]
-    DOCS --> SHIP["Commit + open PR (Closes #N)<br/>you write the message"]
+    DOCS --> SHIP["Commit + open PR<br/>(issue mode: Closes #N) — you write the message"]
     SHIP --> MERGE["CI green → merge → next feature"]
 
     classDef checkpoint fill:#fde68a,stroke:#b45309,color:#111;
@@ -150,10 +150,12 @@ them.** Checkpoint one: approve the plan (a wrong plan is a one-paragraph
 spec fix — much cheaper than catching it later). Checkpoint two: decide
 the spec is finished before you commit.
 
-**The issue comes first** — and an issue is a work item (like a Jira or
-Linear ticket, not just a bug report). Its number is the shared id for
-the spec, the branch, and the PR's `Closes #N`. The number is identity,
-not order; see [`specs/README.md`](specs/README.md) → "Numbering".
+**The number comes first** — in the default local mode it is simply the
+next spec number; in issue mode the issue is created first (an issue is
+a work item, like a Jira or Linear ticket, not just a bug report) and
+its number is the shared id for the spec, the branch, and the PR's
+`Closes #N`. The number is identity, not order; see
+[`specs/README.md`](specs/README.md) → "Numbering".
 
 **Optional sharpening passes** slot in where each helps and are left off
 the diagram to keep it clean: `/scope-check` (fuzzy goal) and `/clarify`
@@ -179,7 +181,7 @@ flowchart LR
     W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
     W --> POST["after each Edit/Write<br/>(PostToolUse)"] --> POSTb["ruff format<br/>(+ ruff check · mypy with --strict-hooks)"]
     W --> CMP["before compaction<br/>(PreCompact)"] --> CMPb["preserve spec path · branch ·<br/>modified files · gate state"]
-    W --> STOP["turn end<br/>(Stop, strict-hooks only)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
+    W --> STOP["turn end<br/>(Stop — default; --no-stop-gate removes)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
     W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: ruff · mypy · pytest · pip-audit — non-skippable<br/>+ claude-review.yml if enabled"]
 
@@ -187,8 +189,8 @@ flowchart LR
     class SSb,RLb,PREb,POSTb,CMPb,STOPb,PCb,CIb auto;
 ```
 
-Behaviour, edge cases, and how to bypass each (e.g. the Stop hook when
-`--strict-hooks` is enabled, `--no-verify` for the day-zero commit) live in
+Behaviour, edge cases, and how to bypass each (e.g. the Stop hook,
+`--no-verify` for the day-zero commit) live in
 `../CLAUDE.md` → **Hooks and guardrails**. The line `block-destructive`
 draws is *unrecoverable* — things the reflog or a re-clone can't bring
 back; merely risky-but-recoverable commands stay off it. OS-level
@@ -208,7 +210,7 @@ flowchart TD
     Q -->|"trivial — rename, typo, ≤10 lines"| TRIV["Just do it.<br/>branch optional · skip spec & plan"]
     Q -->|"small — one function, one file"| SMALL["branch · spec = 1 sentence<br/>skip /plan · /test-first still required"]
     Q -->|"medium — 3–10 files"| MED["Full loop. (Where it shines.)"]
-    Q -->|"large — refactor / new subsystem"| LARGE["Split into medium tasks first<br/>one issue + spec + branch each"]
+    Q -->|"large — refactor / new subsystem"| LARGE["Split into medium tasks first<br/>one spec + branch each"]
     LARGE --> SEQ["dependent pieces:<br/>loop × N, sequential<br/>phase handoff between sessions"]
     LARGE --> PAR["independent pieces:<br/>one worktree + agent per spec<br/>file ownership partitioned in non-goals"]
 ```

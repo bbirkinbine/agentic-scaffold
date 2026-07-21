@@ -4,7 +4,7 @@
 #
 # Usage:
 #   cd your-project
-#   bash path/to/agentic-scaffold/python/bootstrap.sh [--minimal|--python-core|--full] [--strict-hooks] [--advanced-docs]
+#   bash path/to/agentic-scaffold/python/bootstrap.sh [--minimal|--python-core|--full] [--strict-hooks] [--no-stop-gate] [--advanced-docs]
 #   bash path/to/agentic-scaffold/python/bootstrap.sh --update [profile/options]
 #
 # Profiles:
@@ -18,9 +18,13 @@
 #                  still not copied; enable them per project.
 #
 # Options:
-#   --strict-hooks  Make Claude hooks enforce ruff check + mypy after edits
-#                   and enable the Stop gate. Without this, edit hooks format
-#                   only; /review-check and CI remain the hard gates.
+#   --strict-hooks  Make Claude hooks enforce ruff check + mypy after edits.
+#                   Without this, edit hooks format only; /review-check and
+#                   CI remain the hard gates.
+#   --no-stop-gate  Remove the Stop gate (on by default in every profile:
+#                   the Stop hook blocks ending a turn while src/ is dirty
+#                   and ruff/mypy/pytest are red). Incompatible with
+#                   --strict-hooks, which requires the gate.
 #   --advanced-docs Copy advanced docs with any profile.
 #
 # Two classes of file:
@@ -41,7 +45,7 @@
 #     WORKFLOW.md, AGENTS.md, pyproject.toml, .gitignore,
 #     .pre-commit-config.yaml, default settings/hooks (format-only edit
 #     hook, branch warning, destructive-command block, secrets read-deny,
-#     status line, specs dashboard,
+#     status line, specs dashboard, Stop gate,
 #     commit-message attribution strip), standing rules, docs/specs/README.md,
 #     docs/project-types.md (the orientation map), CI, core commands
 #     (spec / plan / test-first / review-check / review), and the core
@@ -77,11 +81,13 @@ MODE=install
 PROFILE=python-core
 STRICT_HOOKS=0
 STRICT_HOOKS_APPLIED=0
+NO_STOP_GATE=0
+NO_STOP_GATE_APPLIED=0
 ADVANCED_DOCS=0
 
 usage() {
   cat <<'EOF'
-Usage: bootstrap.sh [--update] [--minimal|--python-core|--full] [--strict-hooks] [--advanced-docs]
+Usage: bootstrap.sh [--update] [--minimal|--python-core|--full] [--strict-hooks] [--no-stop-gate] [--advanced-docs]
 
 Profiles:
   --minimal      Thin starter: context, workflow, core commands/agents, specs, CI
@@ -90,7 +96,8 @@ Profiles:
 
 Options:
   --update         Refresh MANAGED files; project-owned files are left untouched
-  --strict-hooks   Enable ruff check + mypy after edits and the Stop gate
+  --strict-hooks   Enable ruff check + mypy after edits (Stop gate is on by default)
+  --no-stop-gate   Remove the default Stop gate (incompatible with --strict-hooks)
   --advanced-docs  Copy advanced docs even when not using --full
 EOF
 }
@@ -105,6 +112,7 @@ for arg in "$@"; do
       ADVANCED_DOCS=1
       ;;
     --strict-hooks) STRICT_HOOKS=1 ;;
+    --no-stop-gate) NO_STOP_GATE=1 ;;
     --advanced-docs) ADVANCED_DOCS=1 ;;
     -h | --help)
       usage
@@ -116,6 +124,12 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+if [[ "$STRICT_HOOKS" == 1 && "$NO_STOP_GATE" == 1 ]]; then
+  echo "ERROR: --strict-hooks and --no-stop-gate are incompatible."
+  echo "       Strict hooks include the Stop gate; drop one of the two flags."
+  exit 1
+fi
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DST_DIR="$(pwd)"
@@ -136,6 +150,7 @@ else
 fi
 echo "  profile: $PROFILE"
 echo "  strict hooks: $([[ "$STRICT_HOOKS" == 1 ]] && echo yes || echo no)"
+echo "  stop gate: $([[ "$NO_STOP_GATE" == 1 ]] && echo no || echo yes)"
 echo "  advanced docs: $([[ "$ADVANCED_DOCS" == 1 ]] && echo yes || echo no)"
 echo "  from: $SRC_DIR"
 echo "  into: $DST_DIR"
@@ -296,6 +311,93 @@ JSON
   echo "  wrote strict hooks: .claude/settings.json"
 }
 
+# write_no_stop_settings: the default settings minus the Stop hook, for
+# --no-stop-gate. A third copy of the settings file (with the default file
+# and the strict heredoc above); the smoke test greps all variants for the
+# secrets read-deny and status line so they can't drift silently.
+write_no_stop_settings() {
+  local dst="$DST_DIR/.claude/settings.json"
+  if [[ "$MODE" == install && "$SETTINGS_PREEXISTED" == 1 ]]; then
+    echo "  skip --no-stop-gate (existing settings): .claude/settings.json"
+    echo "    Re-run with --update --no-stop-gate or remove the Stop hook by hand."
+    return
+  fi
+  mkdir -p "$(dirname "$dst")"
+  cat > "$dst" <<'JSON'
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/hooks/statusline.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/branch-check.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-destructive.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -d src ] && [ -d tests ]; then uv run ruff format .; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/specs-status.sh --hook"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'When compacting, preserve: the active spec path (docs/specs/NNNN-*.md), the current branch name, the list of files modified this session, the failing/passing state of the quality gate, and any unresolved [ask-user] review findings.'"
+          }
+        ]
+      }
+    ]
+  }
+}
+JSON
+  NO_STOP_GATE_APPLIED=1
+  echo "  wrote settings without Stop gate: .claude/settings.json"
+}
+
 # --- project-owned: copied once, never overwritten ---
 copy CLAUDE.md
 copy pyproject.toml
@@ -335,6 +437,12 @@ sync .claude/hooks/block-destructive.sh
 sync .claude/hooks/statusline.sh
 sync .claude/hooks/specs-status.sh
 sync .claude/hooks/strip-ai-attribution.sh
+# The Stop gate is on by default: the default settings.json wires the Stop
+# hook, so the script ships in every profile. --no-stop-gate skips the
+# script and rewrites settings without the Stop entry.
+if [[ "$NO_STOP_GATE" == 0 ]]; then
+  sync .claude/hooks/gate-on-stop.sh
+fi
 sync .claude/rules/git-workflow.md
 sync .claude/rules/commit-style.md
 sync .claude/rules/public-repo-hygiene.md
@@ -356,9 +464,6 @@ sync .github/ISSUE_TEMPLATE/feature.yml
 sync .github/ISSUE_TEMPLATE/bug.yml
 
 # --- managed: default attended Python workflow ---
-# gate-on-stop.sh is intentionally NOT copied here: the default settings.json
-# wires no Stop hook, so the script would be inert. It is synced only in the
-# --strict-hooks block below, where the Stop hook is actually wired.
 if [[ "$PROFILE" != minimal ]]; then
   sync .claude/agents/reviewer-adversarial.md
   sync .claude/commands/product-spec.md
@@ -378,8 +483,9 @@ if [[ "$PROFILE" != minimal ]]; then
 fi
 
 if [[ "$STRICT_HOOKS" == 1 ]]; then
-  sync .claude/hooks/gate-on-stop.sh
   write_strict_settings
+elif [[ "$NO_STOP_GATE" == 1 ]]; then
+  write_no_stop_settings
 fi
 
 # --- managed: advanced docs and full command surface ---
@@ -443,9 +549,18 @@ if [[ "$STRICT_HOOKS_APPLIED" == 1 ]]; then
 elif [[ "$STRICT_HOOKS" == 1 ]]; then
   echo "Strict hooks were requested but not applied because .claude/settings.json"
   echo "already existed. Re-run with --update --strict-hooks or merge by hand."
+elif [[ "$NO_STOP_GATE_APPLIED" == 1 ]]; then
+  echo "Stop gate removed (--no-stop-gate). Edit hooks format only; /review-check"
+  echo "and CI are the hard quality gates."
+elif [[ "$NO_STOP_GATE" == 1 ]]; then
+  echo "--no-stop-gate was requested but settings were not rewritten because"
+  echo ".claude/settings.json already existed. Re-run with --update --no-stop-gate"
+  echo "or remove the Stop hook entry by hand."
 else
-  echo "Strict hooks are off. Edit hooks format only; /review-check and CI are"
-  echo "the hard quality gates. Re-run with --strict-hooks to opt in."
+  echo "Stop gate is on (default): the Stop hook blocks ending a turn while src/"
+  echo "has pending changes and ruff/mypy/pytest are red. Edit hooks format only;"
+  echo "add --strict-hooks for lint + mypy after every edit, or --no-stop-gate to"
+  echo "remove the gate."
 fi
 echo
 echo "Read WORKFLOW.md next — it's in your project root and is the source"

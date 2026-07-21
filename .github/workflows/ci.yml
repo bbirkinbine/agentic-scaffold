@@ -48,7 +48,9 @@ jobs:
           - profile: full
           - profile: python-core
             strict: --strict-hooks
-    name: smoke (${{ matrix.profile }}${{ matrix.strict && ' strict' || '' }})
+          - profile: python-core
+            strict: --no-stop-gate
+    name: smoke (${{ matrix.profile }} ${{ matrix.strict || '' }})
     steps:
       - uses: actions/checkout@v7
 

@@ -78,7 +78,7 @@ python/
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── feature.yml                    # feature issue form; fields feed the spec
 │   │   └── bug.yml                        # bug issue form
-│   └── pull_request_template.md           # PR body carrying the Closes #N line
+│   └── pull_request_template.md           # PR body (carries Closes #N in issue mode)
 ├── docs/
 │   ├── project-types.md                   # Orientation: flavors, profiles, capability matrix, when to use each agent/skill (managed; all profiles)
 │   ├── agent-handoff.md                   # Operational runbook (project-owned; current state, risks, rollback)
@@ -138,10 +138,12 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 
 Options compose with profiles:
 
+- The Stop hook (`gate-on-stop.sh`), which blocks turn-end while the
+  local gate is red, is wired **by default** in every profile;
+  `--no-stop-gate` removes it.
 - `--strict-hooks` rewrites `.claude/settings.json` so Edit/Write runs
-  `ruff format`, `ruff check`, and `mypy`, and enables the Stop hook that
-  blocks turn-end while the local gate is red. Without it, Edit/Write
-  formats only; `/review-check` and CI remain the hard gates.
+  `ruff format`, `ruff check`, and `mypy` after every edit. Without it,
+  Edit/Write formats only; `/review-check` and CI remain the hard gates.
 - `--advanced-docs` copies the advanced docs without using the full
   profile.
 
@@ -162,11 +164,11 @@ After bootstrap:
    `strip-ai-attribution.sh`, which drops any `Co-Authored-By: Claude`
    trailer or "Generated with Claude Code" footer that slips into a
    commit message).
-4. If the project uses GitHub issues, create the labels the issue forms
-   reference (`feature`, `bug`, `spec-needed`, `triage`) so
-   `.github/ISSUE_TEMPLATE/` resolves them — e.g.
-   `gh label create spec-needed`. If not, use the local-only numbering
-   mode in `docs/specs/README.md`.
+4. Issue mode only (opt-in — see `docs/specs/README.md`): create the
+   labels the issue forms reference (`feature`, `bug`, `spec-needed`,
+   `triage`) so `.github/ISSUE_TEMPLATE/` resolves them — e.g.
+   `gh label create spec-needed`. The default local mode needs no
+   GitHub setup.
 5. Write your first spec: `docs/specs/0001-<feature>.md`
 6. For per-subdirectory rules: `cp subdir-CLAUDE.md.example src/<area>/CLAUDE.md`
    and edit heavily.
@@ -211,14 +213,14 @@ to the pieces below. `Spec → Plan → Test-first → Implement → Verify`, wh
 | Spec | You write `docs/specs/NNNN-<feature>.md`, or `/spec` drafts it from the current discussion; you then review and edit | `/spec <name>` |
 | Clarify (optional post-draft) | Agent interrogates the draft spec's underspecified areas (max 5 questions), writes answers back into the spec | `/clarify [spec-path]` |
 | Architecture decision (Large / cross-cutting work) | You write `docs/adr/NNNN-<slug>.md` (independent numbering), or `/adr` drafts it from the current discussion; you then review and edit the rationale | `/adr <title>` |
-| Branch | Main session creates `<issue#>-<slug>` (or `<type>/<slug>`) automatically — see `.claude/rules/git-workflow.md` | — |
+| Branch | Main session creates `spec-NNNN-<slug>` (or `<type>/<slug>`; `<issue#>-<slug>` in issue mode) automatically — see `.claude/rules/git-workflow.md` | — |
 | Plan | `planner` subagent (`.claude/agents/planner.md`) | `/plan [spec-path]` |
 | Test-first | `test-first` subagent (`.claude/agents/test-first.md`) | `/test-first [spec-path]` |
 | Analyze (optional consistency check) | Read-only cross-check: every success criterion covered by a test, no undeclared scope, standing rules honored | `/analyze [spec-path]` |
 | Implement | Main Claude session (CLAUDE.md + `.claude/rules/` tell it the rules) | — |
 | Per-edit quality | Default PostToolUse hook (`.claude/settings.json`) runs `ruff format` on every Edit/Write; `--strict-hooks` also runs ruff check + mypy | — |
 | Local quality gate (pre-review) | ruff lint + format + mypy + pytest, refuses pass on failure | `/review-check` |
-| Turn-end gate (strict-hooks only) | With `--strict-hooks`, Stop hook (`.claude/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes — `/review-check` made mechanical | — |
+| Turn-end gate (default; `--no-stop-gate` removes it) | Stop hook (`.claude/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes — `/review-check` made mechanical | — |
 | Verify (collaborative) | `reviewer` subagent (`.claude/agents/reviewer.md`) | `/review [<base>..<head>]` |
 | Verify (adversarial — pair with `/review` on meaningful PRs) | `reviewer-adversarial` subagent (`.claude/agents/reviewer-adversarial.md`) | `/review-adversarial [<base>..<head>]` |
 | Verify (security) | `security-reviewer` (opt-in subagent) | `/security [<base>..<head>]` |
@@ -264,15 +266,17 @@ code) load when matching files are touched. This keeps `CLAUDE.md`
 itself short enough to be read rather than skimmed; the sizing research
 this follows says a bloated root context file gets ignored.
 
-## Local-only mode
+## Issue mode (opt-in)
 
-The default workflow uses GitHub issues as the durable work-item ID: the
-issue number, spec number, branch, and PR all share one identifier. For a
-local-only repo, skip the GitHub issue/forms/labels setup and number specs
-from the highest existing `docs/specs/NNNN-*.md` + 1. Branches can be
-`spec-NNNN-<slug>` or `<type>/<slug>`, and PR closing keywords are omitted.
-`/spec` already has this fallback; document the choice in `CLAUDE.md` so
-future sessions do not stop to ask for a GitHub issue.
+The default workflow is local: specs are numbered from the highest
+existing `docs/specs/NNNN-*.md` + 1, branches are `spec-NNNN-<slug>` or
+`<type>/<slug>`, and PR closing keywords are omitted — no GitHub
+issue/forms/labels setup needed. For a team repo, or when you want the
+backlog tracked as GitHub issues, opt into issue mode: the issue number,
+spec number, branch, and PR then all share one identifier
+(`<issue#>-<slug>` branches, `Closes #N` in the PR body). Document the
+choice in `CLAUDE.md` so `/spec` looks up the issue instead of taking
+the next local number.
 
 ## Opt-in subagents
 
