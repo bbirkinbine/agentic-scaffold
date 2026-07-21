@@ -113,6 +113,8 @@ carries the latest conventions and is updated first.
       branch on merge — deleting the local branch and pruning stale
       remote-tracking refs (`git fetch --prune`) are separate. GitHub-
       backed repos only; a local-only repo has nothing to set.
+      `protect-main.sh` (next step) applies this toggle too, so running
+      the helper covers this box.
 - [ ] Protect `main`, so "CI is the gate you can't skip" is enforced
       rather than aspirational. Run the helper from inside the repo:
       ```

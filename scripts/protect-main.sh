@@ -12,6 +12,11 @@
 # teeth of "CI is the gate you cannot skip", so it belongs on GitHub-backed
 # repos that have CI, and stays out of local-only / no-CI repos.
 #
+# It also enables GitHub's "Automatically delete head branches" toggle
+# (gh repo edit --delete-branch-on-merge) when it is off — the checklist's
+# auto-delete step, folded in here so one command covers both server-side
+# settings. Idempotent: already-on is reported and left alone.
+#
 # Shape detection (each signal read live from the target repo):
 #   1. Remote        — no GitHub repo resolvable  -> LOCAL-ONLY -> skip cleanly.
 #   2. CI checks      — none found                -> PR + no-force-push only
@@ -82,6 +87,9 @@ BRANCH="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name 2>/de
 
 # --- Signal 4: visibility (used for the dormant-ruleset warning) -----------
 PRIVATE="$(gh api "repos/$REPO" --jq '.private' 2>/dev/null || echo false)"
+
+# --- Auto-delete of merged PR branches: current state -----------------------
+DELETE_ON_MERGE="$(gh api "repos/$REPO" --jq '.delete_branch_on_merge' 2>/dev/null || echo false)"
 
 # --- Signal 3: solo vs team -> approvals + strict policy --------------------
 if [ -n "$TEAM_OVERRIDE" ]; then
@@ -154,6 +162,11 @@ if [ -n "$CONTEXTS_JSON" ]; then
 else
   echo "protect-main: CI checks    none found  ->  PR + no-force-push only (required-status-checks omitted)"
 fi
+if [ "$DELETE_ON_MERGE" = true ]; then
+  echo "protect-main: auto-delete  merged PR branches: already enabled"
+else
+  echo "protect-main: auto-delete  merged PR branches: off  ->  will enable"
+fi
 
 if [ "$DRY_RUN" = 1 ]; then
   echo "protect-main: --dry-run, ruleset JSON:"
@@ -162,28 +175,45 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 # --- Idempotency: does a ruleset of this name already exist? ----------------
+SKIP_RULESET=0
 EXISTING_ID="$(gh api "repos/$REPO/rulesets" --jq ".[] | select(.name==\"$NAME\") | .id" 2>/dev/null | head -1 || true)"
 if [ -n "$EXISTING_ID" ] && [ "$FORCE" != 1 ]; then
-  note "a ruleset named '$NAME' already exists (id $EXISTING_ID). Re-run with --force to update it. Skipping."
+  note "a ruleset named '$NAME' already exists (id $EXISTING_ID). Re-run with --force to update it. Skipping the ruleset."
+  SKIP_RULESET=1
+fi
+if [ "$SKIP_RULESET" = 1 ] && [ "$DELETE_ON_MERGE" = true ]; then
+  note "auto-delete of merged branches is already enabled. Nothing to do."
   exit 0
 fi
 
 # --- Confirm (state-changing) ----------------------------------------------
 if [ "$ASSUME_YES" != 1 ]; then
   if [ ! -t 0 ]; then die "non-interactive; pass --yes to apply (or --dry-run to preview)"; fi
-  action=$([ -n "$EXISTING_ID" ] && echo "update" || echo "create")
-  printf 'protect-main: %s ruleset "%s" on %s:%s? [y/N] ' "$action" "$NAME" "$REPO" "$BRANCH"
+  if [ "$SKIP_RULESET" = 1 ]; then
+    printf 'protect-main: enable auto-delete of merged PR branches on %s? [y/N] ' "$REPO"
+  else
+    action=$([ -n "$EXISTING_ID" ] && echo "update" || echo "create")
+    extra=""
+    [ "$DELETE_ON_MERGE" = true ] || extra=" + enable auto-delete of merged branches"
+    printf 'protect-main: %s ruleset "%s" on %s:%s%s? [y/N] ' "$action" "$NAME" "$REPO" "$BRANCH" "$extra"
+  fi
   read -r reply
   case "$reply" in y|Y|yes|YES) ;; *) note "aborted."; exit 0 ;; esac
 fi
 
 # --- Apply ------------------------------------------------------------------
-if [ -n "$EXISTING_ID" ]; then
-  printf '%s' "$BODY" | gh api -X PUT "repos/$REPO/rulesets/$EXISTING_ID" --input - >/dev/null
-  note "updated ruleset '$NAME' (id $EXISTING_ID)."
-else
-  printf '%s' "$BODY" | gh api -X POST "repos/$REPO/rulesets" --input - >/dev/null
-  note "created ruleset '$NAME'."
+if [ "$SKIP_RULESET" != 1 ]; then
+  if [ -n "$EXISTING_ID" ]; then
+    printf '%s' "$BODY" | gh api -X PUT "repos/$REPO/rulesets/$EXISTING_ID" --input - >/dev/null
+    note "updated ruleset '$NAME' (id $EXISTING_ID)."
+  else
+    printf '%s' "$BODY" | gh api -X POST "repos/$REPO/rulesets" --input - >/dev/null
+    note "created ruleset '$NAME'."
+  fi
+fi
+if [ "$DELETE_ON_MERGE" != true ]; then
+  gh repo edit "$REPO" --delete-branch-on-merge >/dev/null
+  note "enabled auto-delete of merged PR branches."
 fi
 
 if [ "$PRIVATE" = true ]; then
