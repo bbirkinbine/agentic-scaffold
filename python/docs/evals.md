@@ -90,8 +90,8 @@ Section 2 review machinery suffice. Product evals are for the subset whose
 product contains an LLM/AI surface: a summarizer, a chatbot, a RAG
 answerer, an MCP server that generates text, an agent whose tool-use
 trajectory matters. That is why the `evaluator` subagent is **opt-in**, the
-same way `security-reviewer` is opt-in for a network surface — see
-`new-project-checklist.md`.
+same way `security-reviewer` is opt-in for a network surface — see the
+day-zero opt-in step in `docs/project-types.md`.
 
 ## 4. When in the loop do I run `/eval`?
 
@@ -209,5 +209,4 @@ cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
 ```
 
 Then add a one-line mention under "Subagents" in `CLAUDE.md` so the agent
-knows when to invoke it, and record the decision in the day-zero opt-in
-step of `new-project-checklist.md`.
+knows when to invoke it.
