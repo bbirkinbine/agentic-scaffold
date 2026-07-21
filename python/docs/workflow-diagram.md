@@ -72,7 +72,7 @@ planning artifacts, broad to narrow."
 flowchart TD
     A0["Choose flavor + profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks?"] --> A["git init + bootstrap.sh --&lt;profile&gt;"]
     A --> B["Fill template placeholders"]
-    B --> C["new-project-checklist:<br/>README ack · GitHub About · identity (git user.email)"]
+    B --> C["new-project checklist (in the agentic-scaffold repo,<br/>not copied here): README ack · GitHub About · identity (git user.email)"]
     C --> D{"Opt-in for THIS repo?"}
     D -->|"network / auth / untrusted input / secrets"| D1["copy security-reviewer"]
     D -->|"hot path / async / under load"| D2["copy performance-reviewer"]

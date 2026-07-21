@@ -125,7 +125,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-07-13)
+## Open work / current state (updated 2026-07-21)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -177,11 +177,23 @@ same window added `docs/codex-portability.md`, the plan for making the
 scaffold dual-client (a shared client-neutral contract rendered into
 both Claude Code and Codex surfaces).
 
+The scaffold is validated in day-to-day use (as of 2026-07-21):
+multiple real projects — both the Python profiles and the non-Python
+template flavor — have been bootstrapped from it and run the full
+spec → review loop, including extending the opt-in agent/skill pattern
+with project-specific roles. Corrections feed back here as they
+surface.
+
+How new projects consume this repo in practice: a Claude Code session
+is pointed at the latest checkout, installs the scaffold into the new
+repo, and pre-fills the templates from the founding conversation; the
+session is then restarted so hooks and settings take effect. Consumer
+projects are snapshots — `bootstrap.sh --update` is rarely run against
+existing ones, so changes here reach projects at their next bootstrap,
+not retroactively.
+
 Open:
 
-- The refreshed scaffolding has not yet been validated end-to-end on a
-  real project — exercise `bootstrap.sh` and the issue-first
-  `/spec` → `/product-spec` flow on the next new repo and feed
-  corrections back here.
-- The Codex portability plan (`docs/codex-portability.md`) is documented
-  but not started.
+- The Codex portability plan (`docs/codex-portability.md`) is
+  deliberately deferred: the plan is written, but no current project
+  needs a second client. Revisit only if one does.

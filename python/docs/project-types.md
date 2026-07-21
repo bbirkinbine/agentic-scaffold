@@ -22,7 +22,7 @@ flowchart TD
     Q{"What kind of repo?"}
     Q -->|"Python package / app / service"| PY["Python flavor:<br/>run bootstrap.sh with a profile<br/>(section 2)"]
     Q -->|"infra · shell · FPGA · docs · anything else"| NP["Non-Python flavor:<br/>copy CLAUDE.md.template + README.md.template<br/>fill the {{placeholders}}"]
-    NP --> BOTH["Both flavors: walk new-project-checklist.md<br/>(identity · GitHub About · private->public scrub)"]
+    NP --> BOTH["Both flavors: walk new-project-checklist.md<br/>in the agentic-scaffold repo — not copied here<br/>(identity · GitHub About · private->public scrub)"]
     PY --> BOTH
 
     classDef nonpy fill:#f3f4f6,stroke:#6b7280,color:#111;

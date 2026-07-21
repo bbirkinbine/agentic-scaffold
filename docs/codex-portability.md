@@ -1,8 +1,10 @@
 # Codex CLI portability plan
 
-Status: planned. This document describes the migration needed to make the
-scaffold a first-class Codex CLI workflow while preserving Claude Code
-support.
+Status: deferred (2026-07-21). The plan is complete but implementation is
+intentionally not started — no current project needs a second client. This
+document is the reference if that changes. It describes the migration
+needed to make the scaffold a first-class Codex CLI workflow while
+preserving Claude Code support.
 
 Verification baseline: 2026-07-09, official Codex documentation and
 `codex-cli 0.144.1`. Recheck paths, schemas, trust behavior, and CLI flags
