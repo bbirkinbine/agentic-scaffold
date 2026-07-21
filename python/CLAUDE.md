@@ -82,8 +82,8 @@ each phase, and any time the conversation has drifted from it. If your
 context is getting long mid-feature, stop at a phase boundary and
 `/clear` — see `WORKFLOW.md` → "Phase handoff".
 
-**Verify before you report.** `/review-check`, the Stop-gate hook when
-`--strict-hooks` is enabled, and CI mechanically verify the *code* — but
+**Verify before you report.** `/review-check`, the Stop-gate hook, and
+CI mechanically verify the *code* — but
 a claim the gate can't see ("the scrub worked", "these two files are
 duplicates", "the service came back up") is only true once you have
 proven it. Before you state an outcome,
@@ -128,7 +128,7 @@ standing consent to resolve `[ask-user]` findings too.
 
 - **Spec.** Before any non-trivial work, write a short spec under
   `docs/specs/NNNN-<feature>.md` (see `docs/specs/README.md` for the
-  numbering, local-only mode, required sections, and
+  numbering, the opt-in issue mode, section shapes, and
   `## External references` provenance). One paragraph minimum: goal,
   success criteria, non-goals. When the feature has already been discussed
   in-session, `/spec` can draft the body from that discussion (marking any
@@ -288,7 +288,8 @@ Defense in depth, soft to hard — each is one layer, none is a guarantee:
   of truth.
 - **PreCompact** injects a reminder to preserve the active spec path,
   branch, and modified-file list through compaction.
-- **Stop** (`gate-on-stop.sh`, strict-hooks only) blocks ending a turn
+- **Stop** (`gate-on-stop.sh`, on by default; bootstrap's
+  `--no-stop-gate` removes it) blocks ending a turn
   while `src/` has pending changes and ruff/mypy/pytest are red —
   `/review-check` made mechanical. Note: Claude Code overrides a Stop
   hook after 8 consecutive blocks, so the gate is a strong nudge, not an

@@ -4,7 +4,7 @@ Short design docs for non-trivial features. Read these before implementing
 or reviewing.
 
 > **Specs vs ADRs.** A spec captures *what* a unit of work delivers, and
-> is numbered by its issue. An **architecture decision record** captures
+> carries the work item's number. An **architecture decision record** captures
 > a cross-cutting *technical* decision that several features inherit and
 > that is costly to reverse — numbered independently under `docs/adr/`
 > (see `docs/adr/README.md`). When a feature spec's approach hinges on
@@ -35,33 +35,36 @@ _No specs yet. Run `/spec <name>` to create the first one; this list fills in an
 ## Numbering
 
 `NNNN-<kebab-name>.md`, zero-padded to four digits. In the default
-GitHub-backed workflow, `NNNN` is the GitHub issue number for the work —
-the same number names the branch (see `.claude/rules/git-workflow.md`),
-so issue ↔ spec ↔ branch ↔ PR all share one identifier. Create the issue
-first, then the spec. Once a number is assigned it never changes, even if
-the spec is later superseded.
+**local mode**, `NNNN` is the next local sequence number — the highest
+existing 4-digit prefix in `docs/specs/` + 1. The same number names the
+branch, `spec-NNNN-<slug>` (see `.claude/rules/git-workflow.md`), so
+spec ↔ branch ↔ PR share one identifier; PR closing keywords are
+omitted. Once a number is assigned it never changes, even if the spec is
+later superseded, and a number is never reused.
 
-### Local-only mode
+### Issue mode
 
-For repos that do not use GitHub issues, skip the issue lookup and number
-specs from the highest existing 4-digit prefix in `docs/specs/` + 1. Use
-`spec-NNNN-<slug>` or `<type>/<slug>` for branches, and omit PR closing
-keywords. Document the choice in `CLAUDE.md` so `/spec` does not stop to
-ask for an issue. Never reuse a number in either mode.
+Opt-in, for team repos or when the backlog should live as GitHub
+issues: `NNNN` is the GitHub issue number for the work, the branch is
+`<issue#>-<slug>`, and the PR body carries `Closes #<issue#>`, so
+issue ↔ spec ↔ branch ↔ PR all share one identifier. Create the issue
+first, then the spec. Document the choice in `CLAUDE.md` so `/spec`
+knows to look up the issue instead of taking the next local number.
+Never reuse a number in either mode.
 
 Two consequences, both intentional:
 
-- **Gaps are normal.** Issue numbers are also consumed by bug reports
-  and questions, so `docs/specs/` will skip numbers. A gap is not a
-  missing spec.
+- **Gaps are normal.** In issue mode, numbers are also consumed by bug
+  reports and questions, so `docs/specs/` will skip numbers; in local
+  mode, abandoned work leaves gaps too. A gap is not a missing spec.
 - **The number is an identifier, not an execution order.** Specs ship
   in whatever order priorities and dependencies dictate — 0003, then
-  0004, then 0002 is fine. Ordering lives in issue triage (labels,
-  milestones) and in the `**Depends on:**` field below, never in the
-  filename.
+  0004, then 0002 is fine. Ordering lives in the `**Depends on:**`
+  field below (and, in issue mode, in issue triage — labels,
+  milestones), never in the filename.
 
-`0000` is reserved for the product spec (see below) and is never an
-issue number.
+`0000` is reserved for the product spec (see below) and is never a
+work-item number.
 
 ## Status header convention
 
@@ -146,8 +149,13 @@ test vectors / known-answer tests, and cited section numbers
 data shape — if the spec or implementation will *cite* an outside
 source for correctness, it gets declared here.
 
-Required — "None" is a valid answer, but the question must be
-answered. Pick the case that applies:
+Scales with the spec. Required whenever the spec or implementation
+will cite an outside authority for correctness — a reviewer treats an
+undeclared authority as a finding. When there is no outside authority
+but a reviewer might reasonably expect one (the design looks like it
+implements a standard), answer "None — original" so they know not to
+look. On a small spec that touches no external authority at all, omit
+the section entirely. Pick the case that applies:
 
 - **Authoritative source.** Name the source and pin a URL + retrieval
   date + the source's license (e.g., "GS1 Manufacturer ID registry,
@@ -203,6 +211,13 @@ implementation details here.>
 
 For larger features, add: dependencies, schema changes, migration plan,
 test strategy, open questions. Keep it reviewable in < 10 minutes.
+
+The template scales down as well as up: on a small spec (one function,
+one file), `## Sketch` and `## External references` are both omittable
+— Sketch when the approach is obvious, External references when nothing
+in the work cites an outside authority (see the scaling rule inside
+that section above). `## Goal`, `## Success criteria`, and
+`## Non-goals` are the floor and never come off.
 
 ## Optional sections
 
@@ -271,16 +286,16 @@ file, reserved number `0000`, covering:
   feature specs don't relitigate them one at a time.
 - **Constraints and assumptions** — platform, licensing, budget,
   "solo-maintained"; the facts a planner must not design against.
-- **Roadmap pointers** — links to the feature specs and open issues
+- **Roadmap pointers** — links to the feature specs and open work items
   that currently serve the direction. A list of links, not a plan;
-  the issues stay the backlog.
+  the backlog stays the backlog.
 
 Don't write it from a blank template — run `/product-spec`, which
 interviews you (seven questions, one at a time) and writes the file
 from your answers. Re-run it later to refresh a stale product spec;
 it asks only about the gaps.
 
-Differences from a feature spec: no issue, no branch, no
+Differences from a feature spec: no work item, no branch, no
 implementation, status `evergreen`. It is the one spec that is a
 living document — revise it in place when direction changes (the
 design-log record of *why* lives in the feature specs and their

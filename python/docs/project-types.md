@@ -39,9 +39,10 @@ file and public-repo hygiene rules; the rest of this document is about the
 ## 2. Pick a Python profile
 
 `bootstrap.sh` installs one of three profiles. The default is
-`--python-core`. Two options compose on top of any profile: `--strict-hooks`
-(enforce lint/type-check on every edit and block turn-end on a red gate)
-and `--advanced-docs` (add the deeper doctrine docs without going full).
+`--python-core`. Three options compose on top of any profile:
+`--strict-hooks` (enforce lint/type-check on every edit),
+`--no-stop-gate` (remove the default turn-end gate), and
+`--advanced-docs` (add the deeper doctrine docs without going full).
 
 ```mermaid
 flowchart TD
@@ -49,11 +50,11 @@ flowchart TD
     S -->|"core loop only, thin surface"| MIN["--minimal"]
     S -->|"normal attended workflow (default)"| CORE["--python-core"]
     S -->|"author's full bundle + advanced docs"| FULL["--full"]
-    MIN --> STRICT{"Want edit-time lint/mypy<br/>+ a turn-end gate?"}
+    MIN --> STRICT{"Want edit-time lint/mypy too?"}
     CORE --> STRICT
     FULL --> STRICT
     STRICT -->|"unattended / high-assurance"| YES["add --strict-hooks"]
-    STRICT -->|"default: format-only edits,<br/>/review-check + CI are the gates"| NO["leave off"]
+    STRICT -->|"default: format-only edits + Stop gate,<br/>/review-check + CI are the hard gates"| NO["leave off"]
 
     classDef opt fill:#f3f4f6,stroke:#6b7280,color:#111,stroke-dasharray: 5 5;
     class YES,NO opt;
@@ -81,6 +82,8 @@ Read top-down: everything in a tier includes the tiers above it.
 - **Agents:** `planner`, `test-first`, `reviewer`
 - **Hooks:** `branch-check` (warn on `main`), `block-destructive`
   (deny unrecoverable Bash), `specs-status` (refresh the spec dashboard),
+  `gate-on-stop` (block turn-end while `src/` is dirty and
+  ruff/mypy/pytest are red — remove with `--no-stop-gate`),
   `strip-ai-attribution` (commit-msg backstop); default settings run
   `ruff format` on edit
 - **Rules:** git-workflow, commit-style, public-repo-hygiene, python-code,
@@ -110,9 +113,9 @@ Read top-down: everything in a tier includes the tiers above it.
 
 ### Added by `--strict-hooks` (any profile)
 
-- **Hook:** `gate-on-stop` (blocks turn-end while `src/` is dirty and
-  ruff/mypy/pytest are red) and a settings rewrite so edits run
-  `ruff format` + `ruff check` + `mypy`.
+- A settings rewrite so edits run `ruff format` + `ruff check` + `mypy`
+  (the Stop gate is already on by default; `--strict-hooks` keeps it and
+  is incompatible with `--no-stop-gate`).
 
 ### Opt-in agents — never auto-copied, manual per project (section 6)
 
@@ -218,5 +221,5 @@ you installed.
   day zero, the per-feature loop, the automation layer, "scale to the task."
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the steps in order, one line of why each.
 - [`../CLAUDE.md`](../CLAUDE.md) — the rules the agent follows every turn.
-- [`specs/README.md`](specs/README.md) — spec numbering, local-only mode,
+- [`specs/README.md`](specs/README.md) — spec numbering, the opt-in issue mode,
   the product spec, section shapes.

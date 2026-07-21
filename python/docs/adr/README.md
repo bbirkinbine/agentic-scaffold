@@ -11,8 +11,8 @@ rationale that is obvious today is the tribal knowledge a fresh session
 | | Spec (`docs/specs/NNNN-*.md`) | ADR (`docs/adr/NNNN-*.md`) |
 | --- | --- | --- |
 | Answers | *What* this unit of work delivers | *Why* we made a technical choice |
-| Scope | One feature / issue | Cross-cutting — many features inherit it |
-| Numbered by | The GitHub issue number | An independent sequence (see below) |
+| Scope | One feature / unit of work | Cross-cutting — many features inherit it |
+| Numbered by | The work item's number (local sequence; issue number in issue mode) | An independent sequence (see below) |
 | Lifecycle | Ships, then is a design log | Stands until superseded |
 | Trigger | Any non-trivial feature | A choice costly to reverse |
 
@@ -30,8 +30,9 @@ re-arguing the decision.
 
 `NNNN-<kebab-name>.md`, zero-padded to four digits, starting at `0001`.
 
-ADRs are numbered **independently of issues** — this is the deliberate
-difference from specs, where the number *is* the issue number. An ADR is
+ADRs are numbered **independently of the spec sequence** — this is the
+deliberate difference from specs, where the number *is* the work item's
+number. An ADR is
 a sequential decision log: the next ADR is the highest existing number
 plus one. Create the file with `/adr <title>` (which drafts the four
 sections from an in-session design discussion when one exists, or lays

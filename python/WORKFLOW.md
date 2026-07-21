@@ -13,9 +13,11 @@ is a fresh agent with its own clean context.
 
 1. **Run bootstrap.** `bash path/to/agentic-scaffold/python/bootstrap.sh`
    (wherever you cloned this repo) — drops the default `--python-core`
-   scaffolding into your repo. Use `--minimal` for a thinner starter,
-   `--full` for the author's full workflow bundle, and `--strict-hooks`
-   only if you want edit hooks to run lint/type checks and the Stop gate.
+   scaffolding into your repo. Use `--minimal` for a thinner starter and
+   `--full` for the author's full workflow bundle. The Stop gate (blocks
+   ending a turn on a red gate) is on by default — `--no-stop-gate`
+   removes it; add `--strict-hooks` if you also want edit hooks to run
+   lint/type checks after every edit.
 2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
    — the agent reads `CLAUDE.md` every turn, so a leftover placeholder
    misleads it. One placeholder is the starter package directory
@@ -36,10 +38,11 @@ is a fresh agent with its own clean context.
    `python/README.md` → "Opt-in subagents").
 5. **Install the dev tools.** `uv sync && uv run pre-commit install` —
    dependencies plus the commit guard that keeps work off `main`.
-6. **Create the GitHub issue labels** the issue forms use: `feature`,
-   `bug`, `spec-needed`, `triage` (e.g. `gh label create spec-needed`).
-   Skip this in local-only mode; specs then use the next local number
-   instead of a GitHub issue number.
+6. **Issue mode only — create the GitHub issue labels** the issue forms
+   use: `feature`, `bug`, `spec-needed`, `triage` (e.g.
+   `gh label create spec-needed`). In the default local mode, skip
+   this; specs use the next local number and no issues are involved
+   (see `docs/specs/README.md` → "Numbering").
 7. **Optional — `/product-spec` if installed.** Interviews you and writes
    `docs/specs/0000-product.md`, the product-level "what is this, and who
    is it for." Skip it for a small project. See "Authoring the product
@@ -50,11 +53,12 @@ is a fresh agent with its own clean context.
 Run these in order. Steps marked *optional* are skippable when the answer
 is already obvious.
 
-1. **Create a GitHub issue** unless the repo is explicitly local-only.
-   An issue is a work item — like a Jira or Linear ticket, not just a bug
-   report (`feature` is one of its labels). Its number names the spec,
-   the branch, and the PR — one id ties them together. In local-only mode,
-   `/spec` uses the next local `docs/specs/NNNN-*.md` number instead.
+1. **Number the work.** Default local mode: nothing to do — `/spec`
+   takes the next local `docs/specs/NNNN-*.md` number. In issue mode
+   (the repo tracks its backlog as GitHub issues; recorded in
+   `CLAUDE.md`), create the issue first — an issue is a work item, like
+   a Jira or Linear ticket, not just a bug report — and its number names
+   the spec, the branch, and the PR.
 2. **`/spec <name>`** — write a short spec (goal, success criteria,
    non-goals), or — if you have already discussed the feature in this
    session — have `/spec` draft it from that discussion. Either way you
@@ -64,8 +68,8 @@ is already obvious.
      `/clarify` after (open questions) to sharpen it.
    - See "Authoring a spec: three styles" below for the write-it-yourself,
      discuss-then-draft, and let-the-agent-interview-you flows.
-3. **Make a branch** named `<issue#>-<slug>` in GitHub-backed mode, or
-   `spec-NNNN-<slug>` / `<type>/<slug>` in local-only mode. Never build on
+3. **Make a branch** named `spec-NNNN-<slug>` (or `<type>/<slug>` for
+   tiny untracked work) — `<issue#>-<slug>` in issue mode. Never build on
    `main`.
 4. **`/plan`** — the agent lists the files to touch and the order.
    Review it before any code; a wrong approach is cheap to fix here.
@@ -97,8 +101,8 @@ is already obvious.
    spec's `**Status:**` to `shipped` here too, on this same branch, so it
    ships with the feature — never in a separate post-merge cleanup PR.
 10. **Commit, then open the PR.** You write the commit message. In
-    GitHub-backed mode, the PR body says `Closes #<issue>` so merging
-    closes the issue; local-only mode omits the closing keyword. A
+    issue mode, the PR body says `Closes #<issue>` so merging closes
+    the issue; the default local mode omits the closing keyword. A
     change's own close-tasks (the spec `Status` flip above, dashboard
     regen, todo ticks) ride in this PR, not a follow-up.
 
@@ -161,7 +165,7 @@ that is costly to reverse (a storage engine, an async/sync boundary, a
 public API shape, an auth model, a serialization format). If a decision
 affects only the feature in front of you, it belongs in that feature
 spec's `## Sketch`, not an ADR. Mostly **Large** work. ADRs are numbered
-independently of issues (the next number, not an issue number). The full
+by their own sequence (the next ADR number, not a spec number). The full
 spec-vs-ADR decision table is in
 [`docs/adr/README.md`](docs/adr/README.md).
 
@@ -238,7 +242,7 @@ Don't run the full loop on tiny work.
 | Trivial — rename, typo, ≤10 lines | Just do it. Skip spec/plan; branch optional. |
 | Small — one function | Branch + one-sentence spec; `/test-first`; skip `/plan`. |
 | Medium — 3–10 files | The full loop above. |
-| Large — new subsystem | Capture the cross-cutting technical decision in an ADR (`/adr`) first, then split into medium pieces, one issue + spec each. |
+| Large — new subsystem | Capture the cross-cutting technical decision in an ADR (`/adr`) first, then split into medium pieces, one spec each. |
 
 A throwaway script needs none of this — just write the code.
 
@@ -281,7 +285,7 @@ longer nobody is watching:
 
 1. Success criteria written as a runnable command.
 2. `/goal` — a completion check run by a separate evaluator.
-3. The Stop hook, if `--strict-hooks` is enabled — blocks ending a turn on a red gate.
+3. The Stop hook (on by default) — blocks ending a turn on a red gate.
 4. A fresh-context `/review` — the only rung that catches "gate green but
    feature wrong."
 
@@ -311,7 +315,7 @@ core loop; `--python-core` adds ADR/status/workflow docs; `--full` or
   agent, skill, and command. Start here if you are new to the scaffolding.
 - [`docs/workflow-diagram.md`](docs/workflow-diagram.md) — the same loop as
   a visual map (Mermaid diagrams).
-- `docs/specs/README.md` — spec numbering, local-only mode, the product spec, section shapes.
+- `docs/specs/README.md` — spec numbering, the opt-in issue mode, the product spec, section shapes.
 - `docs/adr/README.md` — architecture decision records: when a choice is
   cross-cutting and costly to reverse, log the decision and its rationale
   (spec-vs-ADR table, numbering, template). Mostly for Large work.

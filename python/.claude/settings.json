@@ -64,6 +64,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/gate-on-stop.sh"
+          }
+        ]
+      }
     ]
   }
 }

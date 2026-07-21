@@ -115,7 +115,8 @@ answer; each rung catches what the one below it misses:
 2. **`/goal`** — a hard completion condition checked by a separate
    evaluator every turn (v2.1.139+). Survives context drift because the
    evaluator is outside the conversation.
-3. **Stop hook** (when bootstrap used `--strict-hooks`) —
+3. **Stop hook** (on by default; removed by bootstrap's
+   `--no-stop-gate`) —
    `gate-on-stop.sh` mechanically blocks ending a turn on a red gate.
    Note the cap: Claude Code overrides a Stop hook after 8 consecutive
    blocks without progress, so this is a strong nudge, not an unbounded

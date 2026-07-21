@@ -6,7 +6,7 @@
 # the claim the starter src/ + tests/ layout exists to back.
 #
 # Usage:
-#   scripts/smoke-test.sh <minimal|python-core|full> [--strict-hooks]
+#   scripts/smoke-test.sh <minimal|python-core|full> [--strict-hooks|--no-stop-gate]
 #
 # Run locally before changing bootstrap.sh or the template pyproject;
 # CI (.github/workflows/ci.yml) runs every profile on each push/PR.
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-PROFILE="${1:?usage: smoke-test.sh <minimal|python-core|full> [--strict-hooks]}"
+PROFILE="${1:?usage: smoke-test.sh <minimal|python-core|full> [--strict-hooks|--no-stop-gate]}"
 STRICT="${2:-}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -97,23 +97,26 @@ esac
 must_not .claude/agents/security-reviewer.md
 must_not .claude/agents/optional
 
-# Strict hooks: Stop gate wired if and only if requested.
-if [[ "$STRICT" == "--strict-hooks" ]]; then
-  must .claude/hooks/gate-on-stop.sh
-  if ! grep -q 'gate-on-stop.sh' .claude/settings.json; then
-    echo "SMOKE FAIL: --strict-hooks set but settings.json has no Stop hook" >&2
+# Stop gate: on by default (and under --strict-hooks); absent if and only
+# if --no-stop-gate was passed.
+if [[ "$STRICT" == "--no-stop-gate" ]]; then
+  must_not .claude/hooks/gate-on-stop.sh
+  if grep -q 'gate-on-stop.sh' .claude/settings.json; then
+    echo "SMOKE FAIL: Stop hook wired despite --no-stop-gate" >&2
     exit 1
   fi
 else
-  if grep -q 'gate-on-stop.sh' .claude/settings.json; then
-    echo "SMOKE FAIL: Stop hook wired without --strict-hooks" >&2
+  must .claude/hooks/gate-on-stop.sh
+  if ! grep -q 'gate-on-stop.sh' .claude/settings.json; then
+    echo "SMOKE FAIL: settings.json has no Stop hook (the gate is on by default)" >&2
     exit 1
   fi
 fi
 
-# Both settings variants (default file and the strict-hooks heredoc in
-# bootstrap.sh) must carry the secrets read-deny and the status line —
-# they are two copies of the same file and drift silently otherwise.
+# All three settings variants (default file, the strict-hooks heredoc, and
+# the no-stop-gate heredoc in bootstrap.sh) must carry the secrets
+# read-deny and the status line — they are copies of the same file and
+# drift silently otherwise.
 if ! grep -q '"deny"' .claude/settings.json; then
   echo "SMOKE FAIL: settings.json has no permissions deny list" >&2
   exit 1
