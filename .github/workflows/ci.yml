@@ -50,7 +50,7 @@ jobs:
             strict: --strict-hooks
           - profile: python-core
             strict: --no-stop-gate
-    name: smoke (${{ matrix.profile }} ${{ matrix.strict || '' }})
+    name: smoke (${{ matrix.profile }}${{ matrix.strict && format(' {0}', matrix.strict) || '' }})
     steps:
       - uses: actions/checkout@v7
 
