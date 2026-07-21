@@ -17,7 +17,10 @@ is a fresh agent with its own clean context.
    `--full` for the author's full workflow bundle. The Stop gate (blocks
    ending a turn on a red gate) is on by default — `--no-stop-gate`
    removes it; add `--strict-hooks` if you also want edit hooks to run
-   lint/type checks after every edit.
+   lint/type checks after every edit. If a Claude session ran the
+   bootstrap for you, restart the session once setup is done — hooks and
+   settings load at session start, so the gates are not active until
+   then.
 2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
    — the agent reads `CLAUDE.md` every turn, so a leftover placeholder
    misleads it. One placeholder is the starter package directory
@@ -30,8 +33,13 @@ is a fresh agent with its own clean context.
 3. **Set up git identity and GitHub.** `git config user.email` must be
    your GitHub noreply address — it is baked into the first commit
    forever. Then add the README AI-acknowledgement line and fill the
-   GitHub "About" sidebar. (A fuller checklist, including the
-   private→public hygiene scrub, lives in the agentic-scaffold repo as
+   GitHub "About" sidebar. As soon as the GitHub repo exists (first
+   push), run `gh repo edit --delete-branch-on-merge` so merged PR
+   branches auto-delete instead of piling up — or run
+   `bash path/to/agentic-scaffold/scripts/protect-main.sh`, which
+   enables it alongside branch protection. Skip both on a repo with no
+   GitHub remote. (A fuller checklist, including the private→public
+   hygiene scrub, lives in the agentic-scaffold repo as
    `new-project-checklist.md` — it is not copied into your project.)
 4. **Decide opt-in reviewers now.** Security and performance reviewers
    are off by default; turn them on if the project needs them (see
