@@ -62,6 +62,11 @@ identity, GitHub setup, the private→public hygiene checklist) and
 
 Developed with the assistance of AI tools.
 
+Several features here were borrowed from other people's work, and a number of
+rules trace to specific research and talks.
+[`docs/influences.md`](docs/influences.md) credits them, and records what was
+considered and rejected.
+
 ## License
 
 MIT — see [`LICENSE`](LICENSE).
