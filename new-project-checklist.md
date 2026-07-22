@@ -42,10 +42,12 @@ carries the latest conventions and is updated first.
       ```
       No `{{` markers should be left after this pass. Hand-edit the
       `CLAUDE.md` content yourself (description, don't-touch list,
-      conventions) — don't have the agent regenerate it; AI-written
-      context files measurably hurt agent performance (see
-      `python/README.md` → "Don't"). Mechanical fills like the project
-      name in `pyproject.toml` are fine to delegate.
+      conventions) — don't have the agent regenerate it, and keep it
+      short; agent-generated context files measured slightly worse than
+      no context file at all, and padding one out measured worse than
+      keeping it minimal (see `python/README.md` → "Don't" for the study
+      and the numbers). Mechanical fills like the project name in
+      `pyproject.toml` are fine to delegate.
 - [ ] Copy [`README.md.template`](README.md.template) → `./README.md`
       and fill in placeholders. The Python bootstrap doesn't copy the
       README because it's the same across all repo flavors. **Do not

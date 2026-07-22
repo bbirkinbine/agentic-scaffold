@@ -59,6 +59,22 @@ the framework's full living-spec maintenance burden was not.
 | The two senses of "eval", and the opt-in `evaluator` + `/eval` layer | Google/Kaggle, *The New SDLC with Vibe Coding* (2026) — [PDF](https://drive.google.com/file/d/1IR7CddF_2FyQo_PdfBNTaEA50EGiVt2r/view) (commit `b0d490f`) |
 | ADR section shape: Context / Decision / Consequences / Alternatives considered | Michael Nygard, *Documenting Architecture Decisions* — no URL recorded |
 | The loop's general shape and the test-first discipline | [Anthropic 2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) · [Claude Code best practices](https://code.claude.com/docs/en/best-practices) |
+| Hand-write `CLAUDE.md` rather than generate it, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
+
+### One unresolved tension
+
+The AGENTS.md paper found that repository *overviews* did not improve task
+success, and that context files add 20%+ inference cost regardless of who
+wrote them. The scaffold's `CLAUDE.md` template opens with exactly such an
+overview (project description, stack, how to run things), and the template is
+not short.
+
+The counter-argument is that the paper measured single-issue SWE-bench-style
+tasks with no human in the loop, while this scaffold targets multi-session
+work where the same file also carries the workflow contract, the don't-touch
+list, and hygiene rules — none of which that benchmark exercises. That is a
+reasonable defence, not a measured one. Treat the template's length as an
+open question rather than a settled decision, and prefer cutting.
 
 ## Considered and not adopted
 
@@ -79,11 +95,21 @@ being re-proposed.
   checks an agent can satisfy without improving anything invite compliance
   theater and manufacture false confidence.
 
-## Unverified
+## Corrections
 
-- **Gloaguen et al., 2026** — cited in
-  [`python/README.md`](../python/README.md) ("Don't") for the finding that
-  LLM-generated context files measurably reduce agent performance. Recorded
-  second-hand in the author's research notes with no title or URL captured.
-  The rule it supports is independently sound, but the citation should be
-  replaced with a primary link or dropped to an unattributed statement.
+- **Gloaguen et al., 2026** (resolved 2026-07-22). This citation sat in
+  `python/README.md` for months as a bare "(Gloaguen et al., 2026)" with no
+  title or URL, supporting the claim that LLM-generated context files
+  "measurably reduce agent performance." The primary source was located and
+  read: the claim was directionally right but overstated, and it omitted the
+  study's more useful finding. Measured effects are small (agent-generated
+  files 0.5–2% below no context file; developer-written about 4% above), and
+  the headline result is that context files add 20%+ inference cost while
+  repository overviews do not help at all. All three call sites
+  (`python/README.md`, `python/WORKFLOW.md`, `new-project-checklist.md`) now
+  state the numbers and carry the full citation.
+
+  The lesson generalises: a citation with no URL is a citation nobody
+  checks, including its author. That is the failure the
+  `## External references` rule exists to prevent, and it had taken root
+  here.
