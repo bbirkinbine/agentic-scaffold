@@ -393,5 +393,17 @@ Then add a one-line mention in your `CLAUDE.md` "Subagents" section.
 - Don't blanket-copy `subdir-CLAUDE.md.example` into every directory —
   use it where per-area conventions differ from the root.
 - Don't paste these templates into a chat and ask Claude to "regenerate
-  them for my project." Hand-edit. LLM-generated context files have been
-  measured to *reduce* agent performance (Gloaguen et al., 2026).
+  them for my project." Hand-edit — and keep what you write short.
+
+  The one controlled evaluation of repository context files measured
+  agent-generated files at 0.5–2% *below* no context file at all, and
+  developer-written ones at about 4% above, with both adding 20%+ to
+  inference cost. The larger finding is the one worth designing around:
+  repository *overviews* did not help, and "unnecessary requirements from
+  context files make tasks harder," so a context file earns its cost only
+  by stating this repo's non-standard practices. Long is not free.
+
+  Source: Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating
+  AGENTS.md: Are Repository-Level Context Files Helpful for Coding
+  Agents?", arXiv:2602.11988v2 (2026-06-23),
+  <https://arxiv.org/abs/2602.11988> — retrieved 2026-07-22.
