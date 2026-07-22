@@ -18,6 +18,13 @@ This content moved here from `templates/` in the
 `github.com/bbirkinbine/dotfiles` repo on 2026-06-09; pre-move history
 is in that repo's log.
 
+Where the ideas came from — borrowed features, the research behind specific
+rules, and what was considered and rejected — is recorded in
+[`docs/influences.md`](docs/influences.md). It applies the scaffold's own
+external-reference provenance rule to the scaffold's own design; when a
+change here is prompted by an outside source, credit it there in the same
+commit rather than only in the commit message.
+
 This repo is **public** on GitHub (`github.com/bbirkinbine/agentic-scaffold`).
 Treat every change as world-readable: file contents, commit messages,
 branch names, PR descriptions, and issue text are all indexed by search
