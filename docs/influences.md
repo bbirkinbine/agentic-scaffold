@@ -59,6 +59,29 @@ the framework's full living-spec maintenance burden was not.
 | The two senses of "eval", and the opt-in `evaluator` + `/eval` layer | Google/Kaggle, *The New SDLC with Vibe Coding* (2026) — [PDF](https://drive.google.com/file/d/1IR7CddF_2FyQo_PdfBNTaEA50EGiVt2r/view) (commit `b0d490f`) |
 | ADR section shape: Context / Decision / Consequences / Alternatives considered | Michael Nygard, *Documenting Architecture Decisions* — no URL recorded |
 | The loop's general shape and the test-first discipline | [Anthropic 2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) · [Claude Code best practices](https://code.claude.com/docs/en/best-practices) |
+| Own every line of `CLAUDE.md` rather than committing a generated one unread, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
+
+### One unresolved tension
+
+The AGENTS.md paper found that repository *overviews* did not improve task
+success, and that context files add 20%+ inference cost (up to 19% for
+developer-written ones) regardless of who wrote them. The scaffold's
+`CLAUDE.md` template opens with exactly such an overview (project
+description, stack, how to run things), and the template is not short.
+
+Sharper still: developer-written context files improved results for every
+agent the paper tested *except* Claude Code, which scored best on their
+benchmark with no context file at all. This scaffold's entire premise is
+shipping a `CLAUDE.md` to Claude Code.
+
+The counter-argument is that the paper measured single-issue SWE-bench-style
+tasks with no human in the loop, while this scaffold targets multi-session
+work where the same file also carries the workflow contract, the don't-touch
+list, and hygiene rules — none of which that benchmark exercises. That is a
+reasonable defence, not a measured one. Treat the template's length as an
+open question rather than a settled decision, and prefer cutting — on cost
+grounds, since the paper found file length itself had no significant effect
+on success.
 
 ## Considered and not adopted
 
@@ -79,11 +102,43 @@ being re-proposed.
   checks an agent can satisfy without improving anything invite compliance
   theater and manufacture false confidence.
 
-## Unverified
+## Corrections
 
-- **Gloaguen et al., 2026** — cited in
-  [`python/README.md`](../python/README.md) ("Don't") for the finding that
-  LLM-generated context files measurably reduce agent performance. Recorded
-  second-hand in the author's research notes with no title or URL captured.
-  The rule it supports is independently sound, but the citation should be
-  replaced with a primary link or dropped to an unattributed statement.
+- **Gloaguen et al., 2026** (resolved 2026-07-22). This citation sat in
+  `python/README.md` for months as a bare "(Gloaguen et al., 2026)" with no
+  title or URL, supporting the claim that LLM-generated context files
+  "measurably reduce agent performance." The primary source was located and
+  read: the claim was directionally right but overstated, and it omitted the
+  study's more useful finding. Measured effects are small and, for both
+  conditions, not statistically significant (agent-generated files 0.5–2%
+  below no context file; developer-written 2.4% above), and the headline
+  result is that context files add 20%+ inference cost while repository
+  overviews do not help at all. All three call sites (`python/README.md`,
+  `python/WORKFLOW.md`, `new-project-checklist.md`) now state the numbers
+  and carry the full citation.
+
+  Re-audited 2026-07-30 against the cited v2, which caught three errors in
+  the correction itself: the "4% above" figure was v1's (v2 revises it to
+  2.4%), "both adding 20%+ cost" was wrong for developer-written files
+  (at most 19%), and the significance caveat was missing throughout. A
+  fourth claim — that padding a context file "measured worse than keeping
+  it minimal" — was not in the paper at all; it explicitly found file
+  length had no significant effect on success. The shortness rule now
+  rests on cost, which the paper does measure.
+
+  The same pass relaxed the hand-edit rule. It had read "hand-edit —
+  don't have the agent regenerate it," which overstated the evidence in
+  the other direction: the study compared files an agent generated on its
+  own against files a developer had committed, and never tested an agent
+  drafting with a human cutting it down. Since that middle path is now
+  the common way to work, the rule became one about ownership rather than
+  authorship — draft it however you like, but read every line and own
+  what lands. The measured failure mode was unreviewed generation, and
+  that is what the rule still warns against.
+
+  The lesson generalises twice over: a citation with no URL is a citation
+  nobody checks, including its author — and adding the URL is only half
+  the fix, because the numbers behind it still have to be read off the
+  version you cite. That is the failure the
+  `## External references` rule exists to prevent, and it had taken root
+  here.
