@@ -392,16 +392,31 @@ Then add a one-line mention in your `CLAUDE.md` "Subagents" section.
   that still says `Project: {{PROJECT_NAME}}` is worse than no CLAUDE.md.
 - Don't blanket-copy `subdir-CLAUDE.md.example` into every directory —
   use it where per-area conventions differ from the root.
-- Don't paste these templates into a chat and ask Claude to "regenerate
-  them for my project." Hand-edit — and keep what you write short.
+- Don't paste these templates into a chat, ask Claude to "regenerate them
+  for my project," and commit what comes back unread. How you draft is
+  your call — by hand, with an agent, or both. What matters is that you
+  own every line that lands, and that you keep it short.
 
   The one controlled evaluation of repository context files measured
-  agent-generated files at 0.5–2% *below* no context file at all, and
-  developer-written ones at about 4% above, with both adding 20%+ to
-  inference cost. The larger finding is the one worth designing around:
-  repository *overviews* did not help, and "unnecessary requirements from
-  context files make tasks harder," so a context file earns its cost only
-  by stating this repo's non-standard practices. Long is not free.
+  agent-generated files at 0.5–2% *below* no context file at all and
+  developer-written ones at 2.4% above — neither difference statistically
+  significant, so read the direction as weak evidence, not a result. What
+  did reach significance: developer-written files beat agent-generated
+  ones, and context files raise inference cost either way (20–23% for
+  agent-generated, up to 19% for developer-written) because the agent
+  reads them, tests more, and explores more.
+
+  Note what those two conditions were: a file the agent generated on its
+  own, versus one a developer had committed. Nobody measured the middle —
+  an agent drafting and a human cutting it down. That is untested ground,
+  not endorsed ground, so the rule is about ownership, not authorship.
+
+  The finding worth designing around is that repository *overviews* did
+  not help. The paper concludes context files are useful for specifying
+  non-standard practices — so a context file earns its cost by stating
+  what this repo does *differently*, not by describing it. File length
+  itself showed no significant effect on success; keep it short because
+  every line is billed on every turn, not because short scores better.
 
   Source: Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating
   AGENTS.md: Are Repository-Level Context Files Helpful for Coding

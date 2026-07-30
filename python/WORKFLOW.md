@@ -24,13 +24,14 @@ is a fresh agent with its own clean context.
 2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
    — the agent reads `CLAUDE.md` every turn, so a leftover placeholder
    misleads it. One placeholder is the starter package directory
-   `src/{{PACKAGE_NAME}}/` — rename it to your package name. Hand-edit the
-   `CLAUDE.md` content yourself (description, don't-touch list,
-   conventions); don't have the agent regenerate it, and keep what you
-   write short — agent-generated context files measured slightly *worse*
-   than no context file at all, and padding a context file with overviews
-   and unnecessary requirements measured worse than keeping it minimal
-   (see `python/README.md` → "Don't" for the study and the numbers).
+   `src/{{PACKAGE_NAME}}/` — rename it to your package name. Own the
+   `CLAUDE.md` content (description, don't-touch list, conventions) —
+   draft it by hand or with the agent, your call, but read and cut every
+   line rather than committing a generated file unread, and keep it short.
+   Unreviewed agent-generated context files measured slightly *worse* than
+   no context file at all, and every context file adds 20%+ to the cost of
+   every turn, so a long one buys nothing measurable (see
+   `python/README.md` → "Don't" for the study and the numbers).
    Mechanical fills like the project name in `pyproject.toml` are fine to
    delegate.
 3. **Set up git identity and GitHub.** `git config user.email` must be
