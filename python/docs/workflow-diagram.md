@@ -1,7 +1,8 @@
 # Agentic workflow — visual map
 
 > **Purpose.** The visual / systems companion to the methodology.
-> `../CLAUDE.md` is the *rules* the agent follows every turn;
+> `../AGENTS.md` is the canonical *rules* contract; `../CLAUDE.md` imports
+> it for Claude Code;
 > [`../WORKFLOW.md`](../WORKFLOW.md) is the prose *walkthrough* — what to
 > run at each step, in order, and why. This file is the *map*: how the
 > spec, branch, slash commands, subagents, hooks, and CI fit together, in
@@ -70,8 +71,9 @@ planning artifacts, broad to narrow."
 
 ```mermaid
 flowchart TD
-    A0["Choose flavor + profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks? --no-stop-gate?"] --> A["git init + bootstrap.sh --&lt;profile&gt;"]
-    A --> B["Fill template placeholders"]
+    A0["Choose Python profile<br/>(project-types.md):<br/>--minimal · --python-core · --full<br/>+ --strict-hooks? --no-stop-gate?"] --> A["git init + python/bootstrap.sh --&lt;profile&gt;"]
+    A --> A1["Codex: trust project layer + hooks<br/>Claude: restart for settings"]
+    A1 --> B["Fill template placeholders"]
     B --> C["new-project checklist (in the agentic-scaffold repo,<br/>not copied here): README ack · GitHub About · identity (git user.email)"]
     C --> D{"Opt-in for THIS repo?"}
     D -->|"network / auth / untrusted input / secrets"| D1["copy security-reviewer"]
@@ -117,18 +119,18 @@ success criterion in the spec passes.** Then you ship.
 ```mermaid
 flowchart TD
     ISS["Number the work: next spec number<br/>(issue mode: create the issue — its number<br/>names the spec · branch · PR)"]
-    ISS --> SPEC["/spec<br/>goal · success criteria · non-goals"]
-    SPEC --> PLAN["/plan<br/>agent lists the files to touch + the order"]
+    ISS --> SPEC["spec workflow<br/>Claude /spec · Codex $spec<br/>goal · success criteria · non-goals"]
+    SPEC --> PLAN["plan workflow<br/>agent lists the files to touch + the order"]
     PLAN --> OK1{"★ Plan look right?"}
     OK1 -->|"no — fix the spec"| SPEC
     OK1 -->|yes| BR["Branch: spec-NNNN-slug<br/>(issue mode: issue#-slug — never on main)"]
-    BR --> TF["/test-first<br/>failing tests from the spec"]
+    BR --> TF["test-first workflow<br/>failing tests from the spec"]
     TF --> IMPL
 
     subgraph LOOP["Build loop — repeat until the spec is finished"]
       IMPL["Implement<br/>minimum code to pass the tests"]
-      IMPL --> CHK["/review-check<br/>ruff · mypy · pytest — must be green"]
-      CHK --> REV["/review<br/>fresh agent checks the diff against the spec"]
+      IMPL --> CHK["review-check workflow<br/>ruff · mypy · pytest — must be green"]
+      CHK --> REV["review workflow<br/>fresh agent checks the diff against the spec"]
       REV --> DONE{"Every success<br/>criterion met?"}
       DONE -->|"no — fix and go again"| IMPL
     end
@@ -176,12 +178,12 @@ gate" stops being a failure mode.
 ```mermaid
 flowchart LR
     W["your work<br/>(edit · run · commit)"]
-    SS["Session start"] --> SSb["branch-check.sh<br/>warn if on main"] --> W
-    RL["reading src/** or tests/**"] --> RLb["path-scoped .claude/rules/<br/>python-code · agent-legible-code"] --> W
+    SS["Session start"] --> SSb["shared branch-check.sh<br/>warn if on main"] --> W
+    RL["reading src/** or tests/**"] --> RLb["AGENTS.md standing rules<br/>+ Claude path-scoped adapters"] --> W
     W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
-    W --> POST["after each Edit/Write<br/>(PostToolUse)"] --> POSTb["ruff format<br/>(+ ruff check · mypy with --strict-hooks)"]
+    W --> POST["after each edit tool<br/>(Claude Edit/Write · Codex apply_patch)"] --> POSTb["ruff format<br/>(+ ruff check · mypy with --strict-hooks)"]
     W --> CMP["before compaction<br/>(PreCompact)"] --> CMPb["preserve spec path · branch ·<br/>modified files · gate state"]
-    W --> STOP["turn end<br/>(Stop — default; --no-stop-gate removes)"] --> STOPb["gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(caps at 8 consecutive blocks)"]
+    W --> STOP["turn end<br/>(Stop — default; --no-stop-gate removes)"] --> STOPb["shared gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(one automatic retry)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
     W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: ruff · mypy · pytest · pip-audit — non-skippable<br/>+ claude-review.yml if enabled"]
 
@@ -191,10 +193,10 @@ flowchart LR
 
 Behaviour, edge cases, and how to bypass each (e.g. the Stop hook,
 `--no-verify` for the day-zero commit) live in
-`../CLAUDE.md` → **Hooks and guardrails**. The line `block-destructive`
+`../AGENTS.md` → **Hooks and guardrails**. The line `block-destructive`
 draws is *unrecoverable* — things the reflog or a re-clone can't bring
 back; merely risky-but-recoverable commands stay off it. OS-level
-sandboxing (`/sandbox`) and permission modes sit above all of these for
+sandboxing and permission modes sit above all of these for
 unattended runs.
 
 ---
@@ -216,7 +218,7 @@ flowchart TD
 ```
 
 A change that would touch **> 5 files** is a stop-and-ask, not a
-proceed-anyway — see `../CLAUDE.md` "Your role: orchestrator." A complex
+proceed-anyway — see `../AGENTS.md` "Your role: orchestrator." A complex
 program is not a bigger loop — it is the same medium-sized loop run *N*
 times over a split backlog, sequentially when the pieces depend on each
 other, in parallel worktrees when they don't
@@ -241,10 +243,10 @@ the *Skip when* column is as load-bearing as the *Reach for* column.
 | Product contains an LLM/AI surface whose output is judged for quality | `evaluator` + `/eval` (opt-in; [`evals.md`](evals.md)); build it per [`llm-product.md`](llm-product.md) | Deterministic product — tests suffice, no LLM surface |
 | Agent burns turns re-mapping a large, long-lived repo | `serena` MCP ([`serena-setup.md`](serena-setup.md)) | Fresh or small repo — grep is enough |
 | Two+ features independent at the file level | Worktrees, one agent each ([`parallel-agents.md`](parallel-agents.md)) | Tasks share files, or work is exploratory |
-| Long run with nobody watching | Completion ladder rungs 2–4 + `/sandbox` | You're at the keyboard — checkpoints suffice |
+| Long run with nobody watching | Completion ladder rungs 2–4 + scoped client permissions | You're at the keyboard — checkpoints suffice |
 | Feature spans sessions | `## Phase handoff` + `/clear` | Single-session features — pure overhead |
-| Recurring agent mistake | A line in `CLAUDE.md` / `.claude/rules/`, same change | One-off slip — correcting in-session is enough |
-| Want PR review without a human reviewer handy | `claude-review.yml.example` (rename; bills an API key) | `/review` before the PR already covers it |
+| Recurring agent mistake | A line in `AGENTS.md`, kept identical in `CLAUDE.md` | One-off slip — correcting in-session is enough |
+| Want another review without a human reviewer handy | `$review` / `codex review` locally, or `claude-review.yml.example` for Claude CI (rename; bills an API key) | The normal fresh-context review before the PR already covers it |
 | Many projects consuming this scaffolding | Plugin packaging ([`plugin-packaging.md`](plugin-packaging.md)) | `bootstrap.sh --update` still takes seconds |
 
 ---
@@ -257,13 +259,14 @@ U-curve). Reset at a phase boundary instead:
 
 ```mermaid
 flowchart LR
-    P1["Phase N done<br/>(plan accepted, or /review-check green)"] --> H["append ## Phase handoff<br/>to the spec"]
-    H --> CL["/clear"]
-    CL --> P2["Phase N+1: fresh session<br/>re-reads CLAUDE.md + spec + diff"]
+    P1["Phase N done<br/>(plan accepted, or review-check green)"] --> H["append ## Phase handoff<br/>to the spec"]
+    H --> CL["start a fresh client session<br/>(Claude: /clear)"]
+    CL --> P2["Phase N+1: fresh session<br/>re-reads contract + spec + diff"]
 ```
 
-The two boundaries worth a `/clear`: after `/plan` is accepted (before
-`/test-first`), and after `/review-check` passes (before `/review`).
+The two boundaries worth a fresh session: after `plan` is accepted (before
+`test-first`), and after `review-check` passes (before `review`). Claude can
+use `/clear`; either client can exit and restart from the durable handoff.
 Section shapes are in [`specs/README.md`](specs/README.md).
 
 ---
@@ -274,8 +277,10 @@ Section shapes are in [`specs/README.md`](specs/README.md).
   and the matrix of which agents, skills, and commands each one installs.
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the step-by-step walkthrough:
   day-zero setup and the per-feature loop, one line of why per step.
-- `../CLAUDE.md` + `.claude/rules/` — the rules the agent reads every
-  turn (delegation tables, git workflow, hooks, public-repo hygiene).
+- `../AGENTS.md` — the canonical rules both clients read (Claude through
+  `../CLAUDE.md`): delegation, git workflow, hooks, public-repo hygiene.
+- [`codex-cli.md`](codex-cli.md) — Codex trust, invocation, switching,
+  and non-interactive use.
 - [`specs/README.md`](specs/README.md) — spec numbering (identity, not
   order), status vocabulary, the `0000-product.md` product spec,
   `## External references`, `## Phase handoff`, `## Implementation Notes`.

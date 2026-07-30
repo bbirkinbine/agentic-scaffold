@@ -10,10 +10,10 @@
 ## What this repo is
 
 Project-bootstrap templates and agentic-workflow scaffolding for new
-repos — generic `CLAUDE.md` / `README.md` /
-`AGENTS.md` templates, the new-project checklist, the GitHub About
+repos — a stack-neutral dual-client bootstrap under `generic/`, generic
+contract/README templates, the new-project checklist, the GitHub About
 checklist, and the full Python agentic-workflow scaffolding under
-`python/` (subagents, slash commands, skills, hooks, `bootstrap.sh`).
+`python/` (subagents, workflows, skills, hooks, `bootstrap.sh`).
 This content moved here from `templates/` in the
 `github.com/bbirkinbine/dotfiles` repo on 2026-06-09; pre-move history
 is in that repo's log.
@@ -34,9 +34,11 @@ engines. No secrets, no internal hostnames, no work-related context.
 
 ## Stack / scope
 
-Markdown templates plus bash (`python/bootstrap.sh`, the hook scripts
-under `python/.claude/hooks/`). No build, no test suite, no deploy
-target — files here are consumed by copy into new repos.
+Markdown templates plus bash (both bootstrap scripts, client-neutral hook
+sources under `shared/hooks/`, rendered Python hooks under
+`python/.agentic/hooks/`, and validation under `scripts/`). No build or
+deploy target — files here are consumed by copy into new repos, and smoke
+tests validate those generated projects.
 
 **Everything in this repo is standards-setting.** A change here
 propagates (by copy, via `bootstrap.sh` or the checklist) to every new
@@ -91,7 +93,7 @@ leak is destructive and incomplete — the cheapest fix is to never commit
 the thing in the first place. The full rules (what never to commit,
 what quietly slips through, the pre-flip checklist) live in
 [`new-project-checklist.md`](new-project-checklist.md) and in the
-hygiene section of [`CLAUDE.md.template`](CLAUDE.md.template); both
+hygiene section of [`AGENTS.md.template`](AGENTS.md.template); both
 apply to this repo itself, not just to repos bootstrapped from it.
 
 ---
@@ -100,20 +102,23 @@ apply to this repo itself, not just to repos bootstrapped from it.
 
 ```bash
 bash -n python/bootstrap.sh
-bash -n python/.claude/hooks/*.sh
-shellcheck --severity=warning python/bootstrap.sh python/.claude/hooks/*.sh scripts/smoke-test.sh
+bash -n generic/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
+shellcheck --severity=warning generic/bootstrap.sh python/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
+bash scripts/validate-codex-adapters.sh
+bash scripts/smoke-test-generic.sh
 bash scripts/smoke-test.sh <profile>   # for changes to bootstrap.sh, pyproject.toml,
                                        # hooks, or anything the bootstrap copies
 ```
 
-`scripts/smoke-test.sh` bootstraps a profile into a temp dir, asserts
-the installed file set, fills the day-zero placeholders, and runs the
-fresh project's full quality gate. CI (`.github/workflows/ci.yml`) runs
-the shell checks plus the smoke test for every profile on each push and
-PR — a red run means the template would ship broken projects.
+`scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
+asserts the installed file set, fills the day-zero placeholders, and runs
+the fresh project's full quality gate. `scripts/smoke-test-generic.sh`
+covers the stack-neutral flavor. CI (`.github/workflows/ci.yml`) runs the
+shell checks plus every flavor/profile smoke test on each push and PR — a
+red run means the template would ship broken projects.
 
-`{{PLACEHOLDER}}` markers throughout the repo (in `*.template` files
-and in `python/CLAUDE.md` / `python/pyproject.toml`) are intentional —
+`{{PLACEHOLDER}}` markers throughout the repo (in template contracts
+and in `python/AGENTS.md` / `python/pyproject.toml`) are intentional —
 they are filled by the consumer, never here, so there is no
 placeholder check on this repo itself.
 
@@ -132,7 +137,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-07-21)
+## Open work / current state (updated 2026-07-30)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -184,23 +189,34 @@ same window added `docs/codex-portability.md`, the plan for making the
 scaffold dual-client (a shared client-neutral contract rendered into
 both Claude Code and Codex surfaces).
 
-The scaffold is validated in day-to-day use (as of 2026-07-21):
+The scaffold is validated in day-to-day use (as of 2026-07-29):
 multiple real projects — both the Python profiles and the non-Python
 template flavor — have been bootstrapped from it and run the full
 spec → review loop, including extending the opt-in agent/skill pattern
 with project-specific roles. Corrections feed back here as they
 surface.
 
-How new projects consume this repo in practice: a Claude Code session
-is pointed at the latest checkout, installs the scaffold into the new
-repo, and pre-fills the templates from the founding conversation; the
-session is then restarted so hooks and settings take effect. Consumer
-projects are snapshots — `bootstrap.sh --update` is rarely run against
-existing ones, so changes here reach projects at their next bootstrap,
-not retroactively.
+How new projects consume this repo in practice: a Claude Code or Codex
+session is pointed at the latest checkout, installs the scaffold into the
+new repo, and pre-fills the templates from the founding conversation. The
+client then restarts or completes its normal project/hook trust flow so
+settings take effect. Consumer projects are snapshots —
+`bootstrap.sh --update` is rarely run against existing ones, so changes here
+reach projects at their next bootstrap, not retroactively.
 
 Open:
 
-- The Codex portability plan (`docs/codex-portability.md`) is
-  deliberately deferred: the plan is written, but no current project
-  needs a second client. Revisit only if one does.
+- Codex portability is being implemented on `feat/codex-cli-parity`.
+  Shared workflow sources now render canonical `AGENTS.md` contracts,
+  Claude import shims and adapters, and Codex skills/custom agents; hooks are
+  client-neutral, and both Python and generic bootstraps install the relevant
+  client surfaces. Update mode persists profile choices, protects customized
+  client configuration, and safely migrates recognizable legacy contracts.
+  Static validation and all flavor/profile smoke tests must remain green.
+  Hook and execpolicy enforcement is verified live against Codex CLI
+  0.146.0 (repeatable via `scripts/acceptance-codex-live.sh`; evidence in
+  `docs/codex-portability.md` → implementation order, item 9). A separate
+  token-opt-in dual-client phase harness lives at
+  `scripts/acceptance-workflow-live.sh`. Its authenticated run, the trusted
+  hook-load flow, and the remaining negative acceptance fixtures are the final
+  manual checks before the portability plan can be marked complete.

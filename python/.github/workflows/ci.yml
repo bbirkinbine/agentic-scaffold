@@ -1,15 +1,15 @@
 name: CI
 
-# The non-skippable backstop for the Verify phase. Local pre-commit
-# hooks and /review-check can be bypassed (--no-verify, forgetting to
-# run them); this runs on every pull request and cannot be skipped.
+# The repository backstop for the Verify phase. Local pre-commit hooks and
+# /review-check can be bypassed (--no-verify, forgetting to run them); the
+# quality, hygiene, and dependency-audit jobs run on every pull request.
 
 on:
   pull_request:
   push:
     branches: [main]
 
-# Least privilege: both jobs only read the checkout and run tooling — no
+# Least privilege: all jobs only read the checkout and run tooling — no
 # writes, no secrets. Declared explicitly so a consumer whose org default
 # is "read and write" does not inherit an over-privileged CI token.
 permissions:
@@ -41,6 +41,29 @@ jobs:
 
       - name: Tests (pytest)
         run: uv run pytest
+
+  hygiene:
+    # Client-independent public-repository backstop. Run the non-quality
+    # pre-commit hooks against the complete tree so --no-verify cannot bypass
+    # secret, private-key, malformed YAML/TOML, merge-marker, large-file, or
+    # AGENTS/CLAUDE import checks. Ruff and mypy already have dedicated steps.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run public-repo and client-contract checks
+        env:
+          SKIP: no-commit-to-branch,ruff,ruff-format,mypy
+        run: uv run pre-commit run --all-files
 
   audit:
     # Supply-chain backstop: scan the locked dependency tree for known

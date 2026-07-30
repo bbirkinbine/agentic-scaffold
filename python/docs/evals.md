@@ -206,7 +206,9 @@ LLM/agent surface:
 ```bash
 cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
    .claude/agents/evaluator.md
+cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
+   .codex/agents/evaluator.toml
 ```
 
-Then add a one-line mention under "Subagents" in `CLAUDE.md` so the agent
-knows when to invoke it.
+Then add a one-line mention in `AGENTS.md`; Claude receives it through the
+`@AGENTS.md` import so both clients know when to invoke it.

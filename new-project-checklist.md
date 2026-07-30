@@ -23,16 +23,13 @@ carries the latest conventions and is updated first.
       ```
       bash path/to/agentic-scaffold/python/bootstrap.sh
       ```
-      This drops in CLAUDE.md, WORKFLOW.md, pyproject.toml,
-      .pre-commit-config.yaml, the `.claude/` tree (settings.json +
-      planner/test-first/reviewer subagents + the slash-command set
-      under `.claude/commands/` + the python-module-split /
-      python-docstrings / dependency-hygiene skills), and
-      `docs/specs/README.md`. Opt-in subagents under
-      `.claude/agents/optional/` (security-reviewer,
-      performance-reviewer, evaluator) are not copied — see
-      `python/README.md` for when to enable each. Existing
-      files are skipped, not overwritten.
+      This installs canonical `AGENTS.md` plus a `CLAUDE.md` import,
+      `WORKFLOW.md`, Python tooling, shared hooks under `.agentic/`,
+      Claude commands/agents under `.claude/`, Codex skills under
+      `.agents/`, Codex project configuration/agents/rules under
+      `.codex/`, and the specs/CI surface. Optional specialist agents
+      remain opt-in; see `python/README.md`. Existing project-owned files
+      are preserved.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied
       into the new project's root as `WORKFLOW.md`) — the human-facing
       walkthrough: day-zero setup and the per-feature loop, step by step.
@@ -40,21 +37,25 @@ carries the latest conventions and is updated first.
       ```
       rg '\{\{' .
       ```
-      No `{{` markers should be left after this pass. Own the `CLAUDE.md`
-      content (description, don't-touch list, conventions) — draft it by
-      hand or with the agent, your call, but read and cut every line
-      rather than committing a generated file unread, and keep it short.
-      Unreviewed agent-generated context files measured slightly worse
-      than no context file at all, and every context file adds 20%+ to
-      the cost of every turn, so a long one buys nothing measurable (see
+      No `{{` markers should be left after this pass. Own the root-contract
+      `AGENTS.md` content (description, don't-touch list, conventions).
+      Leave `CLAUDE.md` as the `@AGENTS.md` compatibility import. Draft the
+      contract by hand or with the agent, your call, but read and cut every
+      line rather than committing a generated file unread. The study
+      measured agent-generated context files at 0.5–2% below no context
+      file and developer-written ones at 2.4% above; neither difference
+      was statistically significant. It did find 20–23% higher inference
+      cost for agent-generated files and up to 19% for developer-written
+      files. Keep the contract short for that recurring cost and Codex's
+      finite combined instruction budget, not because the study found
+      short files more successful — file length itself had no significant
+      effect on success. The rule is ownership, not authorship (see
       `python/README.md` → "Don't" for the study and the numbers).
       Mechanical fills like the project name in `pyproject.toml` are fine
-      to delegate.
-- [ ] Copy [`README.md.template`](README.md.template) → `./README.md`
-      and fill in placeholders. The Python bootstrap doesn't copy the
-      README because it's the same across all repo flavors. **Do not
-      remove the Acknowledgements section** — that's the single
-      attribution surface.
+      to delegate. Fill the bootstrapped `README.md` too, preserving its
+      Acknowledgements section.
+- [ ] If using Codex, start it from the repository root, trust the project
+      `.codex/` layer, and review the checked-in hooks with `/hooks`.
 - [ ] Install dev environment:
       ```
       uv sync
@@ -64,24 +65,28 @@ carries the latest conventions and is updated first.
       `docs/specs/README.md` (copied by bootstrap) for the convention.
 - [ ] Fill in `docs/agent-handoff.md` (dropped by bootstrap as a
       project-owned stub). It's the operational runbook companion to
-      `CLAUDE.md` — known risks, accepted commands, rollback playbook,
+      the root agent contract — known risks, accepted commands, rollback playbook,
       "when X breaks." Mostly empty on day zero; populated as the
       project collects landmines. Delete sections that don't apply yet
-      rather than leave them as stub placeholders. Don't mirror
-      CLAUDE.md's "Open work / current state" here — the handoff points
-      back to it.
+      rather than leave them as stub placeholders. Don't mirror the
+      contract's "Open work / current state" here — the handoff points back
+      to it.
 
 ### If this is a non-Python repo (infra, FPGA, shell, etc.)
 
-- [ ] Copy [`CLAUDE.md.template`](CLAUDE.md.template) → `./CLAUDE.md`,
-      fill in placeholders, delete the validation-gates block that
-      doesn't apply to this repo's stack.
-- [ ] Copy [`AGENTS.md.template`](AGENTS.md.template) → `./AGENTS.md` —
-      the pointer stub for non-Claude agents that look for that
-      filename; the content stays in `CLAUDE.md`.
-- [ ] Copy [`README.md.template`](README.md.template) → `./README.md`,
-      fill in placeholders. **Do not remove the Acknowledgements
-      section** — that's the single attribution surface.
+- [ ] Run the generic bootstrap:
+      ```
+      bash path/to/agentic-scaffold/generic/bootstrap.sh
+      ```
+      It installs canonical `AGENTS.md` plus a Claude import, Claude and Codex
+      project configuration, stack-neutral safety hooks, Codex command
+      rules, and `docs/codex-cli.md`.
+- [ ] Replace every `{{PLACEHOLDER}}` in `AGENTS.md` and `README.md`;
+      leave `CLAUDE.md` as `@AGENTS.md`. Replace the sample validation block with
+      this repository's real commands; do not leave checks for a stack the
+      repository does not use. Preserve the README Acknowledgements.
+- [ ] If using Codex, trust the project `.codex/` layer and review hooks
+      with `/hooks`.
 
 ### Both flavors
 
@@ -90,12 +95,11 @@ carries the latest conventions and is updated first.
 - [ ] Add `.gitignore` — start from `~/.gitignore_global` (covered by
       `core.excludesfile`) and add per-language patterns. Whitelist any
       `.env.*.example` files explicitly (`!.env.*.example`).
-- [ ] Gitignore the Claude Code personal overlays — `CLAUDE.local.md`
-      and `.claude/settings.local.json`. Personal preferences (pace,
-      verbosity, machine-local paths) go there, not in the shared
-      `CLAUDE.md` / `.claude/settings.json`. The Python bootstrap's
-      `.gitignore` already covers both; non-Python repos add the two
-      lines by hand.
+- [ ] Gitignore client-local overlays — `CLAUDE.local.md` and
+      `.claude/settings.local.json`. Personal preferences (pace,
+      verbosity, machine-local paths) stay out of the shared contracts
+      and checked-in client settings. The Python bootstrap's `.gitignore`
+      already covers the Claude files; generic repos add them by hand.
 
 ## On GitHub (after `git push`)
 
@@ -140,8 +144,8 @@ carries the latest conventions and is updated first.
 
 ## First commit hygiene
 
-- [ ] Commit message has no `Co-Authored-By: Claude` trailer.
-- [ ] Commit message has no "Generated with Claude Code" footer.
+- [ ] Commit message has no AI `Co-Authored-By:` trailer.
+- [ ] Commit message has no generated-by-client footer.
 - [ ] Diff has no real secrets, internal hostnames, or work-related
       identifiers.
 
@@ -231,11 +235,11 @@ the private phase, this is the moment to catch and fix them.
       issue bodies. Crop or blur file pickers, terminal prompts, editor
       title bars. A screenshot of VS Code with `/Users/firstname.lastname/Work/<Employer>/`
       visible in the title bar is a full identity disclosure.
-- [ ] **README + CLAUDE.md.** Confirm:
+- [ ] **README + agent contract.** Confirm:
       - README has the AI-assisted Acknowledgements section.
-      - CLAUDE.md has the no-coauthor and public-hygiene rules from the
-        template.
-      - Neither file references private collaborators, employers, or
+      - AGENTS.md has the no-coauthor and public-hygiene rules from the
+        template, and CLAUDE.md still imports it.
+      - Neither contract nor README references private collaborators, employers, or
         internal context that was OK to mention privately.
 - [ ] **GitHub "About" sidebar.** Once flipped, fill in description +
       `ai-assisted` topic tag — see [`github-about.md`](github-about.md).

@@ -1,13 +1,15 @@
 # Workflow — how to use this scaffolding
 
-Companion to `CLAUDE.md`. `CLAUDE.md` is what the agent reads every turn
-(the rules); this file is the human's step-by-step — what to run, in
-order, with a one-line reason for each step.
+Companion to the shared `AGENTS.md` project contract. Codex reads it
+directly; Claude Code loads it through the `@AGENTS.md` import in
+`CLAUDE.md`. This file is the human's step-by-step — what to run, in order,
+with a one-line reason for each step.
 
 The whole thing is five phases: **Spec → Plan → Test-first → Implement →
-Verify.** Each slash command runs one phase and stops, so you stay in
-control. New to the terms? A *spec* is a short design note; a *subagent*
-is a fresh agent with its own clean context.
+Verify.** Each workflow entry runs one phase and stops, so you stay in
+control. Claude Code uses `/<name>` slash commands; Codex uses `$<name>`
+repository skills (or `/skills`). New to the terms? A *spec* is a short
+design note; a *subagent* is a fresh agent with its own clean context.
 
 ## Day zero (once per project)
 
@@ -17,21 +19,27 @@ is a fresh agent with its own clean context.
    `--full` for the author's full workflow bundle. The Stop gate (blocks
    ending a turn on a red gate) is on by default — `--no-stop-gate`
    removes it; add `--strict-hooks` if you also want edit hooks to run
-   lint/type checks after every edit. If a Claude session ran the
-   bootstrap for you, restart the session once setup is done — hooks and
-   settings load at session start, so the gates are not active until
-   then.
+   lint/type checks after every edit. Restart the client after setup so
+   its settings and hooks load. In Codex, review the project trust prompt
+   and run `/hooks` to trust the checked-in hook definitions; see
+   `docs/codex-cli.md`.
 2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
-   — the agent reads `CLAUDE.md` every turn, so a leftover placeholder
+   — the agent reads the project contract, so a leftover placeholder
    misleads it. One placeholder is the starter package directory
    `src/{{PACKAGE_NAME}}/` — rename it to your package name. Own the
-   `CLAUDE.md` content (description, don't-touch list, conventions) —
-   draft it by hand or with the agent, your call, but read and cut every
-   line rather than committing a generated file unread, and keep it short.
-   Unreviewed agent-generated context files measured slightly *worse* than
-   no context file at all, and every context file adds 20%+ to the cost of
-   every turn, so a long one buys nothing measurable (see
-   `python/README.md` → "Don't" for the study and the numbers).
+   canonical `AGENTS.md` content (description, don't-touch list,
+   conventions); leave `CLAUDE.md` as the `@AGENTS.md` compatibility
+   import. Draft the contract by hand or with the agent, your call, but
+   read and cut every line rather than committing a generated file unread.
+   The study measured agent-generated context files at 0.5–2% below no
+   context file and developer-written ones at 2.4% above; neither
+   difference was statistically significant. It did find 20–23% higher
+   inference cost for agent-generated files and up to 19% for
+   developer-written files. Keep the contract short for that recurring
+   cost and Codex's finite combined instruction budget, not because the
+   study found short files more successful — file length itself had no
+   significant effect on success. The rule is ownership, not authorship
+   (see `python/README.md` → "Don't" for the study and the numbers).
    Mechanical fills like the project name in `pyproject.toml` are fine to
    delegate.
 3. **Set up git identity and GitHub.** `git config user.email` must be
@@ -68,7 +76,7 @@ is already obvious.
 1. **Number the work.** Default local mode: nothing to do — `/spec`
    takes the next local `docs/specs/NNNN-*.md` number. In issue mode
    (the repo tracks its backlog as GitHub issues; recorded in
-   `CLAUDE.md`), create the issue first — an issue is a work item, like
+   `AGENTS.md`), create the issue first — an issue is a work item, like
    a Jira or Linear ticket, not just a bug report — and its number names
    the spec, the branch, and the PR.
 2. **`/spec <name>`** — write a short spec (goal, success criteria,
@@ -84,39 +92,56 @@ is already obvious.
    tiny untracked work) — `<issue#>-<slug>` in issue mode. Never build on
    `main`.
 4. **`/plan`** — the agent lists the files to touch and the order.
-   Review it before any code; a wrong approach is cheap to fix here.
-5. **`/test-first`** — writes failing tests from the spec. Tests written
-   *after* the code just rubber-stamp whatever you built.
-   - *Optional, if installed:* `/analyze` confirms every success criterion has a test.
+   Review it before any code; a wrong approach is cheap to fix here. When
+   you approve it, the orchestrator copies the approved plan into the spec
+   under `## Approved implementation plan`, updates `Last updated`, and marks
+   the spec `shipping`. This happens before `/test-first` and before any
+   `/clear` or client switch, so the approved plan survives the chat. Small
+   work that explicitly skips `/plan` still moves the approved spec to
+   `shipping` immediately before `/test-first`.
+5. **`/test-first`** — a test-first subagent writes failing tests from the
+   spec. The orchestrator records the workspace before the subagent, audits
+   afterward that only tests changed, and independently reruns the focused
+   tests. Any implementation edit is a hard phase failure; a red result counts
+   only when it is caused by the missing behavior. Tests written *after* the
+   code just rubber-stamp whatever you built.
+   - *Optional, if installed:* `/analyze` invokes a fresh read-only analyzer
+     to confirm every success criterion has a meaningful test.
 6. **Implement.** Write the minimum code to make the tests pass.
-7. **`/review-check`** — runs ruff + mypy + pytest. Must be green before
-   moving on.
-8. **`/review`** (and `/review-adversarial` on bigger changes, if
-   installed) — a fresh agent reads the diff against the spec, catching
-   what the gate can't.
+7. **Sync the docs.** Sweep `docs/` for statements the implementation made
+   false — commands, file lists, described behavior, architecture notes — and
+   fix them before review so the reviewer sees the final documentation too.
+   `README.md` remains high-level: update it only when the pitch, install
+   steps, or user-facing surface changed. The agent may create a durable doc
+   when the feature needs one, but extending an existing doc beats adding a
+   maintenance surface. Flip the active spec's `**Status:**` to `shipped` and
+   regenerate its dashboard here, on the feature branch.
+8. **`/review-check`** — runs ruff + mypy + pytest. It must be green, but
+   green is not the final checkpoint; semantic review still follows.
+9. **`/review`** (and `/review-adversarial` on meaningful changes, if
+   installed) — a fresh read-only agent reviews the active spec against the
+   complete pre-commit change set: committed branch delta, staged and unstaged
+   tracked changes, and every untracked file. This catches what the gate can't.
    - *Optional:* `/security` and `/performance` if you installed them.
    - *LLM/AI-surface projects only, if installed:* `/eval` runs the eval
      suite — the quality gate for non-deterministic output that
      `/review-check` can't assert. Most projects ship no LLM surface and
      skip this entirely; install the full/advanced docs for the detailed
      decision rule.
-9. **Sync the docs.** Sweep `docs/` for statements the diff made false
-   — commands, file lists, described behavior, architecture notes — and
-   fix them on the same branch. Reference docs must match the code
-   after every spec. `README.md` is the front page and is deliberately
-   high-level: update it only when the pitch, install steps, or
-   user-facing surface changed, not on every merge. The agent may also
-   *create* a doc here — when the spec introduced something needing
-   standing explanation that outlives the spec and fits neither
-   docstrings nor the README — but extending an existing doc beats
-   adding a file, since every doc joins the sweep above. Flip the active
-   spec's `**Status:**` to `shipped` here too, on this same branch, so it
-   ships with the feature — never in a separate post-merge cleanup PR.
-10. **Commit, then open the PR.** You write the commit message. In
+10. **Close review findings.** The orchestrator applies `[auto-fix]`
+    findings, resyncs any affected docs, reruns the complete gate, and asks a
+    fresh reviewer to verify the fixes and inspect their delta. A substantial
+    fix gets a full review again. Repeat until no must-fix finding remains;
+    `[ask-user]` is a hard stop for your decision. A rerun of lint/tests alone
+    does not close a semantic finding.
+11. **Final checkpoint, then commit and open the PR.** The agent reports the
+    spec, complete changed-file set, red → green evidence, latest gate, review
+    disposition, and unresolved decisions, then stops for commit approval. You
+    write the commit message. In
     issue mode, the PR body says `Closes #<issue>` so merging closes
     the issue; the default local mode omits the closing keyword. A
-    change's own close-tasks (the spec `Status` flip above, dashboard
-    regen, todo ticks) ride in this PR, not a follow-up.
+    change's own close-tasks (the spec `Status` flip above, dashboard regen,
+    todo ticks) already ride in this reviewed change, not a follow-up.
 
 ## The planning artifacts, broad to narrow
 
@@ -264,17 +289,21 @@ A feature that spans sessions reviews badly when one session carries all
 the spec, plan, test, and implementation context. At a phase boundary,
 append a `## Phase handoff` block to the spec, run `/clear`, and resume
 fresh. Boundaries worth a reset: after `/plan` is approved, and after
-`/review-check` is green. Section shape: `docs/specs/README.md`.
+docs are synced and `/review-check` is green. Before the first reset, persist
+the approved plan under `## Approved implementation plan` and mark the spec
+`shipping`; a chat-only plan is not a handoff. Section shapes:
+`docs/specs/README.md`.
 
 ## Session hygiene
 
 Context is the resource the whole loop runs on; treat it deliberately.
 
 - **Audit what loads by default.** Once per project (and after adding
-  any MCP server or skill), open a fresh empty session and run
-  `/context` — it shows what is consuming context before you have done
-  anything. A stale MCP server or rarely-used skill that loads every
-  session is pure overhead; scope it to the projects that use it.
+  any MCP server or skill), open a fresh empty session and inspect the
+  client's context/configuration view (`/context` in Claude Code;
+  `/skills`, `/hooks`, and the startup status in Codex). A stale MCP
+  server or rarely-used skill is pure overhead; scope it to projects
+  that use it.
 - **Watch the percentage, not the limit.** The status line shows context
   usage every turn. Output quality degrades well before the hard limit
   — practitioners commonly report a soft zone around 40–50% — so treat
@@ -286,9 +315,9 @@ Context is the resource the whole loop runs on; treat it deliberately.
   after a compact or two, write the `## Phase handoff` block into the
   spec and `/clear` instead. The spec is the durable memory; the
   conversation is not.
-- **Audit memories occasionally.** `/memory` lists what Claude has
-  auto-remembered about the project. A stale entry steers every future
-  session; prune it like you would a wrong line in `CLAUDE.md`.
+- **Audit client memory occasionally.** Where the active client exposes
+  durable memory controls, inspect them. A stale entry steers future
+  sessions; prune it like a wrong line in `AGENTS.md`.
 
 ## The completion ladder
 
@@ -296,19 +325,18 @@ Context is the resource the whole loop runs on; treat it deliberately.
 longer nobody is watching:
 
 1. Success criteria written as a runnable command.
-2. `/goal` — a completion check run by a separate evaluator.
+2. A durable completion goal checked independently from the implementation.
 3. The Stop hook (on by default) — blocks ending a turn on a red gate.
 4. A fresh-context `/review` — the only rung that catches "gate green but
    feature wrong."
 
-Detail and the autonomy tiers: `docs/parallel-agents.md` (installed with
-`--full` / `--advanced-docs`). (`/goal`, `/loop`, and `/sandbox` are
-Claude Code built-ins, not commands in `.claude/commands/`.)
+Detail and the client-specific autonomy controls: `docs/parallel-agents.md`
+(installed with `--full` / `--advanced-docs`).
 
 ## Good to know
 
-- **`CLAUDE.md` is re-read every turn** — edit it mid-feature to
-  course-correct (e.g. add a path to the don't-touch list).
+- **The project contract is durable state.** Edit `AGENTS.md` when a standing
+  rule changes; leave `CLAUDE.md` as the thin `@AGENTS.md` import.
 - **Subagents don't see your chat.** Put anything the reviewer needs in
   the spec, not in a message.
 - **Specs are permanent** — they are the design log, not deleted after a
@@ -327,6 +355,8 @@ core loop; `--python-core` adds ADR/status/workflow docs; `--full` or
   agent, skill, and command. Start here if you are new to the scaffolding.
 - [`docs/workflow-diagram.md`](docs/workflow-diagram.md) — the same loop as
   a visual map (Mermaid diagrams).
+- [`docs/codex-cli.md`](docs/codex-cli.md) — Codex trust, workflow mapping,
+  client switching, non-interactive use, and guardrail differences.
 - `docs/specs/README.md` — spec numbering, the opt-in issue mode, the product spec, section shapes.
 - `docs/adr/README.md` — architecture decision records: when a choice is
   cross-cutting and costly to reverse, log the decision and its rationale
@@ -338,4 +368,5 @@ core loop; `--python-core` adds ADR/status/workflow docs; `--full` or
   seam, testing without live API calls, prompt versioning, model pinning.
 - `docs/parallel-agents.md` — autonomy tiers, worktrees, unattended runs.
 - `docs/agent-handoff.md` — operational runbook: risks, rollback, "when X breaks."
-- `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn.
+- `AGENTS.md` — the single contract both clients follow; `CLAUDE.md` imports
+  it for Claude Code.

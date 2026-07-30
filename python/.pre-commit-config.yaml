@@ -5,14 +5,14 @@ default_install_hook_types: [pre-commit, commit-msg]
 
 repos:
   # Guardrail: block direct commits to main/master. Feature and fix work
-  # belongs on a branch (see CLAUDE.md -> Git workflow). The one expected
+  # belongs on a branch (see AGENTS.md -> Git workflow). The one expected
   # exception is the day-zero scaffolding commit: git commit --no-verify.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: no-commit-to-branch
         args: [--branch, main, --branch, master]
-      # Hygiene guardrails — make the CLAUDE.md rules mechanical.
+      # Hygiene guardrails — make the AGENTS.md rules mechanical.
       - id: detect-private-key        # blocks committed private keys
       - id: check-added-large-files   # blocks accidental large/binary commits
       - id: check-merge-conflict      # blocks unresolved conflict markers
@@ -21,7 +21,7 @@ repos:
 
   # Full secret scan — ~150 secret types (API tokens, cloud keys, JWTs).
   # detect-private-key above only catches private keys; this is the real
-  # backstop for the "never commit credentials" rule in CLAUDE.md.
+  # backstop for the "never commit credentials" rule in AGENTS.md.
   # Bump rev with: pre-commit autoupdate
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.24.2
@@ -37,14 +37,29 @@ repos:
 
   # commit-msg backstop: strip AI-attribution lines (Co-Authored-By:
   # Claude trailers, "Generated with Claude Code" footers) from the commit
-  # message — the mechanical half of the no-AI-attribution rule in
-  # .claude/rules/commit-style.md. AI assistance is acknowledged once in
+  # message — the mechanical half of the no-AI-attribution standing rule in
+  # AGENTS.md / CLAUDE.md. Being a git hook, it is the one enforcement point
+  # both clients share: neither Claude Code nor Codex can see a commit
+  # message from its own hooks. AI assistance is acknowledged once in
   # README.md, never in git history. Runs at the commit-msg stage only.
   - repo: local
     hooks:
+      # AGENTS.md is the one canonical contract. Claude imports it through a
+      # one-line shim; rejecting edits to that shim prevents client policy
+      # drift in generated projects, not only in this scaffold's source tree.
+      - id: verify-client-contract-import
+        name: verify CLAUDE.md imports the canonical AGENTS.md contract
+        entry: >-
+          bash -c 'printf "@AGENTS.md\n" | cmp -s - CLAUDE.md ||
+          { echo "CLAUDE.md must contain only @AGENTS.md so both clients read one contract." >&2; exit 1; }'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: strip-ai-attribution
         name: strip AI co-author trailers / generated-with footers
-        entry: .claude/hooks/strip-ai-attribution.sh
+        entry: .agentic/hooks/strip-ai-attribution.sh
         language: script
         stages: [commit-msg]
         always_run: true

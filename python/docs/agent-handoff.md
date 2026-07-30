@@ -1,7 +1,7 @@
 # Agent handoff — {{PROJECT_NAME}}
 
 > **Purpose.** Operational state for the agent (or future-you) opening
-> this repo cold. `CLAUDE.md` covers the *rules*; this file covers the
+> this repo cold. `AGENTS.md` covers the *rules*; this file covers the
 > *situation* — what's risky right now, what's safe to run unsupervised,
 > and how to roll back if a change goes wrong.
 >
@@ -13,9 +13,9 @@
 ## Current state
 
 The canonical "what's in progress / what's blocked" lives in
-`CLAUDE.md` → **Open work / current state**. Don't duplicate it here —
+`AGENTS.md` → **Open work / current state**. Don't duplicate it here —
 that's two places to drift out of sync. This section holds only the
-*operational* detail that doesn't belong in CLAUDE.md:
+*operational* detail that doesn't belong in the project contract:
 
 - Branches in flight and their open PRs.
 - Anything deployed, recently rolled back, or mid-migration.
@@ -42,7 +42,7 @@ Revisit after the first incident.
 
 ## Accepted commands (safe to run unsupervised)
 
-Anything not on this list falls back to the default rule in `CLAUDE.md`:
+Anything not on this list falls back to the default rule in `AGENTS.md`:
 ask first.
 
 **Read-only:** `git status`, `git diff`, `git log`, `git branch --show-current`,
@@ -56,9 +56,9 @@ ask first.
 `git restore <path>`, {{PROJECT_SPECIFIC_LOCAL_MUTATIONS}}.
 
 **Never on this list** (always require explicit approval):
-`git commit`, `git push` — see CLAUDE.md "Commits and pushes require
+`git commit`, `git push` — see AGENTS.md "Commits and pushes require
 explicit approval". Anything matched by
-`.claude/hooks/block-destructive.sh`. And the project-specific
+`.agentic/hooks/block-destructive.sh`. And the project-specific
 high-blast-radius commands: {{DEPLOY_SCRIPTS, MIGRATIONS_AGAINST_PROD,
 TERRAFORM_APPLY_ON_SHARED_STATE, NPM_PUBLISH, ETC}}.
 
@@ -86,12 +86,12 @@ git reset --soft HEAD~1    # undo last commit, keep changes staged
 
 ```bash
 git revert <sha>           # safe — creates a new commit that undoes it
-git push                   # (requires explicit approval — see CLAUDE.md)
+git push                   # (requires explicit approval — see AGENTS.md)
 ```
 
 `git reset --hard` is recoverable via the reflog but still blunt — prefer
 `git reset --soft` above. Force-push is gated by the explicit-approval
-rule in CLAUDE.md; never reach for it to "clean up" a branch.
+rule in AGENTS.md; never reach for it to "clean up" a branch.
 
 **Bad merge to main:** {{PROJECT_SPECIFIC_REVERT — open a revert PR
 with `gh pr create`, or use GitHub's "Revert" button on the merged PR.
@@ -113,8 +113,9 @@ self-contained.}}
 
 ## When X breaks (first thing to try)
 
-- **CI red on a PR** — read the failing job; reproduce locally with
-  `/review-check`. Flaky twice → file an issue, don't keep re-running.
+- **CI red on a PR** — read the failing job; reproduce locally with the
+  `review-check` workflow (`/review-check` in Claude, `$review-check` in
+  Codex). Flaky twice → file an issue, don't keep re-running.
 - **`uv sync` fails** — delete `.venv/` and retry. Still failing → check
   whether `pyproject.toml` was edited without regenerating `uv.lock`.
 - **`pre-commit` blocks every commit** — `git branch --show-current`;
@@ -124,8 +125,7 @@ self-contained.}}
 - **Session won't end its turn** — the Stop hook (`gate-on-stop.sh`) is
   holding it: `src/` has pending changes and ruff/mypy/pytest aren't all
   green. Run `/review-check`, fix the failures. A gate that genuinely
-  can't pass is let through on the second attempt (with a warning on
-  stderr).
+  can't pass is surfaced on the second attempt (with a warning on stderr).
 - **PreToolUse deny-list blocks a command you actually need** — confirm
   it's truly unrecoverable; if not, the deny-list pattern is wrong (fix
   it). If it is, run outside the agent session.

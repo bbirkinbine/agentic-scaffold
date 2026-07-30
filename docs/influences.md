@@ -9,7 +9,7 @@ it — source, URL, retrieval date, license — and both reviewer agents treat a
 undeclared authority as a finding
 ([`python/docs/specs/README.md`](../python/docs/specs/README.md) →
 "External references";
-[`python/.claude/rules/python-code.md`](../python/.claude/rules/python-code.md)
+[`python/workflow/rules/python-code.md`](../python/workflow/rules/python-code.md)
 → "External-reference provenance").
 
 That rule governed the specs written *with* the scaffold, but never the
@@ -45,7 +45,7 @@ pre-move history is in that repo.
 | `/scope-check` — forcing questions before `/spec` | An interrogation pass that refuses to let a fuzzy goal through | [garrytan/gstack](https://github.com/garrytan/gstack) |
 | `## Phase handoff` + the `/clear` discipline | Per-phase context reset, with state handed off in a file | [gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done) |
 | `## Implementation Notes` in specs | Living-spec sync — keeping the design log honest about what shipped | [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) |
-| The `AGENTS.md` stub | A vendor-neutral context file other agents look for by convention | [agents.md](https://agents.md/) |
+| Complete `AGENTS.md` contracts across both scaffold flavors | A vendor-neutral context file other agents look for by convention | [agents.md](https://agents.md/) |
 
 The OpenSpec borrow is deliberately partial: the section convention was taken,
 the framework's full living-spec maintenance burden was not.
@@ -59,20 +59,23 @@ the framework's full living-spec maintenance burden was not.
 | The two senses of "eval", and the opt-in `evaluator` + `/eval` layer | Google/Kaggle, *The New SDLC with Vibe Coding* (2026) — [PDF](https://drive.google.com/file/d/1IR7CddF_2FyQo_PdfBNTaEA50EGiVt2r/view) (commit `b0d490f`) |
 | ADR section shape: Context / Decision / Consequences / Alternatives considered | Michael Nygard, *Documenting Architecture Decisions* — no URL recorded |
 | The loop's general shape and the test-first discipline | [Anthropic 2026 Agentic Coding Trends Report](https://resources.anthropic.com/hubfs/2026%20Agentic%20Coding%20Trends%20Report.pdf) · [Claude Code best practices](https://code.claude.com/docs/en/best-practices) |
-| Own every line of `CLAUDE.md` rather than committing a generated one unread, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
+| Own every line of the shared `AGENTS.md` contract rather than committing a generated one unread, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
+| Dual-client contract/adapters: complete `AGENTS.md`, repository skills, project custom agents, trusted hooks, permission profiles, command rules, and Codex TUI status line | Official Codex documentation for [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills), [subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [hooks](https://learn.chatgpt.com/docs/hooks), [rules](https://learn.chatgpt.com/docs/agent-configuration/rules), and [configuration](https://learn.chatgpt.com/docs/config-reference), verified 2026-07-30 against Codex CLI 0.146.0 |
+| One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
 
 ### One unresolved tension
 
 The AGENTS.md paper found that repository *overviews* did not improve task
-success, and that context files add 20%+ inference cost (up to 19% for
-developer-written ones) regardless of who wrote them. The scaffold's
-`CLAUDE.md` template opens with exactly such an overview (project
-description, stack, how to run things), and the template is not short.
+success, and that context files add inference cost regardless of who wrote
+them: 20–23% for agent-generated files and up to 19% for developer-written
+ones. The scaffold's canonical `AGENTS.md` template opens with exactly such
+an overview (project description, stack, how to run things), and the template
+is not short.
 
 Sharper still: developer-written context files improved results for every
 agent the paper tested *except* Claude Code, which scored best on their
-benchmark with no context file at all. This scaffold's entire premise is
-shipping a `CLAUDE.md` to Claude Code.
+benchmark with no context file at all. This scaffold's premise is shipping a
+durable agent contract to both Claude Code and Codex.
 
 The counter-argument is that the paper measured single-issue SWE-bench-style
 tasks with no human in the loop, while this scaffold targets multi-session

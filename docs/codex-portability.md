@@ -1,13 +1,14 @@
 # Codex CLI portability plan
 
-Status: deferred (2026-07-21). The plan is complete but implementation is
-intentionally not started — no current project needs a second client. This
-document is the reference if that changes. It describes the migration
-needed to make the scaffold a first-class Codex CLI workflow while
-preserving Claude Code support.
+Status: implementation in progress on `feat/codex-cli-parity` (2026-07-30).
+The shared source layer, complete contract, Codex project surface, dual-client
+bootstraps for both repository flavors, adapter validation, and flavor/profile
+smoke coverage are implemented. Fresh-project authenticated workflow
+acceptance in both Claude Code and Codex remains before this plan can be
+marked complete.
 
-Verification baseline: 2026-07-09, official Codex documentation and
-`codex-cli 0.144.1`. Recheck paths, schemas, trust behavior, and CLI flags
+Verification baseline: 2026-07-30, official Codex documentation and
+`codex-cli 0.146.0`. Recheck paths, schemas, trust behavior, and CLI flags
 against the current Codex release when implementation changes those surfaces.
 
 ## Target
@@ -35,6 +36,13 @@ files by hand:
 - A user can switch clients during a feature without regenerating the
   scaffold or changing the spec, plan, test, review, or verification
   artifacts.
+
+The Python flavor supplies the full workflow named above. The generic flavor
+supplies the same complete client contract and stack-neutral safety layer as
+its Claude surface, but deliberately does not invent language-specific
+formatting, testing, CI, workflow skills, or specialist agents. Its parity
+test is same policy and guardrails in both clients; its validation commands
+remain a project-specific placeholder the owner must fill.
 
 This does not mean that Claude and Codex use identical filenames, schemas, or
 interactive commands. It means that the repository exposes equivalent
@@ -143,36 +151,56 @@ path. The executable gates and fresh-context review are therefore mandatory.
 Do not claim stronger enforcement for Codex than the scaffold provides for
 Claude Code.
 
-## Current gap
+## Implementation status
 
-The scaffold is Claude-primary today:
+The portability gap described in the original plan is now represented by
+generated, testable client adapters:
 
-- `AGENTS.md` points to `CLAUDE.md` instead of containing the full contract.
-- `bootstrap.sh` installs `.claude/` settings, hooks, rules, agents,
-  commands, and skills, but no `.codex/` surface.
-- Claude agents use Markdown frontmatter; Codex custom agents use TOML.
-- Claude commands under `.claude/commands/` do not become Codex commands.
-- Claude settings and hook wiring are not Codex configuration.
-- The behavioral rules under `.claude/rules/` are not the same thing as
-  Codex command-execution rules.
-- Several advanced documents explicitly describe Claude built-ins, Claude
-  MCP registration, or Claude plugin packaging.
+- `workflow/` is the client-neutral source for the complete project contract,
+  phase workflows, reusable skills, roles, and standing rules.
+- `AGENTS.md` is the canonical rendered contract; `CLAUDE.md` imports it
+  through Claude Code's supported `@AGENTS.md` syntax.
+- Claude Code keeps Markdown commands/agents/skills under `.claude/`; Codex
+  receives workflow skills under `.agents/skills/` and custom-agent TOML
+  under `.codex/agents/`.
+- `.agentic/hooks/` contains shared shell logic. `.claude/settings.json` and
+  `.codex/hooks.json` provide client-specific lifecycle schemas.
+- `.codex/config.toml` supplies the project permission profile and feature
+  settings; `.codex/rules/safety.rules` covers narrow command-execution
+  decisions rather than duplicating behavioral policy.
+- `bootstrap.sh` installs both surfaces for every profile, persists profile
+  and hook-mode choices across flagless updates, protects customized client
+  configuration, prunes only unchanged managed files on profile shrink, and
+  migrates recognizable pointer, duplicate-contract, and Claude-only layouts.
+- `scripts/validate-codex-adapters.sh` and the profile smoke tests reject
+  source drift, malformed TOML/JSON, orphan adapters, incomplete hook matrices,
+  instruction-budget overflow, broken safety-rule decisions, unsafe update
+  transitions, and incomplete installations.
+- `generic/bootstrap.sh` installs a canonical generic contract plus Claude
+  import, shared
+  hooks, both clients' project configuration, Codex rules, and its startup
+  guide; `scripts/smoke-test-generic.sh` covers fresh installs, updates, and
+  legacy-pointer migration.
 
-The portable foundation is already strong: Markdown workflow guidance,
-Python quality gates, Bash utilities, pre-commit, CI, Git conventions, specs,
-and public-repository hygiene can remain shared.
+The remaining gap is execution evidence, not another adapter design:
+authenticated Claude Code and Codex runs from the same fresh bootstrapped
+project must demonstrate the Medium workflow acceptance case below, with an
+additional interactive Codex trust check.
 
 ## Implementation preflight
 
 An agent implementing this plan must not work from this document alone. Before
-editing, read and inventory the current Python scaffold as the behavioral
-source:
+editing, read and inventory both scaffold flavors and their shared sources:
 
+- `generic/project-contract.md`, `generic/bootstrap.sh`,
+  `generic/.claude/settings.json`, `generic/.codex/hooks.json`, and
+  `generic/docs/codex-cli.md`;
+- `shared/hooks/` and `shared/codex/`;
 - `python/README.md`, `python/WORKFLOW.md`, `python/CLAUDE.md`, and
   `python/AGENTS.md`;
-- every file under `python/.claude/commands/`, `.claude/agents/`,
-  `.claude/agents/optional/`, `.claude/skills/`, `.claude/rules/`, and
-  `.claude/hooks/`;
+- every source under `python/workflow/`, every rendered hook under
+  `python/.agentic/hooks/`, and the client adapters under
+  `python/.claude/`, `python/.agents/`, and `python/.codex/`;
 - `python/.claude/settings.json`, `python/bootstrap.sh`, and
   `scripts/smoke-test.sh`;
 - `python/pyproject.toml`, `.pre-commit-config.yaml`, the Python GitHub Actions
@@ -193,12 +221,9 @@ than relying only on the verification baseline recorded above.
 ### 1. Make `AGENTS.md` the shared instruction authority
 
 Move the durable repository contract into `AGENTS.md`, because Codex loads it
-by default. Keep `CLAUDE.md` compatible by using one of these representations:
-
-1. Prefer a symlink from `CLAUDE.md` to `AGENTS.md` where the target platform
-   supports checked-in symlinks; or
-2. Generate identical `CLAUDE.md` and `AGENTS.md` files from one source and
-   add a drift check for platforms that do not preserve symlinks.
+by default. Keep `CLAUDE.md` as the one-line `@AGENTS.md` import supported by
+Claude Code. This gives both clients one policy authority without relying on
+symlink support on Windows or maintaining two generated copies.
 
 Do not leave a short pointer as the only Codex-facing file. A pointer may be
 kept as an explanatory note inside the shared contract, but the full rules
@@ -210,11 +235,17 @@ must fit under that default with deliberate headroom, or the project config
 must raise and test the limit. CI must measure the complete root-to-working-
 directory instruction chain, not just the root file. Prefer concise root
 guidance plus nested `AGENTS.md` files for genuinely subtree-specific rules;
-do not split global rules into nested files merely to evade the limit.
-As of 2026-07-13, `python/CLAUDE.md` plus the five behavioral files under
-`python/.claude/rules/` total 29,121 bytes, so a direct concatenation leaves
-little headroom under the default. Re-measure before implementing; the chain
-grows as the workflow docs evolve.
+do not split global rules into nested files merely to evade the limit. Codex
+discovers the chain only through its launch directory, so a nested file
+requires `codex --cd <subtree>` (or an equivalent working directory) and must
+not be the sole home of a critical global rule.
+As of 2026-07-30, the rendered Python root contract is 26,575 bytes, the
+representative root-plus-nested chain is 27,643 bytes, and the generic
+contract is 8,724 bytes. All remain below Codex's 32 KiB default before the
+project layer is trusted; the checked-in config raises
+`project_doc_max_bytes` to 65,536 afterward. The adapter validator measures
+both limits and the representative chain. Re-measure after every
+standing-rule or contract change.
 
 The shared contract should use client-neutral language. Client-specific
 commands belong in a command/skill mapping table, not in the core rules.
@@ -225,16 +256,28 @@ Create a neutral source layer for workflow text and role instructions, then
 render or copy thin adapters into each client surface:
 
 ```text
-workflow/
-  rules/
-  commands/
-  roles/
-  skills/
+shared/
+  hooks/
+  codex/
+
+generic/
+  project-contract.md
+  .claude/
+  .codex/
+
+python/
+  workflow/
+    rules/
+    commands/
+    roles/
+    skills/
+
+.agentic/
+  hooks/
 
 .claude/
   agents/
   commands/
-  hooks/
   rules/
   settings.json
 
@@ -243,7 +286,6 @@ workflow/
 
 .codex/
   agents/
-  hooks/
   hooks.json
   config.toml
   rules/
@@ -254,10 +296,15 @@ configuration, and client-specific command wrappers are generated or
 updated from it. The generator must fail on missing source entries instead of
 silently producing a partial client surface.
 
-The tree above describes authoring sources and generated adapters. In this
-repository, create them under the Python template root:
+The tree above mixes repository-level sources and installed adapters. In this
+repository, stack-neutral hook/config sources live at the root, generic
+contract sources live under `generic/`, and Python workflow sources live
+under `python/workflow/`:
 
 ```text
+shared/hooks/...
+shared/codex/...
+generic/project-contract.md
 python/workflow/...
 python/.claude/...
 python/.agents/skills/...
@@ -453,10 +500,11 @@ and test them with `codex execpolicy check`.
 
 ### 7. Make bootstrap dual-client by default
 
-Update `python/bootstrap.sh` so every profile installs the shared contract
-and both client surfaces unless an explicit opt-out is provided. Preserve
-existing invocations and add options only where they clarify intent, for
-example:
+Update `python/bootstrap.sh` so every Python profile installs the shared
+contract and both client surfaces. Add `generic/bootstrap.sh` so the
+stack-neutral flavor does the same without inheriting Python-specific
+workflow or validation. Preserve existing invocations and add options only
+where they clarify intent, for example:
 
 - `--claude-only` for legacy Claude-only projects;
 - `--codex-only` for projects that do not want Claude files;
@@ -467,9 +515,10 @@ Codex adapters under `.codex/`. Project-owned files must remain protected
 from `--update`, including the customized shared contract, `pyproject.toml`,
 README, `.gitignore`, and handoff notes.
 
-Update completion output and `python/README.md` so a new project can tell
-which profile, client surfaces, hooks, and optional roles were installed,
-and whether the project `.codex` layer still needs trust review.
+Update completion output, both flavor READMEs, and the new-project checklist
+so a project can tell which client surfaces and hooks were installed, which
+Python profile/optional roles apply, and whether the project `.codex` layer
+still needs trust review.
 
 ### 8. Remove client assumptions from shared documentation
 
@@ -487,6 +536,9 @@ Audit every document for client-specific claims. At minimum:
   from the Codex plugin path and document the supported overlap;
 - `python/README.md` and `docs/project-types.md`: list the dual-client
   inventory and client mapping;
+- root `README.md`, the generic contract templates, and
+  `new-project-checklist.md`: replace the generic pointer workflow with the
+  dual-client generic bootstrap;
 - `.github/workflows/claude-review.yml.example`: label it as Claude-only and
   document the Codex review alternative rather than implying parity.
 
@@ -510,7 +562,8 @@ Static checks:
   pointer;
 - the combined discovered `AGENTS.md` instruction chain stays below the
   tested `project_doc_max_bytes` budget;
-- `AGENTS.md` and `CLAUDE.md` are symlinked or byte-identical;
+- `AGENTS.md` contains the complete contract and `CLAUDE.md` is exactly the
+  `@AGENTS.md` import;
 - every Codex agent TOML parses and has required fields;
 - every Codex hook references an existing executable script;
 - every repository skill is under `.agents/skills/<name>/SKILL.md` and has
@@ -619,7 +672,7 @@ Add a separate adapter smoke test that runs without an API login and checks:
 - rule fixtures through `codex execpolicy check`;
 - the combined `AGENTS.md` instruction byte budget;
 - workflow mapping completeness;
-- AGENTS/CLAUDE synchronization.
+- the canonical AGENTS/CLAUDE import relationship.
 
 Run a manual Codex acceptance pass after each change to Codex config or
 agent schema, because CLI schema and trust behavior can change independently
@@ -627,22 +680,66 @@ of this repository.
 
 ## Implementation order
 
-1. Inventory every current command, agent, skill, rule, hook, and advanced
-   document; record the desired Codex equivalent, task-size trigger,
-   permissions, output schema, stop boundary, and verification evidence in a
-   mapping table.
-2. Build the neutral source layer and make the shared instruction contract
-   authoritative through `AGENTS.md`.
-3. Add Codex agent translations and skill/workflow adapters.
-4. Add Codex hook configuration and port hook payload handling.
-5. Add Codex command-policy rules only where they are needed.
-6. Update bootstrap profiles, `--update`, generated inventories, and
-   opt-in-role handling.
-7. Rewrite shared documentation and add the Codex migration/usage guide.
-8. Add static adapter validation and extend all profile smoke tests.
-9. Run manual Codex CLI acceptance tests from fresh temporary projects.
-10. Review the generated diff for public-repo hygiene, stale Claude-only
-    claims, and source/adapter drift.
+1. [x] Inventory the current commands, agents, skills, rules, hooks, and
+   advanced documents.
+2. [x] Build the neutral source layer and make `AGENTS.md` authoritative.
+3. [x] Add Codex agent translations and skill/workflow adapters.
+4. [x] Add Codex hook configuration and payload handling.
+5. [x] Add narrow Codex command-policy rules.
+6. [x] Update both flavors, profiles, `--update`, inventories, and opt-in-role
+   handling.
+7. [x] Rewrite shared documentation and add the Codex usage guide.
+8. [x] Add static adapter validation and extend all profile smoke tests.
+9. [ ] Complete the full Medium authenticated acceptance case in both Claude
+   Code and Codex from the same fresh temporary project. A read-only
+   authenticated Codex load test already proves the
+   Python strict config, complete contract, `$spec` skill discovery, and Stop
+   hook. A separate generic load test proves its strict config, complete
+   contract, and ask-for-real-validation behavior while placeholders remain.
+
+   Hook-layer enforcement is verified live (2026-07-30, Codex CLI 0.146.0,
+   authenticated `codex exec` against a fresh temp repo, hook trust
+   bypassed because the probe authored its own hooks). Each invocation ignores
+   user configuration and marks only its fresh fixture as a trusted project
+   through a CLI override; authentication remains in the caller's
+   `CODEX_HOME`. `PreToolUse` with
+   `matcher: "Bash"` fires on shell commands (a `"shell"` matcher never
+   fires — `Bash` is canonical); the stdin payload carries `tool_name` and
+   `tool_input.command` in the Claude-compatible shape the shared hooks
+   parse; a non-zero hook exit denies the tool call with stderr relayed to
+   the model as the reason — `git clean -fd` was refused and an untracked
+   canary file survived; `PostToolUse` fires with `tool_name:
+   "apply_patch"` on file edits; the `Stop` hook runs at turn end.
+
+   The execpolicy layer is likewise verified live with a control: a fresh
+   project carrying only `.codex/rules/safety.rules` (no hooks) refused
+   `git clean -fd` and the canary survived; the identical run with the
+   rules file removed executed the command and deleted it. Codex therefore
+   auto-loads project rules at runtime — the layer is enforcement, not
+   documentation.
+
+   These probes are repeatable: `bash scripts/acceptance-codex-live.sh`
+   (authenticated Codex required; spends real tokens; not a CI gate). Run
+   it after any change to `shared/codex/`, to hook payload parsing, or a
+   Codex CLI upgrade. Still manual: persisted hook-definition review and
+   trust without the bypass flag, plus the interactive project-trust flow and
+   the full Medium workflow case below.
+
+   The dual-client phase harness is
+   `bash scripts/acceptance-workflow-live.sh --confirm-token-use`. It gives
+   Claude Code and Codex separate copies of the same committed Medium fixture,
+   runs fresh plan, test-first, implementation, and review sessions, and
+   independently checks the read-only plan/review boundaries, named custom
+   agent starts through an acceptance-only `SubagentStart` hook, test-only
+   failure, cause-specific red result, approved path set, real
+   Ruff/mypy/pytest gate, docs/spec closure, and absence of an agent commit.
+   Codex invocations ignore user configuration and explicitly trust only the
+   temporary fixture through a CLI override. The harness is intentionally
+   excluded from CI and refuses to run without the explicit token-use flag.
+   Passing it still does not replace the interactive Codex trust check,
+   persisted hook-definition trust, or the separate negative fixtures listed
+   in the acceptance section.
+10. [x] Complete the final public-repo hygiene and adapter-drift diff review.
 
 ## Completion criteria
 
@@ -671,6 +768,7 @@ The migration is complete when all of the following are true:
   workflow.
 - All three bootstrap profiles and strict-hook variants pass static and
   repository smoke tests.
+- The generic flavor's fresh, update, and legacy-migration smoke tests pass.
 - Fresh-project manual acceptance passes for interactive `codex` and
   non-interactive `codex exec`.
 - A feature can begin in Claude Code and resume in Codex, or the reverse, from

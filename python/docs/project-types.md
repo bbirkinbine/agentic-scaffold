@@ -5,13 +5,15 @@
 > give me*, and *when do I run each agent / skill / command*. For the
 > **shape** of the loop see [`workflow-diagram.md`](workflow-diagram.md);
 > for the **steps** in order see [`../WORKFLOW.md`](../WORKFLOW.md); for the
-> **rules** the agent follows every turn see [`../CLAUDE.md`](../CLAUDE.md).
+> **rules** both clients follow see [`../AGENTS.md`](../AGENTS.md); for
+> Codex startup and switching see [`codex-cli.md`](codex-cli.md).
 
-The one idea that ties this together: **every project type runs the same
-five-phase loop** — `Spec -> Plan -> Test-first -> Implement -> Verify`.
-The type does not change the loop. It changes *how much scaffolding* is
-installed around it. Pick the smallest type that fits; grow later with
-`bootstrap.sh --update <profile>`.
+The Python flavor standardizes a five-phase loop —
+`Spec -> Plan -> Test-first -> Implement -> Verify` — and its profiles
+change how much scaffolding surrounds that loop. The generic flavor does not
+impose that methodology on an unrelated stack; it standardizes the
+dual-client contract and safety layer while leaving workflow and validation
+to the repository owner.
 
 ---
 
@@ -21,7 +23,7 @@ installed around it. Pick the smallest type that fits; grow later with
 flowchart TD
     Q{"What kind of repo?"}
     Q -->|"Python package / app / service"| PY["Python flavor:<br/>run bootstrap.sh with a profile<br/>(section 2)"]
-    Q -->|"infra · shell · FPGA · docs · anything else"| NP["Non-Python flavor:<br/>copy CLAUDE.md.template + README.md.template<br/>fill the {{placeholders}}"]
+    Q -->|"infra · shell · FPGA · docs · anything else"| NP["Generic flavor:<br/>run generic/bootstrap.sh<br/>fill {{placeholders}} + real validation commands"]
     NP --> BOTH["Both flavors: walk new-project-checklist.md<br/>in the agentic-scaffold repo — not copied here<br/>(identity · GitHub About · private->public scrub)"]
     PY --> BOTH
 
@@ -29,20 +31,32 @@ flowchart TD
     class NP nonpy;
 ```
 
-The **non-Python flavor** is just two templates and the checklist — no
-subagents, hooks, or slash commands. It gives an AI agent a clean context
-file and public-repo hygiene rules; the rest of this document is about the
-**Python flavor**, where the full workflow surface lives.
+The **generic flavor** installs one canonical `AGENTS.md` contract with a
+Claude import shim, Claude/Codex configuration, stack-neutral safety hooks,
+Codex command rules, and a Codex startup guide. It has no formatter, Stop
+gate, workflow skills, custom agents, or CI because those choices depend on
+the actual stack. Run:
+
+```bash
+bash path/to/agentic-scaffold/generic/bootstrap.sh
+```
+
+Fill its validation section with the repository's real commands. The rest of
+this document is about the **Python flavor**, where the prescribed workflow
+surface lives.
 
 ---
 
 ## 2. Pick a Python profile
 
 `bootstrap.sh` installs one of three profiles. The default is
-`--python-core`. Three options compose on top of any profile:
+`--python-core`. Options compose on top of any profile:
 `--strict-hooks` (enforce lint/type-check on every edit),
 `--no-stop-gate` (remove the default turn-end gate), and
 `--advanced-docs` (add the deeper doctrine docs without going full).
+Use `--default-hooks` to return a project from either non-default hook
+mode to format-only edits plus the Stop gate, and `--no-advanced-docs`
+to clear a previously persisted advanced-docs option.
 
 ```mermaid
 flowchart TD
@@ -62,13 +76,23 @@ flowchart TD
 
 | Profile | Who it is for | One-line summary |
 | --- | --- | --- |
-| `--minimal` | A small repo that wants the core loop without the full Claude surface | Spec/plan/test/review commands, core agents, safety hooks, rules, specs convention, CI |
+| `--minimal` | A small repo that wants the core loop without the full doctrine surface | Claude commands + Codex skills, both clients' core agents, shared safety hooks, rules, specs convention, CI |
 | `--python-core` (default) | The normal attended Python agentic workflow | Minimal + skills, ADRs, the sharpening commands, status dashboard, workflow diagram, Dependabot |
 | `--full` | The author's complete workflow bundle | Python-core + advanced docs (parallel agents, plugin path, serena, evals) + optional-reviewer command stubs |
 
-Grow or shrink later: `bootstrap.sh --update --full` promotes a project;
-project-owned files (`CLAUDE.md`, `pyproject.toml`, `README.md`,
-`.gitignore`) are never overwritten.
+Grow or shrink later: `bootstrap.sh --update --full` promotes a project,
+while an explicit smaller profile prunes files that are both excluded and
+still match their recorded scaffold checksum. Customized excluded files are
+preserved with a warning. Project-owned files (`AGENTS.md`, `pyproject.toml`,
+`README.md`, `.gitignore`) are never overwritten wholesale; Claude reads the
+canonical `AGENTS.md` through the scaffold-managed `CLAUDE.md` import shim.
+
+Bootstrap records the selected profile, hook mode, advanced-docs option, and
+managed-file checksums under `.agentic/`. A flagless `bootstrap.sh --update`
+reuses those choices. Updates also checksum-protect `.claude/settings.json`,
+`.codex/config.toml`, and `.codex/hooks.json`: unchanged scaffold copies
+receive template improvements, while project-customized copies remain intact
+for a manual merge.
 
 ---
 
@@ -78,8 +102,12 @@ Read top-down: everything in a tier includes the tiers above it.
 
 ### Core — every profile, including `--minimal`
 
-- **Commands:** `/spec`, `/plan`, `/test-first`, `/review-check`, `/review`
-- **Agents:** `planner`, `test-first`, `reviewer`
+- **Context:** canonical `AGENTS.md` plus Claude's `@AGENTS.md` import shim
+- **Workflows:** Claude `/spec`, `/plan`, `/test-first`, `/review-check`,
+  `/review`; equivalent Codex `$spec`, `$plan`, `$test-first`,
+  `$review-check`, `$review`
+- **Agents:** Claude Markdown and Codex TOML adapters for `planner`,
+  `test-first`, `reviewer`
 - **Hooks:** `branch-check` (warn on `main`), `block-destructive`
   (deny unrecoverable Bash), `specs-status` (refresh the spec dashboard),
   `gate-on-stop` (block turn-end while `src/` is dirty and
@@ -91,12 +119,15 @@ Read top-down: everything in a tier includes the tiers above it.
 - **Convention + CI:** `docs/specs/README.md`, `.github/workflows/ci.yml`
   (ruff · mypy · pytest · pip-audit), PR template, issue forms,
   `.pre-commit-config.yaml`
+- **Codex:** `.codex/config.toml`, trusted hooks, command rules, and
+  `docs/codex-cli.md`
 
 ### Added by `--python-core` (the default)
 
-- **Commands:** `/product-spec`, `/scope-check`, `/clarify`, `/adr`,
-  `/analyze`, `/specs-status`, `/review-adversarial`
-- **Agents:** `reviewer-adversarial`
+- **Workflows:** Claude `/product-spec`, `/scope-check`, `/clarify`, `/adr`,
+  `/analyze`, `/specs-status`, `/review-adversarial`; Codex uses the same
+  names with `$`
+- **Agents:** `analyzer`, `reviewer-adversarial`
 - **Skills (auto-fire, section 5):** `python-module-split`,
   `python-docstrings`, `dependency-hygiene`
 - **Docs:** `docs/adr/README.md`, `docs/workflow-diagram.md`,
@@ -107,20 +138,24 @@ Read top-down: everything in a tier includes the tiers above it.
 
 - **Docs:** `docs/parallel-agents.md`, `docs/plugin-packaging.md`,
   `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`
-- **Commands (`--full` only):** `/security`, `/performance`, `/eval`
-  (stubs — each requires its opt-in agent, below)
+- **Workflows (`--full` only):** Claude `/security`, `/performance`,
+  `/eval` and matching Codex `$` skills (stubs — each requires its opt-in
+  agent, below)
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
 ### Added by `--strict-hooks` (any profile)
 
-- A settings rewrite so edits run `ruff format` + `ruff check` + `mypy`
+- Both clients' hook wiring is selected so edits run `ruff format` +
+  `ruff check` + `mypy`
   (the Stop gate is already on by default; `--strict-hooks` keeps it and
-  is incompatible with `--no-stop-gate`).
+  is incompatible with `--no-stop-gate`; select `--default-hooks` to return
+  to the default mode on a later update).
 
 ### Opt-in agents — never auto-copied, manual per project (section 6)
 
-- `security-reviewer`, `performance-reviewer`, `evaluator` — copy from
-  `.claude/agents/optional/` only when the project's surface warrants it.
+- `security-reviewer`, `performance-reviewer`, `evaluator` — copy both
+  `.claude/agents/optional/` and `.codex/agents/optional/` adapters only
+  when the project's surface warrants it.
 
 ---
 
@@ -128,7 +163,8 @@ Read top-down: everything in a tier includes the tiers above it.
 
 The loop's five phases are fixed; these are the tools that drive them plus
 the optional sharpening passes. "Profile" is the thinnest profile that
-ships the command.
+ships the workflow. The table uses Claude `/<name>` notation; Codex uses the
+same name as `$<name>`.
 
 | Run this | It does | Reach for it when | Profile |
 | --- | --- | --- | --- |
@@ -141,7 +177,7 @@ ships the command.
 | `/scope-check` | Five forcing questions | The goal is fuzzy, before `/spec` | python-core |
 | `/clarify` | Interrogates a draft spec, writes answers back | The spec has real unknowns, after your first edit | python-core |
 | `/adr` | Records a cross-cutting technical decision | Large work with a choice costly to reverse | python-core |
-| `/analyze` | Read-only spec ↔ tests ↔ diff consistency check | Want proof tests cover the spec before implementing | python-core |
+| `/analyze` (`analyzer`) | Read-only spec ↔ tests ↔ diff consistency check | Want proof tests cover the spec before implementing | python-core |
 | `/review-adversarial` (`reviewer-adversarial`) | Argues *against* the diff | Meaningful PRs — pair with `/review` for A/B | python-core |
 | `/specs-status` | Refreshes + prints the spec dashboard | Any time you want the backlog at a glance | python-core |
 | `/security` (`security-reviewer`) | App-sec-only review | The diff touches a trust boundary (section 6) | full + opt-in agent |
@@ -170,9 +206,9 @@ spec, with no ADR.
 
 ## 5. When each skill auto-fires
 
-Skills are not commands — you never invoke them. They load on their own
-when the diff trips a trigger, injecting a focused check at exactly the
-moment it is relevant. They ship with `--python-core` and `--full`.
+These reusable skills normally load on their own when the diff trips a
+trigger. They can also be selected explicitly from the client's skill
+picker. They ship with `--python-core` and `--full`.
 
 ```mermaid
 flowchart LR
@@ -197,8 +233,8 @@ flowchart LR
 These are cross-cutting properties of a project, not profiles. Decide them
 at day zero (see the day-zero diagram in
 [`workflow-diagram.md`](workflow-diagram.md)) and enable only what applies.
-The reviewer agents live in `.claude/agents/optional/`; copy the one you
-need into `.claude/agents/` and add a one-line mention in `CLAUDE.md`.
+The reviewer agents have optional adapters under both client directories;
+copy both files and add a one-line mention in `AGENTS.md`.
 
 | Your project has… | Enable | When to skip | Reference |
 | --- | --- | --- | --- |
@@ -210,8 +246,8 @@ need into `.claude/agents/` and add a one-line mention in `CLAUDE.md`.
 
 `evals.md`, `llm-product.md`, `serena-setup.md`, and `parallel-agents.md`
 install with `--full` or `--advanced-docs`. The optional agents themselves are always
-available in the scaffold's `.claude/agents/optional/`, whatever profile
-you installed.
+available in the scaffold's `.claude/agents/optional/` and
+`.codex/agents/optional/`, whatever profile you installed.
 
 ---
 
@@ -220,6 +256,8 @@ you installed.
 - [`workflow-diagram.md`](workflow-diagram.md) — the loop as diagrams:
   day zero, the per-feature loop, the automation layer, "scale to the task."
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the steps in order, one line of why each.
-- [`../CLAUDE.md`](../CLAUDE.md) — the rules the agent follows every turn.
+- [`../AGENTS.md`](../AGENTS.md) — the complete rules both clients follow.
+- [`codex-cli.md`](codex-cli.md) — Codex trust, invocation, switching, and
+  non-interactive use.
 - [`specs/README.md`](specs/README.md) — spec numbering, the opt-in issue mode,
   the product spec, section shapes.

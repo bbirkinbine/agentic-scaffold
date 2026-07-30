@@ -21,7 +21,7 @@ it lives in that feature's spec under `## Sketch`. If several features
 will inherit it — a storage engine, an async/sync boundary, a public API
 shape, an authentication model, a serialization format, a module-boundary
 doctrine — it earns an ADR. Most small projects never write one; reach
-for an ADR on **Large** work (see `CLAUDE.md` → the task-size table).
+for an ADR on **Large** work (see `AGENTS.md` → the task-size table).
 
 A feature spec whose approach hinges on an ADR links to it rather than
 re-arguing the decision.
