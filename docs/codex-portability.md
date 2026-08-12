@@ -13,7 +13,7 @@ against the current Codex release when implementation changes those surfaces.
 
 ## Target
 
-"100% Codex CLI support" means a fresh project created by this scaffold can
+"Codex CLI support" means a fresh project created by this scaffold can
 be used from Codex without asking Codex to discover or translate Claude-only
 files by hand:
 
