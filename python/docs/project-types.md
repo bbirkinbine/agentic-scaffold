@@ -137,10 +137,11 @@ Read top-down: everything in a tier includes the tiers above it.
 ### Added by `--full` (or `--advanced-docs` for the docs only)
 
 - **Docs:** `docs/parallel-agents.md`, `docs/plugin-packaging.md`,
-  `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`
+  `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`,
+  `docs/local-executor.md`
 - **Workflows (`--full` only):** Claude `/security`, `/performance`,
-  `/eval` and matching Codex `$` skills (stubs — each requires its opt-in
-  agent, below)
+  `/eval`, `/delegate` and matching Codex `$` skills (the first three are
+  stubs — each requires its opt-in agent, below)
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
 ### Added by `--strict-hooks` (any profile)
@@ -183,6 +184,7 @@ same name as `$<name>`.
 | `/security` (`security-reviewer`) | App-sec-only review | The diff touches a trust boundary (section 6) | full + opt-in agent |
 | `/performance` (`performance-reviewer`) | Perf-only review | The diff touches a hot path (section 6) | full + opt-in agent |
 | `/eval` (`evaluator`) | Authors/runs an LLM output-quality eval | The product ships an LLM/AI surface (section 6) | full + opt-in agent |
+| `/delegate` | Builds a self-contained handoff packet for a weaker/local executor | Handing one already-tested file to a local model ([`local-executor.md`](local-executor.md)) | full |
 
 Two hard rules survive every profile: **CI is the gate you cannot skip**,
 and **you write the commit message** — the agent never commits for you.
@@ -244,8 +246,8 @@ copy both files and add a one-line mention in `AGENTS.md`.
 | A large, long-lived repo where the agent re-maps structure every session | `serena` MCP | Fresh or small repo — grep is enough | [`serena-setup.md`](serena-setup.md) |
 | Two+ features independent at the file level, or a long unattended run | Worktrees / completion ladder | You are at the keyboard on one feature | [`parallel-agents.md`](parallel-agents.md) |
 
-`evals.md`, `llm-product.md`, `serena-setup.md`, and `parallel-agents.md`
-install with `--full` or `--advanced-docs`. The optional agents themselves are always
+`evals.md`, `llm-product.md`, `serena-setup.md`, `parallel-agents.md`, and
+`local-executor.md` install with `--full` or `--advanced-docs`. The optional agents themselves are always
 available in the scaffold's `.claude/agents/optional/` and
 `.codex/agents/optional/`, whatever profile you installed.
 

@@ -98,7 +98,9 @@ case "$PROFILE" in
     must .github/dependabot.yml
     must_not docs/parallel-agents.md
     must_not docs/llm-product.md
+    must_not docs/local-executor.md
     must_not .claude/commands/security.md
+    must_not .claude/commands/delegate.md
     ;;
   full)
     must .claude/agents/analyzer.md
@@ -106,8 +108,11 @@ case "$PROFILE" in
     must docs/parallel-agents.md
     must docs/evals.md
     must docs/llm-product.md
+    must docs/local-executor.md
     must .claude/commands/security.md
     must .agents/skills/security/SKILL.md
+    must .claude/commands/delegate.md
+    must .agents/skills/delegate/SKILL.md
     must .github/workflows/claude-review.yml.example
     ;;
   *)

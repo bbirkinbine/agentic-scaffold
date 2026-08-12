@@ -55,7 +55,8 @@ python/
 │   │   ├── review-adversarial.md          # /review-adversarial — invoke reviewer-adversarial
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
 │   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
-│   │   └── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
+│   │   ├── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
+│   │   └── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
 │   └── skills/
 │       ├── python-module-split/
 │       │   └── SKILL.md                   # Auto-invoked when a .py file ≥ 300 lines
@@ -87,6 +88,7 @@ python/
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
 │   ├── evals.md                           # When to add evals (opt-in, LLM/AI-surface projects) + how to keep them honest (managed)
 │   ├── llm-product.md                     # Building an LLM/agent surface: call seam, testing without live calls, prompt versioning, model pinning (managed)
+│   ├── local-executor.md                  # Delegating the implement phase to a weaker/local model: the rule, the tiers, what breaks (managed)
 │   ├── adr/
 │   │   └── README.md                      # Architecture Decision Records: spec-vs-ADR, numbering, status, template (managed)
 │   └── specs/
@@ -136,7 +138,7 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 | --- | --- | --- |
 | `--minimal` | Small repos that want the core loop without the full doctrine surface | `AGENTS.md` + `CLAUDE.md`, `WORKFLOW.md`, pyproject, pre-commit, CI, shared format/safety hooks, Codex config/rules, specs convention, core Claude commands + Codex skills, and both clients' agents |
 | `--python-core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
-| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product), opt-in reviewer command stubs, and the inert Claude PR-review workflow example |
+| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product, local-executor), opt-in reviewer command stubs, `/delegate`, and the inert Claude PR-review workflow example |
 
 Options compose with profiles:
 

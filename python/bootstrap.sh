@@ -14,7 +14,8 @@
 #                  without advanced/experimental doctrine docs.
 #   --full         Everything in python-core plus optional-reviewer command
 #                  stubs and advanced docs (parallel agents, plugin path,
-#                  serena, evals, llm-product). Optional reviewer agents are
+#                  serena, evals, llm-product, local-executor). Optional
+#                  reviewer agents are
 #                  still not copied; enable them per project.
 #
 # Options:
@@ -70,9 +71,9 @@
 #     docs/agent-handoff.md, and Dependabot.
 #   - full or --advanced-docs: docs/parallel-agents.md,
 #     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
-#     docs/llm-product.md.
-#   - full only: command stubs for security / performance / eval and the
-#     inert Claude PR-review workflow example.
+#     docs/llm-product.md, docs/local-executor.md.
+#   - full only: command stubs for security / performance / eval / delegate
+#     and the inert Claude PR-review workflow example.
 #
 # What it also creates (only if absent):
 #   - src/{{PACKAGE_NAME}}/__init__.py + tests/test_smoke.py — a starter
@@ -1054,6 +1055,7 @@ if [[ "$EFFECTIVE_ADVANCED_DOCS" == 1 ]]; then
   sync docs/serena-setup.md
   sync docs/evals.md
   sync docs/llm-product.md
+  sync docs/local-executor.md
 fi
 
 if [[ "$PROFILE" == full ]]; then
@@ -1063,6 +1065,8 @@ if [[ "$PROFILE" == full ]]; then
   sync .agents/skills/performance/SKILL.md
   sync .claude/commands/eval.md
   sync .agents/skills/eval/SKILL.md
+  sync .claude/commands/delegate.md
+  sync .agents/skills/delegate/SKILL.md
   sync .github/workflows/claude-review.yml.example
 fi
 
@@ -1106,6 +1110,8 @@ prune_profile_transition() {
     .agents/skills/performance/SKILL.md
     .claude/commands/eval.md
     .agents/skills/eval/SKILL.md
+    .claude/commands/delegate.md
+    .agents/skills/delegate/SKILL.md
     .github/workflows/claude-review.yml.example
   )
   local advanced_files=(
@@ -1114,6 +1120,7 @@ prune_profile_transition() {
     docs/serena-setup.md
     docs/evals.md
     docs/llm-product.md
+    docs/local-executor.md
   )
 
   [[ "$MODE" == update ]] || return 0
