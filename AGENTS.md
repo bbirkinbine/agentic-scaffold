@@ -137,7 +137,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-07-30)
+## Open work / current state (updated 2026-08-11)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -204,19 +204,39 @@ settings take effect. Consumer projects are snapshots —
 `bootstrap.sh --update` is rarely run against existing ones, so changes here
 reach projects at their next bootstrap, not retroactively.
 
+Codex portability shipped 2026-08-11 (PR #13, squashed; branch
+`feat/codex-cli-parity` deleted), making the scaffold dual-client.
+`python/workflow/` and top-level `shared/` are the client-neutral source
+of truth; `.claude/`, `.agents/`, and `.codex/` are **generated** by
+`scripts/render-client-surfaces.sh`, which prunes any file it does not
+own. Edit the `workflow/` source and re-render — a file added straight to
+a generated directory disappears on the next run. Hooks moved to
+`python/.agentic/hooks/`, shared with the Codex hook config. Update mode
+persists profile choices, protects customized client configuration, and
+migrates recognizable legacy contracts. `generic/` carries the
+stack-neutral flavor.
+
+Two smaller merges landed the same day: the local-executor delegation
+layer (PR #12 — `python/docs/local-executor.md` plus `/delegate`, both
+`--full` / `--advanced-docs`), and a close-out gate for feature PRs
+(PR #14 — `python/.agentic/hooks/closeout-check.sh` run by a `closeout`
+CI job in the project template, failing while a spec still says
+`draft`/`shipping` or its dashboard is stale).
+
 Open:
 
-- Codex portability is being implemented on `feat/codex-cli-parity`.
-  Shared workflow sources now render canonical `AGENTS.md` contracts,
-  Claude import shims and adapters, and Codex skills/custom agents; hooks are
-  client-neutral, and both Python and generic bootstraps install the relevant
-  client surfaces. Update mode persists profile choices, protects customized
-  client configuration, and safely migrates recognizable legacy contracts.
-  Static validation and all flavor/profile smoke tests must remain green.
-  Hook and execpolicy enforcement is verified live against Codex CLI
-  0.146.0 (repeatable via `scripts/acceptance-codex-live.sh`; evidence in
-  `docs/codex-portability.md` → implementation order, item 9). A separate
-  token-opt-in dual-client phase harness lives at
-  `scripts/acceptance-workflow-live.sh`. Its authenticated run, the trusted
-  hook-load flow, and the remaining negative acceptance fixtures are the final
-  manual checks before the portability plan can be marked complete.
+- Add `generic-smoke` to this repo's `protect-main` required status
+  checks. The job runs on every PR but is not required, so it can go red
+  without blocking a merge.
+- `docs/influences.md` records the provenance row for
+  `python/docs/local-executor.md` **without URLs or a retrieval date**.
+  The Terminal-Bench 2.0 figures in that doc are live leaderboard values
+  the argument rests on; pin a source or soften the claim.
+- The portability plan is not complete by its own definition. Hook and
+  execpolicy enforcement is verified live against Codex CLI 0.146.0
+  (repeatable via `scripts/acceptance-codex-live.sh`; evidence in
+  `docs/codex-portability.md` → implementation order, item 9), but the
+  authenticated `scripts/acceptance-workflow-live.sh` run, the trusted
+  hook-load flow, and the remaining negative acceptance fixtures are
+  still manual and unrun. Both live harnesses are opt-in and cost
+  tokens; CI does not run them, so a green CI is narrower than it looks.
