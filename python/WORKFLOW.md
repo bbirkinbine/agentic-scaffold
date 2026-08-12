@@ -337,5 +337,8 @@ core loop; `--python-core` adds ADR/status/workflow docs; `--full` or
 - `docs/llm-product.md` — building that LLM/AI surface: the single call
   seam, testing without live API calls, prompt versioning, model pinning.
 - `docs/parallel-agents.md` — autonomy tiers, worktrees, unattended runs.
+- `docs/local-executor.md` — handing the implement phase to a weaker or
+  local model: the one rule that makes it safe, what to delegate and what
+  never to, and why the failures are serialization rather than reasoning.
 - `docs/agent-handoff.md` — operational runbook: risks, rollback, "when X breaks."
 - `CLAUDE.md` + `.claude/rules/` — the rules the agent follows every turn.
