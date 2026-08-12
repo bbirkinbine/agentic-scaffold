@@ -1,16 +1,18 @@
 # agentic-scaffold
 
 Project-bootstrap templates and agentic-workflow scaffolding for new
-repositories. Two flavors: a full Python agentic workflow, or a minimal
-set of conventions for anything else (infra, shell, FPGA, ...).
+repositories. Two dual-client flavors: a full Python agentic workflow, or a
+lighter stack-neutral contract and safety layer for anything else (infra,
+shell, FPGA, ...).
 
 > ## Status
 >
 > Published as a personal reference, not a managed product. Issues and
 > PRs are welcome but won't get fast turnaround. The scaffolding evolves
 > as the workflow does — pin a commit if you depend on a snapshot.
-> CI smoke-tests `bootstrap.sh` on every push: each profile is installed
-> into a clean directory and must pass the quality gate it ships with.
+> CI smoke-tests both bootstraps on every push: every Python profile runs
+> its quality gate, and the generic flavor exercises fresh install, update,
+> legacy migration, hooks, and client configuration.
 
 ## Python projects
 
@@ -18,7 +20,9 @@ Run [`python/bootstrap.sh`](python/bootstrap.sh) from a new repo's root,
 then open [`python/WORKFLOW.md`](python/WORKFLOW.md) — it walks day-zero
 setup and the per-feature loop, step by step. The default is
 `--python-core`; use `--minimal` for a thinner starter or `--full` for the
-author's complete workflow bundle.
+author's complete workflow bundle. The Python scaffold installs Claude Code
+and Codex CLI adapters together, so either client can continue from the same
+spec, tests, diff, and phase handoff.
 
 ```bash
 cd your-project                              # the new repo you're starting
@@ -35,22 +39,25 @@ full file inventory and the opt-in pieces, see
 [`python/README.md`](python/README.md). This page deliberately doesn't
 list the commands, subagents, or skills — they change as the scaffold
 evolves, and the two READMEs under `python/` are the source of truth.
+For Codex startup, project trust, workflow invocation, and client switching,
+see [`python/docs/codex-cli.md`](python/docs/codex-cli.md).
 
 ## Non-Python repos
 
-Copy the three top-level templates and fill the `{{...}}` placeholders:
+Run the generic bootstrap and fill the `{{...}}` placeholders:
 
 ```bash
-cd your-project                              # the new repo you're starting
-cp path/to/agentic-scaffold/CLAUDE.md.template  ./CLAUDE.md
-cp path/to/agentic-scaffold/AGENTS.md.template  ./AGENTS.md
-cp path/to/agentic-scaffold/README.md.template  ./README.md
-rg '{{' .   # find every placeholder, then replace it
+cd your-project
+bash path/to/agentic-scaffold/generic/bootstrap.sh
+rg '{{' .
 ```
 
-`AGENTS.md` is a pointer stub for non-Claude agents (Codex, Cursor,
-Gemini, ...) that look for that filename by convention; the content
-lives in `CLAUDE.md`.
+This installs a complete canonical `AGENTS.md` plus a `CLAUDE.md` import,
+Claude and Codex project configuration, shared safety hooks, Codex command
+rules, and a Codex startup guide. It deliberately does not invent
+language-specific formatting, tests, or workflow skills; fill the contract's
+validation section with the repository's real commands. See
+[`generic/README.md`](generic/README.md).
 
 ## Both flavors
 

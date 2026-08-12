@@ -2,11 +2,13 @@ name: CI
 
 # CI for the scaffold repo itself. Everything here propagates by copy
 # into new projects (and into existing ones via bootstrap.sh --update),
-# so a broken template ships broken projects. Two jobs:
+# so a broken template ships broken projects. Three jobs:
 #   shell — syntax + shellcheck over bootstrap.sh and the hook scripts.
-#   smoke — bootstrap every profile into a temp dir, assert the file
+#   smoke — bootstrap every Python profile into a temp dir, assert the file
 #           set, fill the day-zero placeholders, and run the full
 #           quality gate. Proves "green from the first run" stays true.
+#   generic-smoke — bootstrap the stack-neutral flavor and exercise fresh,
+#                   update, migration, hook, and config fixtures.
 
 on:
   pull_request:
@@ -25,8 +27,10 @@ jobs:
       - name: Syntax-check shell scripts (bash -n)
         run: |
           bash -n python/bootstrap.sh
-          bash -n python/.claude/hooks/*.sh
-          bash -n scripts/smoke-test.sh
+          bash -n generic/bootstrap.sh
+          bash -n shared/hooks/*.sh
+          bash -n python/.agentic/hooks/*.sh
+          bash -n scripts/*.sh
 
       # --severity=warning: the info-level SC2016 hits are intentional
       # single-quoted regex patterns in the hook scripts.
@@ -34,8 +38,29 @@ jobs:
         run: |
           shellcheck --severity=warning \
             python/bootstrap.sh \
-            python/.claude/hooks/*.sh \
-            scripts/smoke-test.sh
+            generic/bootstrap.sh \
+            shared/hooks/*.sh \
+            python/.agentic/hooks/*.sh \
+            scripts/*.sh
+
+      # Exec-policy validation must not silently disappear on a runner that
+      # happens not to have Codex preinstalled. Keep this version aligned with
+      # the verified baseline in docs/codex-portability.md.
+      - name: Install pinned Codex CLI
+        run: |
+          npm install --global @openai/codex@0.146.0
+          test "$(codex --version)" = "codex-cli 0.146.0"
+
+      - name: Validate shared sources and Codex adapters
+        run: bash scripts/validate-codex-adapters.sh
+
+  generic-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bootstrap generic projects and exercise migration
+        run: bash scripts/smoke-test-generic.sh
 
   smoke:
     runs-on: ubuntu-latest

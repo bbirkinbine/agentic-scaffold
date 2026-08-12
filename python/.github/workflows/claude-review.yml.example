@@ -9,7 +9,7 @@
 #
 # What it adds over ci.yml: ci.yml verifies the code is green (ruff,
 # mypy, pytest); this reviews the diff the way the /review subagent
-# does — against CLAUDE.md, .claude/rules/, and the spec — and posts
+# does — against the AGENTS.md contract and the spec — and posts
 # findings as PR comments. It is a third reviewer, not a replacement
 # for /review and /review-adversarial run locally before the PR.
 #
@@ -38,8 +38,8 @@ jobs:
           prompt: |
             Review this pull request the way the reviewer subagent in
             .claude/agents/reviewer.md would: check the diff against the
-            spec it references (docs/specs/), the conventions in
-            CLAUDE.md and .claude/rules/, test quality (tautologies,
+            spec it references (docs/specs/), the conventions and
+            standing rules in AGENTS.md, test quality (tautologies,
             missing edge cases), and public-repo hygiene (secrets,
             internal hostnames, personal info). Post findings as PR
             comments, each tagged [auto-fix], [ask-user], or [no-op].

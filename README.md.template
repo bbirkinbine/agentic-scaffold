@@ -35,8 +35,8 @@
 {{TEST_LINT_TYPECHECK_COMMANDS}}
 ```
 
-See [`CLAUDE.md`](CLAUDE.md) for the per-project agent contract (what
-Claude Code should and shouldn't do in this repo).
+See [`AGENTS.md`](AGENTS.md) for the canonical per-project agent contract
+used by Codex and imported by Claude Code through [`CLAUDE.md`](CLAUDE.md).
 
 ## Acknowledgements
 

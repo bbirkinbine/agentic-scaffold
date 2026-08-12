@@ -10,22 +10,24 @@ who is watching the checkpoints.
 ## Degrees of autonomy
 
 The loop is identical at every tier; what changes is what substitutes
-for your attention. Pick the tier deliberately — `/goal` is redundant
-at tier 1 and load-bearing at tier 3. The tier decides which rungs of
-the completion ladder you activate, not which phases you run.
+for your attention. Pick the tier deliberately. The tier decides which
+rungs of the completion ladder you activate, not which phases you run.
 
 > **`/goal`, `/loop`, and `/sandbox` are Claude Code built-ins**, not
 > slash commands this scaffold ships — there is no file for them under
 > `.claude/commands/`. They come with the Claude Code CLI itself
 > (version-gated where the version tag is noted below, e.g. `v2.1.139+`),
-> so availability tracks your CLI version, not this template.
+> so availability tracks your CLI version, not this template. Codex does
+> not expose those names as scaffold workflows. Use the repository
+> contract, its Stop hook, Codex sandbox/permission controls, and a
+> runnable completion condition in the kickoff prompt.
 
-| Tier | Your role | Completion mechanism | Setup |
+| Tier | Your role | Claude Code | Codex |
 | --- | --- | --- | --- |
-| **1 · Attended** (default) | Both checkpoints, adjudicate `[ask-user]` findings live | You — the checkpoints *are* the completion mechanism | Nothing; this is the loop as shipped |
-| **2 · Long autodrive** (one feature, you're nearby) | Same checkpoints; the implement-to-green stretch runs long without you | **`/goal`** set at checkpoint 1, right after approving the plan — phrase it from the spec's success criteria ("done when `/review-check` passes and every criterion in spec NNNN has a passing test"). The separate evaluator keeps a long session from stopping early or drifting where an in-prompt instruction fades | One `/goal` command per feature |
-| **3 · Unattended** ("just ship it" / overnight) | Standing consent given up front; checkpoints collapse into the spec | `/goal` is the primary finish line (ladder rung 2), Stop hook behind it (rung 3, capped), fresh-context review behind that (rung 4) | `/goal` + `/sandbox` + scoped permissions; tight spec with runnable success criteria |
-| **4 · Babysitting / recurring** (no feature in flight) | None per-iteration | **`/loop`** re-runs a prompt on an interval — poll CI after the PR opens, re-check a flaky deploy, periodic maintenance. Not part of the feature loop at all; it lives after checkpoint 2 or entirely outside feature work | `/loop <interval> <prompt>`; cap iterations or cost |
+| **1 · Attended** (default) | Both checkpoints, adjudicate `[ask-user]` findings live | Use the scaffold as shipped | Use the scaffold as shipped |
+| **2 · Long autodrive** (one feature, you're nearby) | Same checkpoints; the implement-to-green stretch runs long without you | Set `/goal` from the spec's runnable success criteria after approving the plan | State the same completion condition in the kickoff prompt; keep the Stop hook and fresh review enabled |
+| **3 · Unattended** ("just ship it" / overnight) | Standing consent given up front; checkpoints collapse into the spec | `/goal` + `/sandbox` + scoped permissions | `codex --sandbox workspace-write` or the project permission profile + a tight spec + Stop hook; grant commit authority separately if intended |
+| **4 · Babysitting / recurring** (no feature in flight) | None per iteration | `/loop <interval> <prompt>`; cap iterations or cost | Use an external scheduler around a bounded `codex exec` invocation; recurring scheduling is not a workflow shipped by this repository |
 
 **The unattended ceiling is "ready-to-merge," not "merged."** Standing
 consent covers resolving `[ask-user]` findings, but the git-workflow
@@ -64,7 +66,8 @@ no stepping on each other's working tree, no shared dirty state:
 
 ```bash
 git worktree add ../myproj-42-user-prefs 42-add-user-prefs
-cd ../myproj-42-user-prefs && claude
+cd ../myproj-42-user-prefs
+claude  # or: codex
 ```
 
 Conventions that keep this sane:
@@ -75,25 +78,34 @@ Conventions that keep this sane:
   should exclude the files the other stream owns. Two agents editing
   one module is a merge conflict you scheduled on purpose.
 - **Each worktree gets the full scaffolding for free** — `.claude/`,
-  hooks, and pre-commit travel with the checkout. Run `uv sync` per
-  worktree; `.venv/` is per-directory.
+  `.codex/`, `.agents/`, `.agentic/`, and pre-commit travel with the
+  checkout. Run `uv sync` per worktree; `.venv/` is per-directory.
 - A terminal multiplexer (tmux pane per worktree) keeps the sessions
   glanceable; that's an ergonomic choice, not a requirement.
 
-Claude Code's auto-memory is shared across all worktrees of one repo,
-so a lesson learned in one stream carries to the others.
+Do not use client conversation memory as cross-worktree state. Put durable
+decisions and the latest `## Phase handoff` in the spec so either client can
+resume from disk.
 
-## Agent teams (experimental)
+## Built-in multi-agent controls
 
-Claude Code's agent teams put a lead session and several teammates on a
-shared task list with inter-agent messaging. Experimental — enable with
-`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (v2.1.32+).
+Codex has built-in subagents and discovers the custom roles under
+`.codex/agents/` after project trust. Ask Codex to delegate explicitly or
+invoke a workflow that calls for the planner, test-first, or reviewer role.
+Use `/agent` to inspect and switch among active threads. Review roles are
+read-only by default; `test-first` is workspace-write so it can author tests.
+Parent-session permission overrides can supersede an agent's default, so use
+a read-only parent when testing a review boundary.
+
+Claude Code's experimental agent teams put a lead session and several
+teammates on a shared task list with inter-agent messaging. Enable them with
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` where that client version supports
+the feature.
 
 What maps directly onto this scaffolding:
 
-- **The subagent definitions in `.claude/agents/` double as teammate
-  roles** — "spawn a teammate using the reviewer agent type" reuses the
-  same tools allowlist and instructions the single-session loop uses.
+- **The generated role adapters map the same role into each client.**
+  Claude reads `.claude/agents/`; Codex reads `.codex/agents/`.
 - Start with research/review topologies (parallel reviewers over one
   diff, parallel investigators over one codebase) before parallel
   *implementation* — review parallelizes safely because it doesn't
@@ -112,19 +124,19 @@ answer; each rung catches what the one below it misses:
 1. **In-prompt check** — the spec's success criteria phrased as a
    runnable check ("done when `uv run pytest tests/test_x.py` passes").
    Cheapest; easiest for a long session to drift past.
-2. **`/goal`** — a hard completion condition checked by a separate
-   evaluator every turn (v2.1.139+). Survives context drift because the
-   evaluator is outside the conversation.
+2. **Client completion condition** — Claude Code can use `/goal` where
+   available. In Codex, put the runnable condition in the kickoff prompt
+   and spec; the durable artifact matters more than client syntax.
 3. **Stop hook** (on by default; removed by bootstrap's
    `--no-stop-gate`) —
    `gate-on-stop.sh` mechanically blocks ending a turn on a red gate.
-   Note the cap: Claude Code overrides a Stop hook after 8 consecutive
-   blocks without progress, so this is a strong nudge, not an unbounded
-   guarantee.
+   The shared hook retries once and then surfaces a still-red gate to the
+   human, so this is a strong nudge, not an unbounded guarantee.
 4. **Fresh-context verification** — `/review` + `/review-adversarial`
-   (or a verification teammate): a context that has not seen the
-   implementation reasoning judges the result. This is the only rung
-   that catches "the gate is green but the feature is wrong."
+   in Claude or `$review` + `$review-adversarial` in Codex (or a
+   verification teammate): a context that has not seen the implementation
+   reasoning judges the result. This is the only rung that catches "the
+   gate is green but the feature is wrong."
 
 Use the ladder top-down when configuring an unattended run: the longer
 nobody is watching, the more rungs you want active.
@@ -133,10 +145,10 @@ nobody is watching, the more rungs you want active.
 also includes the eval threshold.** A green `/review-check` proves the
 deterministic code works; it says nothing about whether the
 non-deterministic output is any good. For those features only, fold
-`/eval` clearing the spec's eval threshold into the completion condition —
-phrase the `/goal` (rung 2) to include it, and treat a below-bar eval as
-red the same way the gate treats a failing test. Deterministic projects
-ship no LLM surface and this rung does not apply; see
+the `eval` workflow clearing the spec's eval threshold into the completion
+condition — include it in rung 2, and treat a below-bar eval as red the
+same way the gate treats a failing test. Deterministic projects ship no LLM
+surface and this rung does not apply; see
 [`evals.md`](evals.md).
 
 ## Unattended runs
@@ -150,23 +162,25 @@ accumulates in files and git (specs, `## Phase handoff` sections,
 commits on a branch), never only in the conversation, so each iteration
 can start with a fresh context and pick up from disk.
 
-- **`/loop`** re-runs a prompt or command on an interval — fits
-  babysitting jobs (re-check CI, retry a flaky migration step).
+- **Claude Code `/loop`** re-runs a prompt or command on an interval —
+  it fits babysitting jobs (re-check CI, retry a flaky migration step).
+- **Codex recurring work** should use an external scheduler around a
+  bounded `codex exec` command. Keep the iteration cap and durable state
+  explicit.
 - **The Ralph-loop pattern** (official `ralph-wiggum` plugin) re-feeds
   one prompt until a completion sentinel or max-iterations — fits
   "work through this PRD item by item" (here: the `0000-product.md`
   roadmap pointers, one issue → spec → branch per item). Known
   failure modes: drift
   without a tight spec, and uncapped cost — set max-iterations.
-- **`/goal` + autodrive** covers the common middle: one feature, end to
-  end, with the evaluator holding the finish line.
+- **A client completion condition + autodrive** covers the common middle:
+  one feature, end to end, with the spec holding the finish line.
 
 Safety posture for unattended runs is different from interactive ones:
-prefer OS-level sandboxing (`/sandbox`) and a scoped permission mode
-over `--dangerously-skip-permissions`; the `block-destructive.sh` hook
-remains as a narrow backstop, not the primary containment. Checkpoints
-mean `/rewind` can restore both code and conversation if a run goes
-sideways — recovery, not prevention.
+prefer the client's sandbox and a scoped permission mode over bypass flags;
+the `block-destructive.sh` hook remains as a narrow backstop, not the primary
+containment. Git and the phase handoff are the portable recovery points;
+client-specific rewind features are conveniences, not workflow state.
 
 ## A weaker executor is a different question
 

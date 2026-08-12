@@ -1,11 +1,222 @@
-# AGENTS.md
+# CLAUDE.md — agentic-scaffold
 
-This project uses `CLAUDE.md` as the source of project context for AI
-coding agents. See [`CLAUDE.md`](CLAUDE.md) in this directory for stack,
-conventions, workflow expectations, don't-touch list, and public-repo
-hygiene rules.
+> **Purpose.** Persistent project context for Claude Code (and other AI
+> coding agents) working in this repository. Read this before suggesting
+> changes. `README.md` is for humans landing on the GitHub page; this file
+> is for the agent that opens the repo and starts working.
 
-`AGENTS.md` exists as a portable fallback for non-Claude agents (Codex,
-Cursor, Gemini, etc.) that look for this filename by convention. The
-authoritative content lives in `CLAUDE.md`; keep them in sync by editing
-`CLAUDE.md` and leaving this file as a pointer.
+---
+
+## What this repo is
+
+Project-bootstrap templates and agentic-workflow scaffolding for new
+repos — a stack-neutral dual-client bootstrap under `generic/`, generic
+contract/README templates, the new-project checklist, the GitHub About
+checklist, and the full Python agentic-workflow scaffolding under
+`python/` (subagents, workflows, skills, hooks, `bootstrap.sh`).
+This content moved here from `templates/` in the
+`github.com/bbirkinbine/dotfiles` repo on 2026-06-09; pre-move history
+is in that repo's log.
+
+Where the ideas came from — borrowed features, the research behind specific
+rules, and what was considered and rejected — is recorded in
+[`docs/influences.md`](docs/influences.md). It applies the scaffold's own
+external-reference provenance rule to the scaffold's own design; when a
+change here is prompted by an outside source, credit it there in the same
+commit rather than only in the commit message.
+
+This repo is **public** on GitHub (`github.com/bbirkinbine/agentic-scaffold`).
+Treat every change as world-readable: file contents, commit messages,
+branch names, PR descriptions, and issue text are all indexed by search
+engines. No secrets, no internal hostnames, no work-related context.
+
+---
+
+## Stack / scope
+
+Markdown templates plus bash (both bootstrap scripts, client-neutral hook
+sources under `shared/hooks/`, rendered Python hooks under
+`python/.agentic/hooks/`, and validation under `scripts/`). No build or
+deploy target — files here are consumed by copy into new repos, and smoke
+tests validate those generated projects.
+
+**Everything in this repo is standards-setting.** A change here
+propagates (by copy, via `bootstrap.sh` or the checklist) to every new
+repo created from this machine, and `bootstrap.sh --update` pushes
+MANAGED-file changes into existing projects. Edit deliberately and
+explain the rationale in the commit message; don't tweak template
+language casually.
+
+**Out of scope:** actual dotfiles (those live in
+`github.com/bbirkinbine/dotfiles`), machine-specific config, anything
+that wouldn't be safe on the open internet.
+
+`{{PLACEHOLDER}}` markers in `*.template` files are intentional — they
+are filled in by the consumer, not here.
+
+---
+
+## Code / commit style
+
+- **No `Co-Authored-By: Claude` (or any AI co-author) trailers** in commit
+  messages. The top-level `README.md` already acknowledges AI tooling —
+  that is the single source of attribution. This overrides Claude Code's
+  default behavior.
+- **No "Generated with Claude Code" footers** in commits or PR
+  descriptions for the same reason.
+- AI assistance is acknowledged **once**, at the top of `README.md`. Do
+  not sprinkle AI-assist notices into individual files, commit messages,
+  or comments.
+- Match the existing log style: short imperative subject, body explaining
+  the *why* when non-obvious. No conventional-commits prefixes
+  (`feat:`, `fix:`, `chore:`) unless the existing log already uses them.
+- Avoid emojis in repo files.
+- Avoid the words *genuinely*, *straightforward*, *actually* in prose.
+- Direct, technical tone.
+
+---
+
+## Commits and pushes require explicit approval
+
+Don't run `git commit` or `git push` without an explicit "commit" or
+"push" instruction from the user in this conversation. The workflow is:
+make the change, show `git status` and `git diff`, then wait. Each
+commit needs its own sign-off. Never push without being explicitly
+asked, and never use `--force` without a direct ask.
+
+---
+
+## Secrets and public-repo hygiene
+
+**Treat this repo as public from commit #1.** Rewriting history after a
+leak is destructive and incomplete — the cheapest fix is to never commit
+the thing in the first place. The full rules (what never to commit,
+what quietly slips through, the pre-flip checklist) live in
+[`new-project-checklist.md`](new-project-checklist.md) and in the
+hygiene section of [`AGENTS.md.template`](AGENTS.md.template); both
+apply to this repo itself, not just to repos bootstrapped from it.
+
+---
+
+## Validation gates before claiming done
+
+```bash
+bash -n python/bootstrap.sh
+bash -n generic/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
+shellcheck --severity=warning generic/bootstrap.sh python/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
+bash scripts/validate-codex-adapters.sh
+bash scripts/smoke-test-generic.sh
+bash scripts/smoke-test.sh <profile>   # for changes to bootstrap.sh, pyproject.toml,
+                                       # hooks, or anything the bootstrap copies
+```
+
+`scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
+asserts the installed file set, fills the day-zero placeholders, and runs
+the fresh project's full quality gate. `scripts/smoke-test-generic.sh`
+covers the stack-neutral flavor. CI (`.github/workflows/ci.yml`) runs the
+shell checks plus every flavor/profile smoke test on each push and PR — a
+red run means the template would ship broken projects.
+
+`{{PLACEHOLDER}}` markers throughout the repo (in template contracts
+and in `python/AGENTS.md` / `python/pyproject.toml`) are intentional —
+they are filled by the consumer, never here, so there is no
+placeholder check on this repo itself.
+
+Don't claim a change is "ready" without at least:
+
+1. A clean run of the checks above for the affected file(s).
+2. An updated `README.md` (this repo's, `python/README.md`, or both) if
+   the change adds/removes files or changes how the scaffolding is used.
+
+---
+
+## Don't touch
+
+- `.git/` — obviously.
+- `LICENSE` — MIT, created with the repo.
+
+---
+
+## Open work / current state (updated 2026-07-30)
+
+Repo split out of the dotfiles repo on 2026-06-09. The Python
+scaffolding under `python/` is the active surface; the methodology
+behind it is maintained in personal notes outside this repo.
+
+The 2026 workflow refresh merged to `main` on 2026-06-12 (branch
+`feat/2026-workflow-refresh`, since deleted): `.claude/rules/` split of
+the oversized `python/CLAUDE.md`, `/clarify` + `/analyze` commands,
+PreCompact hook, Stop-hook cap documentation, completion-ladder +
+parallel-agents + plugin-packaging docs, opt-in Claude CI review
+workflow, adversarial-reviewer scope discipline, AGENTS.md symlink
+guidance. The same merge brought the spec-numbering doctrine (spec
+number = issue number; identity, not execution order; `**Depends on:**`
+field) and the `/product-spec` interview that writes
+`docs/specs/0000-product.md`, the product-level (PRD) layer.
+
+The opt-in evals layer for the Python scaffold merged to `main` on
+2026-06-25 (PR #3, squashed; branch `feat/opt-in-evals-layer` deleted),
+prompted by a review of Google's 2026 "New SDLC with Vibe Coding"
+whitepaper. The paper uses "eval" in two senses — evaluating the coding
+agent that builds a project (output + trajectory), which the scaffold
+already does via `/review` / `/review-adversarial` / `/analyze` / the
+completion ladder; and evaluating an agent that *is* the product, which was
+the genuine gap. The merge added `python/docs/evals.md` (teaches both
+senses, maps the first onto existing tools), an opt-in `evaluator` subagent
+and `/eval` command for the second (mirrors the security/performance opt-in
+pattern), and threaded the "LLM/AI-surface projects only" framing through
+the workflow docs and diagram. Its construction-side companion
+`python/docs/llm-product.md` landed 2026-07-06: the conventions for
+*building* an LLM surface (single call seam, testing without live API
+calls, prompts-are-code, model pinning, output-as-untrusted-input),
+installed with `--full` / `--advanced-docs` alongside `evals.md`.
+
+A settings-hardening pass also merged 2026-07-06 (branch
+`feat/ndc-tips-hardening`, since deleted), prompted by reviewing a
+Claude Code talk from NDC AI 2026 against the scaffold:
+`permissions.deny` on `.env*` / key-material reads (mirrored in the
+strict-hooks heredoc, with a smoke-test drift guard), a status-line
+hook (branch · model · context %), documented `CLAUDE.local.md` /
+`settings.local.json` personal overlays, and a WORKFLOW.md
+"Session hygiene" section.
+
+A review-and-docs tightening pass landed 2026-07-09 through 2026-07-13:
+CI action pins bumped to current majors, a design-quality (structure)
+dimension added to both reviewer agents, and a docs-sync gate at spec
+completion — agents create and update docs by decision rule rather than
+waiting for a human ask, and both reviewers now flag docs drift. The
+same window added `docs/codex-portability.md`, the plan for making the
+scaffold dual-client (a shared client-neutral contract rendered into
+both Claude Code and Codex surfaces).
+
+The scaffold is validated in day-to-day use (as of 2026-07-29):
+multiple real projects — both the Python profiles and the non-Python
+template flavor — have been bootstrapped from it and run the full
+spec → review loop, including extending the opt-in agent/skill pattern
+with project-specific roles. Corrections feed back here as they
+surface.
+
+How new projects consume this repo in practice: a Claude Code or Codex
+session is pointed at the latest checkout, installs the scaffold into the
+new repo, and pre-fills the templates from the founding conversation. The
+client then restarts or completes its normal project/hook trust flow so
+settings take effect. Consumer projects are snapshots —
+`bootstrap.sh --update` is rarely run against existing ones, so changes here
+reach projects at their next bootstrap, not retroactively.
+
+Open:
+
+- Codex portability is being implemented on `feat/codex-cli-parity`.
+  Shared workflow sources now render canonical `AGENTS.md` contracts,
+  Claude import shims and adapters, and Codex skills/custom agents; hooks are
+  client-neutral, and both Python and generic bootstraps install the relevant
+  client surfaces. Update mode persists profile choices, protects customized
+  client configuration, and safely migrates recognizable legacy contracts.
+  Static validation and all flavor/profile smoke tests must remain green.
+  Hook and execpolicy enforcement is verified live against Codex CLI
+  0.146.0 (repeatable via `scripts/acceptance-codex-live.sh`; evidence in
+  `docs/codex-portability.md` → implementation order, item 9). A separate
+  token-opt-in dual-client phase harness lives at
+  `scripts/acceptance-workflow-live.sh`. Its authenticated run, the trusted
+  hook-load flow, and the remaining negative acceptance fixtures are the final
+  manual checks before the portability plan can be marked complete.

@@ -1,7 +1,7 @@
 # Serena MCP — setup & verify
 
 > **Purpose.** Operational runbook for turning on (or confirming) the
-> optional `serena` code-navigation MCP for this repo. `CLAUDE.md` →
+> optional `serena` code-navigation MCP for this repo. `AGENTS.md` →
 > "Code navigation" owns the *decision* (when serena earns its keep, and
 > the skip-by-default rule); this file owns the *mechanics* — install,
 > verify, update, tear down. If you haven't decided whether to enable it,
@@ -37,18 +37,29 @@
 
 Register serena as a per-project MCP server, **from the repo root**:
 
+Claude Code:
+
 ```bash
 claude mcp add serena -- uvx --from git+https://github.com/oraios/serena \
   serena start-mcp-server --context claude-code --project "$(pwd)"
+```
+
+Codex:
+
+```bash
+codex mcp add serena -- uvx --from git+https://github.com/oraios/serena \
+  serena start-mcp-server --context codex --project-from-cwd
 ```
 
 - `--project "$(pwd)"` pins serena to this repo — run from the project
   root so it resolves correctly.
 - `--context claude-code` selects the toolset tuned for Claude Code. It
   is correct for **both** the `claude` CLI and the Claude Code VS Code
-  extension: they share one MCP config on this machine, so you register
-  once and both surfaces see it. (A non-Claude MCP client — Cursor,
-  Cline — would use a different context such as `ide-assistant`.)
+  extension: they share one MCP config on this machine.
+- `--context codex --project-from-cwd` selects Serena's Codex toolset and
+  activates the repository where Codex starts. `codex mcp add` writes the
+  registration to the user's Codex config; do not also add a duplicate
+  project entry.
 
 **Scope.** `claude mcp add` defaults to *local* scope — this project
 only, stored in your user config, not committed:
@@ -71,9 +82,11 @@ of scope; only the `.mcp.json` registration becomes shareable under
    ```bash
    claude mcp list        # serena should appear; recent versions show a connection check (✓/✗)
    claude mcp get serena  # full config for the one server
+   codex mcp list
+   codex mcp get serena
    ```
-2. **Is it live in a session?** Open (or reload) Claude Code in this repo
-   and run `/mcp`. serena should show as connected, with its tools
+2. **Is it live in a session?** Open (or reload) the client in this repo
+   and inspect its MCP view. Serena should show as connected, with its tools
    visible — `find_symbol`, `find_referencing_symbols`,
    `get_symbols_overview`, and the symbol-edit tools. The VS Code
    extension needs a window/session reload to pick up a newly added
@@ -104,6 +117,10 @@ repo — `uvx` resolves a version at fetch time, so you track upstream
 claude mcp remove serena
 claude mcp add serena -- uvx --from git+https://github.com/oraios/serena@<tag> \
   serena start-mcp-server --context claude-code --project "$(pwd)"
+
+codex mcp remove serena
+codex mcp add serena -- uvx --from git+https://github.com/oraios/serena@<tag> \
+  serena start-mcp-server --context codex --project-from-cwd
 ```
 
 `uvx` caches the resolved build; to force a re-pull after upstream
@@ -115,6 +132,7 @@ changes, `uv cache clean` (or pin a newer ref).
 
 ```bash
 claude mcp remove serena   # unregister (config only)
+codex mcp remove serena    # unregister the Codex copy
 rm -rf .serena/            # drop the local cache + project config
 ```
 

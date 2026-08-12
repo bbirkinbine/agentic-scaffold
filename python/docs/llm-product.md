@@ -98,7 +98,7 @@ revision.
 `/review` treats a prompt diff like a code diff: unexplained rewrites of
 working prompts are scope creep, and a prompt that embeds facts (dates,
 URLs, product claims) follows the same external-reference provenance
-rule as code (`.claude/rules/python-code.md`).
+rule as code (`AGENTS.md` → Python code conventions).
 
 ## 4. Pin the model
 
@@ -188,5 +188,6 @@ When a scaffolded project gains its first LLM surface:
 5. Add the `live` pytest marker and the no-key-in-CI convention
    (Section 2).
 6. Note the seam path, prompt directory, and pinned model in
-   `CLAUDE.md` (stack section + don't-touch list as appropriate) so
+   `AGENTS.md` (stack section + don't-touch list as appropriate). Claude
+   receives it through the `@AGENTS.md` import, so
    future sessions extend the seam instead of bypassing it.

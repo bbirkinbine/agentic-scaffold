@@ -37,7 +37,7 @@ _No specs yet. Run `/spec <name>` to create the first one; this list fills in an
 `NNNN-<kebab-name>.md`, zero-padded to four digits. In the default
 **local mode**, `NNNN` is the next local sequence number — the highest
 existing 4-digit prefix in `docs/specs/` + 1. The same number names the
-branch, `spec-NNNN-<slug>` (see `.claude/rules/git-workflow.md`), so
+branch, `spec-NNNN-<slug>` (see `AGENTS.md` → Git workflow), so
 spec ↔ branch ↔ PR share one identifier; PR closing keywords are
 omitted. Once a number is assigned it never changes, even if the spec is
 later superseded, and a number is never reused.
@@ -48,7 +48,7 @@ Opt-in, for team repos or when the backlog should live as GitHub
 issues: `NNNN` is the GitHub issue number for the work, the branch is
 `<issue#>-<slug>`, and the PR body carries `Closes #<issue#>`, so
 issue ↔ spec ↔ branch ↔ PR all share one identifier. Create the issue
-first, then the spec. Document the choice in `CLAUDE.md` so `/spec`
+first, then the spec. Document the choice in `AGENTS.md` so the spec workflow
 knows to look up the issue instead of taking the next local number.
 Never reuse a number in either mode.
 
@@ -94,12 +94,18 @@ filename, is where ordering lives.
 
 Status vocabulary:
 
-- `draft` — written but not yet acted on. Planner / test-first haven't run.
-- `shipping` — currently being implemented. The spec is in flight.
+- `draft` — written but not yet approved for execution. A planner may have
+  proposed a plan, but `/test-first` has not run and no implementation phase
+  has started.
+- `shipping` — approved for execution and in flight. For work that uses
+  `/plan`, set this only after the human-approved file-by-file plan has been
+  persisted under `## Approved implementation plan`. For Small work that
+  explicitly skips `/plan`, set it after the human approves the spec and
+  immediately before `/test-first`.
 - `shipped` — merged and in the codebase. Flip the spec to `shipped`
   *within the feature PR* (same branch, before merge) so the status lands
   with the change; never in a separate post-merge cleanup PR
-  (`.claude/rules/git-workflow.md` → "Close-tasks ride in the PR they
+  (`AGENTS.md` → Git workflow → "Close-tasks ride in the PR they
   belong to"). In an open PR it reads "ships when this merges."
 - `paused` — deliberately set down. Will resume; not abandoned. Note in the spec why.
 - `abandoned` — decided not to build. Spec stays as a design log of "we considered this and skipped." Note why in the spec.
@@ -224,6 +230,27 @@ that section above). `## Goal`, `## Success criteria`, and
 These sit alongside the minimum shape above. Skip them on single-session
 features.
 
+### `## Approved implementation plan`
+
+Required for work that uses `/plan`. The orchestrator writes it only after the
+human approves the planner's file-by-file plan, and before `/test-first`,
+compaction, a client switch, or a phase handoff:
+
+```markdown
+## Approved implementation plan
+
+**Approved:** YYYY-MM-DD
+
+<the approved planner output, copied verbatim>
+```
+
+This is durable execution authority, not a fresh proposal: do not summarize,
+silently revise, or reconstruct it from chat. Update `**Last updated:**` and
+change the spec from `draft` to `shipping` in the same edit. If the human
+later approves a replacement, preserve the prior plan below a clearly marked
+`### Superseded plan` heading (or state why it was removed), then put the
+newly approved plan first so a fresh session cannot mistake which one governs.
+
 ### `## Phase handoff`
 
 For features that span multiple sessions. At each phase boundary, append
@@ -242,7 +269,10 @@ the test-first subagent.">
 
 Each handoff block stacks below the previous one — keep them in order,
 don't overwrite. The fresh session reads the most recent block to know
-where to pick up. See `WORKFLOW.md` "Phase handoff" for the why.
+where to pick up. A handoff records current state; it never substitutes for
+the approved plan. At an after-`/plan` boundary, persist the approved plan and
+mark the spec `shipping` before appending this block. See `WORKFLOW.md`
+"Phase handoff" for the why.
 
 ### `## Implementation Notes`
 
@@ -310,14 +340,14 @@ their head, or before handing an agent a multi-spec autonomous run.
 
 ## Specs sit under the constitution
 
-`CLAUDE.md` and `.claude/rules/` are this project's constitution — the
-enduring principles every spec inherits: conventions, don't-touch
-zones, hygiene rules, the loop itself. A spec never needs to restate
-them, and the planner and reviewers treat them as non-negotiable. If a
-feature requires violating one (touching a don't-touch path, breaking a
-convention), the spec must say so explicitly in `## Goal` or a dedicated
-note — an undeclared violation is a finding at review time, not a
-judgment call.
+`AGENTS.md` is this project's constitution; Claude Code loads it through the
+`@AGENTS.md` import in `CLAUDE.md`. It contains the enduring principles every
+spec inherits: conventions, don't-touch zones, hygiene rules, and the loop
+itself. A spec never needs to restate them, and the planner and reviewers
+treat them as non-negotiable. If a feature requires violating one (touching a
+don't-touch path, breaking a convention), the spec must say so explicitly in
+`## Goal` or a dedicated note — an undeclared violation is a finding at
+review time, not a judgment call.
 
 ## How specs interact with the agentic loop
 

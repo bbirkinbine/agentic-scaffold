@@ -11,7 +11,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash .claude/hooks/statusline.sh"
+    "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/statusline.sh"
   },
   "hooks": {
     "SessionStart": [
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/branch-check.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/branch-check.sh"
           }
         ]
       }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/block-destructive.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/block-destructive.sh"
           }
         ]
       }
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [ -d src ] && [ -d tests ]; then uv run ruff format .; fi"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/format-after-edit.sh"
           }
         ]
       },
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/specs-status.sh --hook"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/specs-status.sh --hook"
           }
         ]
       }
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'When compacting, preserve: the active spec path (docs/specs/NNNN-*.md), the current branch name, the list of files modified this session, the failing/passing state of the quality gate, and any unresolved [ask-user] review findings.'"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/context-reminder.sh"
           }
         ]
       }
@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/gate-on-stop.sh"
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/gate-on-stop.sh"
           }
         ]
       }
