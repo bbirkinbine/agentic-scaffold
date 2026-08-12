@@ -67,6 +67,18 @@ pushed to the same branch before it merges), so one merge completes the
 work. `shipped` in an open PR means "ships when this PR merges" — that is
 the intended reading, not a lie about current state.
 
+**The machine-checkable half is enforced.** The `closeout` CI job runs
+`.agentic/hooks/closeout-check.sh` on every pull request and fails while the
+spec still says `draft`/`shipping` or the dashboard is stale. Updating the
+current-state block is still required by this rule and is not gated — no
+grep can tell a useful note from a mentioned number. It is silent on
+`<type>/<slug>` chore branches and on any branch whose number has no spec.
+Run it yourself before `gh pr create` rather than waiting for CI. It is a CI
+gate and not a pre-push hook on purpose: close-out is only expected once the
+work is finished, so blocking intermediate pushes would train you into
+`--no-verify`. The written rule alone was not enough — it said exactly this
+and was skipped anyway, which is why the check exists.
+
 **Do not open a separate follow-up PR after merge** just to mark the spec
 shipped or do small post-merge cleanup — that is a wasted PR and a wasted
 review. If such cleanup was missed and its feature PR is already merged,

@@ -65,6 +65,23 @@ jobs:
           SKIP: no-commit-to-branch,ruff,ruff-format,mypy
         run: uv run pre-commit run --all-files
 
+  closeout:
+    # Close-tasks backstop. A feature PR carries its own bookkeeping — the
+    # spec's **Status:** flip, the regenerated dashboard, the current-state
+    # note — so one merge completes the work. Without a gate that rule gets
+    # skipped and the bookkeeping becomes a second, wasted PR.
+    #
+    # pull_request only: on a push to main the branch name is gone, and the
+    # question is meaningless once merged. Silent on chore branches and on
+    # projects that do not use docs/specs.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check feature close-tasks rode the PR
+        run: bash .agentic/hooks/closeout-check.sh
+
   audit:
     # Supply-chain backstop: scan the locked dependency tree for known
     # CVEs. Separate from the quality job so its failure reads as
