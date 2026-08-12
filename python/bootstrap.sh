@@ -56,9 +56,9 @@
 #     docs/agent-handoff.md, and Dependabot.
 #   - full or --advanced-docs: docs/parallel-agents.md,
 #     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
-#     docs/llm-product.md.
-#   - full only: command stubs for security / performance / eval and the
-#     inert Claude PR-review workflow example.
+#     docs/llm-product.md, docs/local-executor.md.
+#   - full only: command stubs for security / performance / eval / delegate
+#     and the inert Claude PR-review workflow example.
 #
 # What it also creates (only if absent):
 #   - src/{{PACKAGE_NAME}}/__init__.py + tests/test_smoke.py — a starter
@@ -495,12 +495,14 @@ if [[ "$PROFILE" == full || "$ADVANCED_DOCS" == 1 ]]; then
   sync docs/serena-setup.md
   sync docs/evals.md
   sync docs/llm-product.md
+  sync docs/local-executor.md
 fi
 
 if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/security.md
   sync .claude/commands/performance.md
   sync .claude/commands/eval.md
+  sync .claude/commands/delegate.md
   sync .github/workflows/claude-review.yml.example
 fi
 

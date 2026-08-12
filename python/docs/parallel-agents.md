@@ -168,6 +168,17 @@ remains as a narrow backstop, not the primary containment. Checkpoints
 mean `/rewind` can restore both code and conversation if a run goes
 sideways — recovery, not prevention.
 
+## A weaker executor is a different question
+
+Everything above scales the *number* of agents at one capability level.
+Running a **weaker** model — a local open-weight model on your own hardware
+— on part of the loop is a separate decision with a much narrower answer,
+because the failure rate is high enough that only mechanically-detected
+failure is affordable. The rule, the phase-by-phase table, and the
+preconditions are in [`local-executor.md`](local-executor.md); the short
+version is that the implement phase is the only delegable one, because it
+is the only one `/review-check` can grade.
+
 ## What this scaffolding deliberately does not do
 
 No orchestration framework, no agent-to-agent message bus, no custom
