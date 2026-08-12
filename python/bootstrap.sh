@@ -979,6 +979,7 @@ sync .agentic/hooks/context-reminder.sh
 sync .agentic/hooks/format-after-edit.sh
 sync .agentic/hooks/statusline.sh
 sync .agentic/hooks/specs-status.sh
+sync .agentic/hooks/closeout-check.sh
 sync .agentic/hooks/strip-ai-attribution.sh
 # The Stop gate is on by default. --no-stop-gate omits it only when both
 # protected client configs accepted their no-Stop variants. A customized

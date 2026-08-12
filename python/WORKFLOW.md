@@ -141,7 +141,12 @@ is already obvious.
     issue mode, the PR body says `Closes #<issue>` so merging closes
     the issue; the default local mode omits the closing keyword. A
     change's own close-tasks (the spec `Status` flip above, dashboard regen,
-    todo ticks) already ride in this reviewed change, not a follow-up.
+    todo ticks) already ride in this reviewed change, not a follow-up. The
+    `closeout` CI job enforces the machine-checkable half on every PR — it
+    fails while the spec still says `draft`/`shipping` or the dashboard is
+    stale. Run
+    `.agentic/hooks/closeout-check.sh` before opening the PR rather than
+    finding out from CI.
 
 ## The planning artifacts, broad to narrow
 

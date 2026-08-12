@@ -253,6 +253,7 @@ as `$<name>`; for example, `/plan` maps to `$plan`.
 | CI gate (every PR) | GitHub Actions runs ruff + mypy + pytest — the non-skippable backstop | `.github/workflows/ci.yml` |
 | Public-repo hygiene (every PR) | CI runs the non-quality pre-commit hooks over the full tree: secret/key, YAML/TOML, merge-marker, large-file, and client-contract checks | `.github/workflows/ci.yml` |
 | Supply-chain gate (every PR) | A second CI job runs `pip-audit` on the locked dep tree; Dependabot opens the weekly fix PRs | `.github/workflows/ci.yml` · `.github/dependabot.yml` |
+| Close-out gate (every PR) | A CI job runs `.agentic/hooks/closeout-check.sh` and fails while the spec still says `draft`/`shipping` or the dashboard is stale — so bookkeeping rides the feature PR instead of becoming a second one. Silent on chore branches | `.github/workflows/ci.yml` |
 | Status overview (any time) | Live dashboard in `docs/specs/README.md` (struck-through = shipped/abandoned/superseded), auto-refreshed by the `specs-status.sh` hook on every spec change; `/specs-status` forces a refresh and prints the table in chat | `/specs-status [filter]` |
 
 On multi-day features, append a `## Phase handoff` section to the spec

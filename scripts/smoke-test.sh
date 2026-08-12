@@ -57,6 +57,7 @@ must .agentic/hooks/block-destructive.sh
 must .agentic/hooks/statusline.sh
 must .agentic/hooks/context-reminder.sh
 must .agentic/hooks/format-after-edit.sh
+must .agentic/hooks/closeout-check.sh
 must .claude/agents/reviewer.md
 must .claude/commands/spec.md
 must .codex/config.toml
@@ -458,5 +459,47 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/
 uv run pytest -q
+
+# --- close-out gate behavior ---
+# The rule this enforces was written, specific, and skipped anyway, so the
+# check itself gets tested rather than merely installed. CLOSEOUT_BRANCH
+# stands in for the branch name so no branches are created here.
+closeout() { CLOSEOUT_BRANCH="$1" bash .agentic/hooks/closeout-check.sh >/dev/null 2>&1; }
+
+[[ -x .agentic/hooks/closeout-check.sh ]] || {
+  echo "SMOKE FAIL ($PROFILE): closeout-check.sh is not executable" >&2
+  exit 1
+}
+# A chore branch has no spec to close out.
+closeout chore/bump-ruff || {
+  echo "SMOKE FAIL ($PROFILE): closeout gate fired on a chore branch" >&2
+  exit 1
+}
+# A spec-shaped branch whose number has no spec file stays silent too.
+closeout spec-9999-nonexistent || {
+  echo "SMOKE FAIL ($PROFILE): closeout gate fired with no matching spec" >&2
+  exit 1
+}
+
+if [[ -d docs/specs ]]; then
+  printf '# Smoke spec\n\n**Status:** draft\n' > docs/specs/9001-smoke.md
+  # Draft on a finished branch is the failure this gate exists to catch.
+  if closeout spec-9001-smoke; then
+    echo "SMOKE FAIL ($PROFILE): closeout gate passed a draft spec" >&2
+    exit 1
+  fi
+  # Satisfy every gated close-task, then it must pass. The current-state
+  # note is required by the rule but deliberately not gated, so nothing
+  # here touches AGENTS.md.
+  printf '# Smoke spec\n\n**Status:** shipped\n' > docs/specs/9001-smoke.md
+  bash .agentic/hooks/specs-status.sh >/dev/null 2>&1 || true
+  closeout spec-9001-smoke || {
+    echo "SMOKE FAIL ($PROFILE): closeout gate blocked a complete close-out" >&2
+    bash .agentic/hooks/closeout-check.sh spec-9001-smoke >&2 || true
+    exit 1
+  }
+  git checkout -- docs/specs/README.md 2>/dev/null || true
+  rm -f docs/specs/9001-smoke.md
+fi
 
 echo "smoke-test OK: $PROFILE ${STRICT:-}"
