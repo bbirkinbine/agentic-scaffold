@@ -66,7 +66,7 @@ the framework's full living-spec maintenance burden was not.
 | One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
 | Review findings as a trigger for `AGENTS.md` rules (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); reviewers excluding mechanical findings the local gate and CI already enforce | Anthropic, *The AI-Native SDLC Playbook* — <https://claude.com/blog/the-ai-native-sdlc-playbook>, published 2026-08-21, retrieved 2026-09-01 |
 
-### One unresolved tension
+### A tension, and how it was resolved
 
 The AGENTS.md paper found that repository *overviews* did not improve task
 success, and that context files add inference cost regardless of who wrote
@@ -89,15 +89,28 @@ open question rather than a settled decision, and prefer cutting — on cost
 grounds, since the paper found file length itself had no significant effect
 on success.
 
-A second, independent source now points the same way. Anthropic's *AI-Native
+A second, independent source points the same way. Anthropic's *AI-Native
 SDLC Playbook* (2026-08-21; retrieved 2026-09-01) states the context file
 should be **one page maximum**, on the reasoning that stale or redundant
-instruction wastes the context the session runs on. The rendered
-`python/AGENTS.md` is roughly 27 KB — about seven thousand tokens loaded into
-every session. Two sources arguing for a shorter contract does not settle what
-to cut, but it strengthens the case for revisiting the contract's length in a
-separate change, judged section by section against whether a current model
-still needs to be told.
+instruction wastes the context the session runs on.
+
+Two sources arguing for a shorter contract did not settle what to cut, so on
+2026-09-01 the contract was judged section by section against whether a
+current model still needs to be told. The rendered `python/AGENTS.md` went
+from 27,859 to 16,476 bytes, a 41% reduction. What left was the material a
+session does not need in context in order to act: the rationale behind each
+rule, worked examples, and enforcement backstory that `WORKFLOW.md`,
+`python/README.md`, and `docs/specs/README.md` already carry and that the
+contract points at. Every decision rule stayed, and the headings that the
+commands and skills reference — `## Shared workflow protocols` and
+`### Semantic change set` — were held stable. `generic/project-contract.md`
+was already short and was left alone.
+
+The remaining distance between 16 KB and "one page" is deliberate. This file
+is not only a repository overview; it also carries the workflow contract, the
+don't-touch list, and the hygiene rules, none of which the playbook's
+one-page target accounts for. Both sources stay on record as the reason to
+keep pressure on the length, not as a target already met.
 
 ## Considered and not adopted
 

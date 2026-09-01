@@ -172,6 +172,10 @@ Don't claim a change is "ready" without at least:
 - Before reporting completion, show the validation evidence and summarize
   the changed files. Stop before commit unless the human explicitly asked
   for one.
+- Before opening or merging a PR, include the status, current-state,
+  documentation, and TODO/checklist updates its implementation caused. Do
+  not open a follow-up PR only to record that the previous one shipped;
+  fold a missed item into the next related PR.
 
 ---
 
