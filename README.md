@@ -65,6 +65,12 @@ Walk [`new-project-checklist.md`](new-project-checklist.md) (git
 identity, GitHub setup, the private→public hygiene checklist) and
 [`github-about.md`](github-about.md) (the repo "About" sidebar).
 
+## Contributing
+
+Each PR carries its own close-tasks: related status, current-state, docs, and
+checklist updates belong in the implementation PR rather than a follow-up.
+The PR template prompts for that closeout before merge.
+
 ## Acknowledgements
 
 Developed with the assistance of AI tools.

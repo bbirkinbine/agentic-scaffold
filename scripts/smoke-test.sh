@@ -193,6 +193,11 @@ if ! grep -q 'Close-tasks ride in the PR they belong to' AGENTS.md; then
   echo "SMOKE FAIL: AGENTS.md lost the close-tasks docs-sync clause" >&2
   exit 1
 fi
+if ! grep -q 'This PR includes its related spec-status' \
+  .github/pull_request_template.md; then
+  echo "SMOKE FAIL: PR template lost the closeout reminder" >&2
+  exit 1
+fi
 
 state_must_equal() {
   local root="$1"

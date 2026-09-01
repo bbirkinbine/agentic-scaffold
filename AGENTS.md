@@ -86,6 +86,17 @@ asked, and never use `--force` without a direct ask.
 
 ---
 
+## Close-tasks ride in the PR they belong to
+
+Before opening or merging a PR, include every status and bookkeeping change
+caused by its implementation: update the `AGENTS.md` open-work/current-state
+section, spec status and dashboards, affected docs, and related TODO or
+checklist entries. Review the implementation and its close-tasks together.
+Do not open a follow-up PR only to record that the previous PR shipped; fold a
+missed item into the next related PR unless it has independent standing value.
+
+---
+
 ## Secrets and public-repo hygiene
 
 **Treat this repo as public from commit #1.** Rewriting history after a
@@ -237,23 +248,35 @@ clients — Codex CLI corrected two defects in the Claude Code draft and a
 third in its own re-read, which is the dual-client loop working as
 intended.
 
+The contract-length cut that review left open followed on 2026-09-01. Only
+the Python flavor was compressed: `python/workflow/project-contract.md` and
+the commit-style, git-workflow, and public-repo-hygiene rules, taking the
+rendered `python/AGENTS.md` from 27,859 to 16,476 bytes (-41%). Every
+decision rule stayed; what left was rationale, worked examples, and
+enforcement detail that `WORKFLOW.md` and `python/README.md` already carry.
+`generic/project-contract.md` was already short and was not touched. The
+same change added the close-tasks rule above to this repo's own contract and
+to both flavors' project contracts, added a closeout checkbox to the Python
+PR template, and gave this repo its first `.github/pull_request_template.md`
+— it had shipped one to bootstrapped projects without having one itself.
+`docs/influences.md` records the cut against the two sources that argued
+for it.
+
 Open:
 
 - Add `generic-smoke` to this repo's `protect-main` required status
   checks. The job runs on every PR but is not required, so it can go red
   without blocking a merge.
-- Revisit the length of `python/AGENTS.md`. It renders to roughly 27 KB —
-  about seven thousand tokens loaded into every session — and two
-  independent sources now argue for cutting it (the AGENTS.md paper on
-  inference cost, and the playbook's "keep it under a page"). Neither
-  settles *what* to cut, so this needs its own change, judged section by
-  section against whether a current model still needs to be told. The
-  reasoning is recorded in `docs/influences.md` → "One unresolved
-  tension".
+- Revisit local execution with Codex CLI as orchestrator and a pinned local
+  model as bounded coder. Keep one canonical scaffold: send the local model a
+  self-contained `/delegate` packet, deny direct worktree/tool access, and add
+  an adapter only after model/quantization/runtime-specific evaluation. Start
+  with Qwen3.8-27B dense and Qwen3.6-35B-A3B.
 - `docs/influences.md` records the provenance row for
   `python/docs/local-executor.md` **without URLs or a retrieval date**.
   The Terminal-Bench 2.0 figures in that doc are live leaderboard values
-  the argument rests on; pin a source or soften the claim.
+  the argument rests on; pin a source or soften the claim. Independent of
+  the local-execution question above, and much cheaper.
 - The portability plan is not complete by its own definition. Hook and
   execpolicy enforcement is verified live against Codex CLI 0.146.0
   (repeatable via `scripts/acceptance-codex-live.sh`; evidence in
