@@ -26,3 +26,11 @@ the same change, so the next
 session doesn't repeat it. Standing instructions are the error log that
 compounds; a correction that lives only in chat history is lost at
 session reset.
+
+Review findings count as corrections. The second time `/review` or
+`/review-adversarial` raises the same finding across different features,
+the rule it keeps re-deriving belongs in `AGENTS.md` — write it there in
+the change that fixes the second occurrence. A reviewer re-finding the
+same thing every feature is the contract failing to say something, not
+the reviewer working. The trigger is the second occurrence, not the
+first: one instance is a mistake, two is a missing rule.
