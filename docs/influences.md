@@ -23,7 +23,8 @@ The links below were captured in the author's research notes over
 2026-05 to 2026-07 and transcribed here on 2026-07-22. They were **not**
 re-fetched when this file was written, so treat them as recorded-at-the-time
 rather than verified-today. Entries with no recorded URL say so rather than
-carry a reconstructed one.
+carry a reconstructed one. Rows added after that transcription carry their own
+retrieval date and were read at the source when added.
 
 Everything here is a **pattern-level borrowing** — a workflow idea, a prompt
 shape, a section convention. No source's code, prompt text, or documentation
@@ -63,6 +64,7 @@ the framework's full living-spec maintenance burden was not.
 | Own every line of the shared `AGENTS.md` contract rather than committing a generated one unread, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
 | Dual-client contract/adapters: complete `AGENTS.md`, repository skills, project custom agents, trusted hooks, permission profiles, command rules, and Codex TUI status line | Official Codex documentation for [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills), [subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [hooks](https://learn.chatgpt.com/docs/hooks), [rules](https://learn.chatgpt.com/docs/agent-configuration/rules), and [configuration](https://learn.chatgpt.com/docs/config-reference), verified 2026-07-30 against Codex CLI 0.146.0 |
 | One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
+| Review findings as a trigger for `AGENTS.md` rules (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); reviewers excluding mechanical findings the local gate and CI already enforce | Anthropic, *The AI-Native SDLC Playbook* — <https://claude.com/blog/the-ai-native-sdlc-playbook>, published 2026-08-21, retrieved 2026-09-01 |
 
 ### One unresolved tension
 
@@ -87,6 +89,16 @@ open question rather than a settled decision, and prefer cutting — on cost
 grounds, since the paper found file length itself had no significant effect
 on success.
 
+A second, independent source now points the same way. Anthropic's *AI-Native
+SDLC Playbook* (2026-08-21; retrieved 2026-09-01) states the context file
+should be **one page maximum**, on the reasoning that stale or redundant
+instruction wastes the context the session runs on. The rendered
+`python/AGENTS.md` is roughly 27 KB — about seven thousand tokens loaded into
+every session. Two sources arguing for a shorter contract does not settle what
+to cut, but it strengthens the case for revisiting the contract's length in a
+separate change, judged section by section against whether a current model
+still needs to be told.
+
 ## Considered and not adopted
 
 Recording the rejections matters as much as the adoptions — it stops each one
@@ -105,6 +117,47 @@ being re-proposed.
   a slop linter inside `/review-check`), reviewed 2026-07-16 and declined:
   checks an agent can satisfy without improving anything invite compliance
   theater and manufacture false confidence.
+- **Most of the *AI-Native SDLC Playbook*** (2026-08-21; retrieved
+  2026-09-01), reviewed against the scaffold and declined. Two of its practices
+  landed (see the row above); the rest did not, for four distinct reasons:
+  - *Roles this scaffold does not have.* `intent.md` as a pre-spec artifact
+    exists to carry intent between an originator, a product owner, and an
+    engineer. Here those are one person, and "discuss the feature, then
+    `/spec`" already is that capture step. Likewise a root `REVIEW.md`
+    review-policy file: review policy already lives in the reviewer role
+    prompts, which render to both clients — a second home for it would be a
+    second source of truth.
+  - *Stages that presuppose a deployment target.* Stage 6 in full (control
+    bands, `bands.yaml` response tiers, autonomous production monitoring,
+    scheduled hosted scans, Claude on call via Slack) and Stage 5's
+    per-environment autonomy tiers assume a running service and an
+    organization around it. This scaffold bootstraps repositories and has no
+    deploy target at all.
+  - *Sound, but priced wrong for a solo project.* Eval suites that
+    regression-test the agent configuration itself — 20–50 recorded tasks
+    re-run whenever the contract, skills, or hooks change. This repo's smoke
+    tests provide deterministic configuration and bootstrap coverage, while
+    `scripts/acceptance-workflow-live.sh` provides a smaller opt-in live
+    workflow check. It does not maintain the source's proposed agent-behavior
+    eval suite. Shipping that into consumer projects would cost tokens on every
+    configuration change to defend against a failure mode a solo author notices
+    in the next session. Revisit if a consumer project ever runs unattended
+    long enough that nobody would.
+  - *Not evidentiable in this workflow.* A reviewer check for test assertions
+    loosened, narrowed, deleted, or skipped after they first went red — the
+    playbook's Stage 4 guard against implementation moving the goalposts
+    instead of meeting them. It was drafted for both reviewer roles and
+    withdrawn on review: the objection is evidentiary, not one of principle.
+    The scaffold's `/test-first` phase produces no committed or otherwise
+    durable red-state snapshot — the failing tests and the implementation
+    arrive together in the single commit taken at the final checkpoint — so a
+    read-only reviewer running `git log -p` over the test paths has nothing to
+    compare against. It can still judge whether the tests cover the spec; it
+    cannot establish *when* they changed. The playbook's version holds because
+    it commits the failing test first and then freezes test edits behind a
+    hook. Revisit only alongside one of those preconditions: an explicit
+    red-state artifact or hash, a separately approved red-test commit, or a
+    hook that freezes the relevant test paths during implementation.
 
 ## Corrections
 

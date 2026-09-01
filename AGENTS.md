@@ -137,7 +137,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-08-11)
+## Open work / current state (updated 2026-09-01)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -223,11 +223,33 @@ layer (PR #12 — `python/docs/local-executor.md` plus `/delegate`, both
 CI job in the project template, failing while a spec still says
 `draft`/`shipping` or its dashboard is stale).
 
+A review of Anthropic's *AI-Native SDLC Playbook* (published 2026-08-21)
+against the scaffold landed 2026-09-01. Most of the playbook was already
+implemented here or does not apply — it assumes an organization and a
+production deploy target — so only two rules changed: review findings now
+trigger `AGENTS.md` rules on their second occurrence, and both reviewer
+roles now exclude mechanical findings the local gate and CI already
+enforce. `docs/influences.md` carries the provenance row and four
+rejection reasons, including a post-red test-tamper check that was drafted
+and withdrawn: `/test-first` leaves no committed red state, so a read-only
+reviewer cannot establish when a test changed. That review ran under both
+clients — Codex CLI corrected two defects in the Claude Code draft and a
+third in its own re-read, which is the dual-client loop working as
+intended.
+
 Open:
 
 - Add `generic-smoke` to this repo's `protect-main` required status
   checks. The job runs on every PR but is not required, so it can go red
   without blocking a merge.
+- Revisit the length of `python/AGENTS.md`. It renders to roughly 27 KB —
+  about seven thousand tokens loaded into every session — and two
+  independent sources now argue for cutting it (the AGENTS.md paper on
+  inference cost, and the playbook's "keep it under a page"). Neither
+  settles *what* to cut, so this needs its own change, judged section by
+  section against whether a current model still needs to be told. The
+  reasoning is recorded in `docs/influences.md` → "One unresolved
+  tension".
 - `docs/influences.md` records the provenance row for
   `python/docs/local-executor.md` **without URLs or a retrieval date**.
   The Terminal-Bench 2.0 figures in that doc are live leaderboard values
