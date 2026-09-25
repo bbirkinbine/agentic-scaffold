@@ -53,14 +53,6 @@ render_generic_contract() {
   printf '%s\n' '@AGENTS.md' > "$REPO_DIR/CLAUDE.md.template"
 }
 
-render_scaffold_contract() {
-  # Codex does not follow a pointer from AGENTS.md into CLAUDE.md. Keep the
-  # scaffold repository itself on the same model as generated projects:
-  # AGENTS.md is complete, and CLAUDE.md is the authoring source copied here
-  # so the existing project history remains easy to review.
-  cp "$REPO_DIR/CLAUDE.md" "$REPO_DIR/AGENTS.md"
-}
-
 render_shared_surfaces() {
   local source
 
@@ -181,7 +173,6 @@ render_role() {
   rm -f "$tmp"
 }
 
-render_scaffold_contract
 render_generic_contract
 render_shared_surfaces
 render_project_contract

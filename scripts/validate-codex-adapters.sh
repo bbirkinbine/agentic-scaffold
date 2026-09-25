@@ -18,12 +18,9 @@ assert_agents_import() {
     || fail "$file must contain only the exact @AGENTS.md import shim"
 }
 
-# This scaffold repository is the one authoring exception: CLAUDE.md remains
-# the source and root AGENTS.md is its complete Codex-readable copy. Generated
-# projects use AGENTS.md as the canonical contract and a one-line Claude import
-# shim so client policy cannot diverge after bootstrap.
-cmp -s "$REPO_DIR/AGENTS.md" "$REPO_DIR/CLAUDE.md" \
-  || fail "root AGENTS.md is not the complete CLAUDE.md authoring contract"
+# The scaffold repository follows the same model as generated projects:
+# AGENTS.md is the canonical contract and CLAUDE.md is the one-line import.
+assert_agents_import "$REPO_DIR/CLAUDE.md"
 assert_agents_import "$PYTHON_DIR/CLAUDE.md"
 assert_agents_import "$REPO_DIR/CLAUDE.md.template"
 assert_agents_import "$PYTHON_DIR/subdir-CLAUDE.md.example"
