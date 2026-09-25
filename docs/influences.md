@@ -65,6 +65,7 @@ the framework's full living-spec maintenance burden was not.
 | Dual-client contract/adapters: complete `AGENTS.md`, repository skills, project custom agents, trusted hooks, permission profiles, command rules, and Codex TUI status line | Official Codex documentation for [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills), [subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [hooks](https://learn.chatgpt.com/docs/hooks), [rules](https://learn.chatgpt.com/docs/agent-configuration/rules), and [configuration](https://learn.chatgpt.com/docs/config-reference), verified 2026-07-30 against Codex CLI 0.146.0 |
 | One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
 | Review findings as a trigger for `AGENTS.md` rules (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); reviewers excluding mechanical findings the local gate and CI already enforce | Anthropic, *The AI-Native SDLC Playbook* — <https://claude.com/blog/the-ai-native-sdlc-playbook>, published 2026-08-21, retrieved 2026-09-01 |
+| State a learned rule as the correct action, not only the prohibition (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); repeat product-eval cases and report success frequency under a spec-approved acceptance policy (`python/docs/evals.md` → "Run each case more than once", the `evaluator` role) | Nick Saraev, "I Spent $31,141 On Claude Code To Learn This" (YouTube, 2026-09-25) — <https://youtu.be/45K3zHckCnQ>, retrieved 2026-09-25; repeated evaluations at 2:55–3:14, learned rules at 24:00–24:30 |
 
 ### A tension, and how it was resolved
 
@@ -171,6 +172,45 @@ being re-proposed.
     hook. Revisit only alongside one of those preconditions: an explicit
     red-state artifact or hash, a separately approved red-test commit, or a
     hook that freezes the relevant test paths during implementation.
+
+- **The rest of Nick Saraev's Claude Code tips video** (2026-09-25; retrieved
+  2026-09-25). Two tips landed (see the row above), one of them only in part.
+  The video's "don't trust the first output" tip is broader than product
+  evals: re-run any prompt you standardize into a workflow and count how
+  often it works. Here, the prompts standardized into a workflow are the
+  scaffold's own roles, commands, and contract, which is Sense A in
+  `python/docs/evals.md`. Only the Sense B slice landed (repeated runs for a
+  product's own LLM feature). The Sense A slice is the agent-configuration
+  eval suite already declined above under the *AI-Native SDLC Playbook*,
+  for the same cost reason and with the same revisit condition. Deterministic
+  gates and the two reviewer roles assess an individual implementation; they
+  do not measure the reliability of the reusable agent workflow across
+  repeated trials. The two different reviewer prompts are not repeated
+  samples of one prompt. Deferring that measurement leaves an evidence gap.
+  The video's example compares 7/10 with 8/10 successful outputs; it does not
+  require every run to pass. The scaffold's proposed 3-run starting point is
+  a local cost choice, subject to approval, not a recommendation from the
+  video or a statistical guarantee. Of the remaining tips, most were
+  already here under other names: self-check loops, interview-first
+  prompting, context pruning, definitions of done, diagnose-before-fix,
+  scoped parallel agents, handoff notes, keeping the contract current, a
+  second client on standby. Five were declined:
+  - *"Let the code be the context."* Moving specs and notes into inline
+    comments so they cannot drift from the code. The drift is real, but the
+    docs-sync gate and the `closeout` CI job already target it, and dropping
+    specs would remove the artifact both reviewers and `/analyze` judge
+    against. The video's evidence is anecdotal.
+  - *Cheap-model fan-out for research.* No role pins a model today; adding
+    one needs a matching Codex setting, and the argument is cost, not
+    catching slop. Revisit if a consumer project shows research subagents
+    dominating spend.
+  - *`/btw` side questions and re-auditing `CLAUDE.md` on every model
+    update.* Personal session habits rather than contract rules. Codex also
+    supports `/btw` (alias `/side`), per its [official command documentation](https://learn.chatgpt.com/docs/developer-commands#built-in-slash-commands),
+    verified 2026-09-25.
+  - *Prototype with an MCP server, then replace it with a lean skill.* The
+    scaffold ships one optional MCP (serena) and no connectors, so there is
+    nothing to convert.
 
 ## Corrections
 

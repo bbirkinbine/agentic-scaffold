@@ -148,7 +148,7 @@ Don't claim a change is "ready" without at least:
 
 ---
 
-## Open work / current state (updated 2026-09-01)
+## Open work / current state (updated 2026-09-25)
 
 Repo split out of the dotfiles repo on 2026-06-09. The Python
 scaffolding under `python/` is the active surface; the methodology
@@ -261,6 +261,14 @@ PR template, and gave this repo its first `.github/pull_request_template.md`
 — it had shipped one to bootstrapped projects without having one itself.
 `docs/influences.md` records the cut against the two sources that argued
 for it.
+
+A review of a Claude Code tips video (Nick Saraev, 2026-09-25) against the
+scaffold landed two small rules the same way: a learned rule in `AGENTS.md`
+states the correct action rather than only the prohibition, and the opt-in
+`evaluator` repeats product-eval cases using an approved run count and
+aggregation policy (proposing 3 runs when unspecified), reports mixed
+outcomes, and checks existing suites for missing settings before execution.
+`docs/influences.md` records the source and the five tips declined.
 
 Open:
 

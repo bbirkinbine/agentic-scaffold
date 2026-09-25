@@ -25,9 +25,9 @@ silently do both in one pass.
 Your role here is **draft-and-stop**: propose the eval set from the spec,
 then let the human approve it at a checkpoint. Do not demand a finished
 rubric up front, and do not face the user with a blank page — but also do
-not originate the bar from nothing or fabricate data. Two pieces you may
-draft for approval (rubric, threshold); two you must be given (inputs,
-ground truth).
+not originate the bar from nothing or fabricate data. You may draft the
+rubric, threshold, run count, and aggregation policy for approval; inputs
+and ground truth must be given.
 
 1. Read the spec (the user gives a path, most likely under `docs/specs/`).
    Draft from it rather than dead-ending:
@@ -43,6 +43,15 @@ ground truth).
      doesn't, propose a candidate derived from the spec's intent and flag
      it clearly as the human's risk call to confirm at the checkpoint. Do
      not silently bake in a bar of your own.
+   - **Runs per case (*k*) — propose 3 if the spec omits it.** One passing
+     run of a non-deterministic feature proves only that it worked once.
+     Take *k* from the spec's threshold when stated; otherwise propose 3
+     and flag it for confirmation alongside the threshold.
+   - **Aggregation policy — use the spec's rule for combining runs and
+     cases.** Specify what the threshold counts: successful runs, cases
+     meeting a per-case success rate, or cases passing every run. If the
+     policy is missing or ambiguous, propose one for confirmation. Require
+     every run to pass only when the approved policy says so.
 2. Read existing evals in `evals/` (and `tests/` for fixture style). If
    `evals/` does not exist, create it, parallel to `tests/`.
 3. Assemble each case as `(input, rubric, ground truth)`. The rubric is the
@@ -54,23 +63,37 @@ ground truth).
      check, the expected tool sequence for a trajectory check. Never the
      model's own opinion of what a good answer looks like.
 4. **Stop at a human checkpoint.** Return the eval file paths, the
-   threshold (marked "needs confirmation" if you proposed it), and a
-   one-line summary per case. The user confirms the set encodes *their* bar
-   before it counts. This mirrors reviewing the plan and the failing tests
-   — the evaluator drafts, the human signs off.
+   threshold, *k*, aggregation policy (each marked "needs confirmation"
+   if you proposed it), and a one-line summary per case. The user confirms
+   the set encodes *their* bar before it counts. Record the approved settings
+   in the spec or eval configuration so later runs can use them. This mirrors
+   reviewing the plan and the failing tests — the evaluator drafts, the human
+   signs off.
 
 Do NOT run the suite as part of Job A, and do NOT touch the feature's
 implementation.
 
 ## Job B — run the suite and judge
 
-1. Execute every eval case against the current feature.
-2. Judge each output: a deterministic assertion where one is checkable;
+1. **Preflight, including existing suites:** read the approved rubric,
+   threshold, *k*, and aggregation policy from the spec or eval configuration.
+   If any setting is missing, ambiguous, or conflicting, propose the missing
+   decision (3 for an unspecified *k*) and stop for confirmation before
+   executing. Do not silently reinterpret an older suite's threshold.
+2. Execute every eval case against the current feature *k* times, each run
+   independent of the others.
+3. Judge each run's output: a deterministic assertion where one is checkable;
    otherwise act as the **LM judge**, scoring against the case's written
    rubric. Judge against the ground truth, not against your prior of what
    reads well.
-3. Report per-case scores, the aggregate, and pass/fail against the spec's
-   threshold.
+4. Report every run's score and each case's success count. Mark mixed
+   outcomes as **unstable** independently of the acceptance verdict, so
+   aggregation cannot hide them. Apply the approved aggregation policy and
+   threshold to decide pass/fail; instability is not an automatic failure
+   unless that policy makes it one.
+5. Report the suite metric with its numerator and denominator, the approved
+   policy, and the resulting pass/fail verdict. Keep *k* and the policy fixed
+   during a run; changing either requires approval before a new run.
 
 ## Independence — the rules that make an eval trustworthy
 
@@ -113,8 +136,10 @@ For Job B, per case:
 ```
 ## Result: <case title>
 
-- **Score:** <n>/5 on <dimension>
-- **Verdict:** pass | fail (threshold: <from spec, or human-approved>)
+- **Run scores:** <one score per run and dimension>
+- **Runs at/above bar:** <m>/<k>
+- **Stability:** all above bar | all below bar | unstable (mixed outcomes)
+- **Verdict:** pass | fail | suite-level only (policy and threshold: <approved source>)
 - **Evidence:** <the output snippet + why it scored this, referencing ground truth>
 ```
 
@@ -122,7 +147,9 @@ End every run with a top-line:
 
 ```
 ## Top-line
-<N> cases · <pass-rate>% at/above bar · aggregate <score> — ship | below-bar
+<N> cases × <k> runs · <U> unstable cases
+<approved metric>: <numerator>/<denominator> = <value> · threshold <bar> — ship | below-bar
+Policy: <approved aggregation rule and source>
 ```
 
 If the spec gives no threshold, propose one and mark it for confirmation —

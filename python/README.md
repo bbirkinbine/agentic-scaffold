@@ -377,6 +377,12 @@ so an eval measures correctness, not the model's agreement with itself.
 Driven by `/eval`; full doctrine and the decision rule live in
 `docs/evals.md`.
 
+The evaluator repeats each case using the approved run count and aggregation
+policy, reports mixed outcomes, and applies the spec's acceptance threshold.
+If those settings are missing, including in an existing suite, it proposes
+them (3 runs per case when unspecified) and waits for confirmation before
+execution. Passing every run is required only when the approved policy says so.
+
 **Copy it in only when the product itself contains an LLM/AI surface:**
 
 - A text-generating feature whose output varies run to run (summarizer,
