@@ -46,7 +46,10 @@ Job selection:
   evaluator runs **Job A** — author the eval set from the spec, then stop
   at a human checkpoint for you to confirm the cases before they count.
 - Otherwise, the evaluator runs **Job B** — execute the existing suite and
-  judge output against the spec's threshold.
+  judge output against the spec's threshold. First resolve the approved run
+  count and aggregation policy as well as the rubric and threshold. If an
+  existing suite lacks them, propose the missing settings and stop for
+  confirmation before executing.
 
 The evaluator authors from the spec (never the implementation), keeps the
 rubric, inputs, and ground truth external, and runs the LM-judge pass

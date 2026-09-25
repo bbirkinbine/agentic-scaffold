@@ -189,6 +189,21 @@ covering what a test can't assert.
   spec omits a threshold, the `evaluator` proposes one at the Job A
   checkpoint for you to confirm — it won't dead-end, but it won't bake in a
   bar of its own either.
+- **Run each case more than once.** The feature is non-deterministic, so
+  one passing run of a case proves the same thing a demo does: it worked
+  once. `/eval` runs every case *k* times and reports each run's score and
+  each case's success count. Mixed outcomes are labelled unstable even if
+  the approved acceptance policy allows them. Put *k* and the aggregation
+  policy beside the threshold: for example, "run each case 3 times; ≥90%
+  of all case-runs score ≥4/5 on faithfulness." Requiring "≥90% of cases
+  score ≥4/5 on every run" is a different, stricter policy; use it only
+  when explicitly approved. More runs provide more observations, not a
+  guarantee of reliability; with an all-runs policy, raising *k* also
+  tightens the gate. If *k* is missing, the evaluator proposes 3 for
+  confirmation. Missing or ambiguous aggregation rules also need approval.
+  Record the decisions in the spec or eval configuration. Job B checks
+  these settings before execution, including for existing suites that
+  bypass Job A; it proposes missing settings and stops for confirmation.
 - **Where it sits in the loop.** Product evals are part of **Verify**,
   alongside `/review-check` — see `../WORKFLOW.md` → "Every feature" and
   "The completion ladder". Gate shipping on eval coverage the way the repo

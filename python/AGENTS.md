@@ -226,7 +226,10 @@ the one a fresh session can verify without tribal knowledge.
 Encode a human correction to a recurring agent mistake in `AGENTS.md` in the
 same change. Review findings count: when `/review` or `/review-adversarial`
 raises the same finding on a second feature, add the missing rule while fixing
-it. One occurrence is a mistake; two indicate a missing rule.
+it. One occurrence is a mistake; two indicate a missing rule. State the rule
+as the correct action ("call the v2 client"), not only the prohibition
+("don't call the v1 API"); a ban alone leaves the agent guessing what to do
+instead.
 
 ---
 
