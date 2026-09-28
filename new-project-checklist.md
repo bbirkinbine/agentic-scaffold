@@ -17,19 +17,36 @@ carries the latest conventions and is updated first.
       either the global got overridden or a per-repo `.git/config` is
       shadowing it.
 
-### If this is a Python project — use the agentic-workflow scaffolding
+- [ ] **Start the founding conversation.** Open Claude Code or Codex in
+      the empty repo and describe the project; the agent applies the rubric
+      in the scaffold's `workflow/docs/project-types.md` → "Choosing the
+      stack from a project description", states the deciding question, runs
+      the matching bootstrap, and pre-fills the templates. Everything below
+      is what that session does, kept here so you can check its work or do
+      it by hand. The prompt:
+      ```
+      The agentic-scaffold checkout is at ~/src/agentic-scaffold. Read its
+      workflow/docs/project-types.md, section 1. I want to build: <what it does,
+      where it runs, who uses it, what it talks to>. Choose the stack (or the
+      generic flavor), tell me the deciding question, run that flavor's
+      bootstrap.sh here, then fill the placeholders from what I told you and
+      walk me through WORKFLOW.md day zero.
+      ```
 
-- [ ] Run the Python bootstrap:
+### If this is a Python or TypeScript project — use the agentic-workflow scaffolding
+
+- [ ] Run the stack's bootstrap (the founding session normally does this):
       ```
       bash path/to/agentic-scaffold/python/bootstrap.sh
+      bash path/to/agentic-scaffold/typescript/bootstrap.sh
       ```
       This installs canonical `AGENTS.md` plus a `CLAUDE.md` import,
-      `WORKFLOW.md`, Python tooling, shared hooks under `.agentic/`,
-      Claude commands/agents under `.claude/`, Codex skills under
-      `.agents/`, Codex project configuration/agents/rules under
-      `.codex/`, and the specs/CI surface. Optional specialist agents
-      remain opt-in; see `python/README.md`. Existing project-owned files
-      are preserved.
+      `WORKFLOW.md`, the stack's tool configs and the `.agentic/toolchain.sh`
+      gate runner, shared hooks under `.agentic/`, Claude commands/agents
+      under `.claude/`, Codex skills under `.agents/`, Codex project
+      configuration/agents/rules under `.codex/`, and the specs/CI surface.
+      Optional specialist agents remain opt-in; see the flavor's
+      `README.md`. Existing project-owned files are preserved.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied
       into the new project's root as `WORKFLOW.md`) — the human-facing
       walkthrough: day-zero setup and the per-feature loop, step by step.
@@ -51,15 +68,15 @@ carries the latest conventions and is updated first.
       short files more successful — file length itself had no significant
       effect on success. The rule is ownership, not authorship (see
       `python/README.md` → "Don't" for the study and the numbers).
-      Mechanical fills like the project name in `pyproject.toml` are fine
+      Mechanical fills like the project name in the manifest are fine
       to delegate. Fill the bootstrapped `README.md` too, preserving its
       Acknowledgements section.
 - [ ] If using Codex, start it from the repository root, trust the project
       `.codex/` layer, and review the checked-in hooks with `/hooks`.
 - [ ] Install dev environment:
       ```
-      uv sync
-      uv run pre-commit install
+      .agentic/toolchain.sh install
+      pre-commit install        # the bootstrap prints the stack's install line
       ```
 - [ ] Write your first spec: `docs/specs/0001-<feature>.md`. See
       `docs/specs/README.md` (copied by bootstrap) for the convention.

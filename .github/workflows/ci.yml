@@ -6,9 +6,12 @@ name: CI
 #   shell — syntax + shellcheck over bootstrap.sh and the hook scripts.
 #   smoke — bootstrap every Python profile into a temp dir, assert the file
 #           set, fill the day-zero placeholders, and run the full
-#           quality gate. Proves "green from the first run" stays true.
+#           quality gate through the toolchain runner. Proves "green from
+#           the first run" stays true.
 #   generic-smoke — bootstrap the stack-neutral flavor and exercise fresh,
 #                   update, migration, hook, and config fixtures.
+#   typescript-smoke — bootstrap the TypeScript flavor and run its gate,
+#                      including the red-gate and Stop-hook cases.
 
 on:
   pull_request:
@@ -26,22 +29,25 @@ jobs:
 
       - name: Syntax-check shell scripts (bash -n)
         run: |
-          bash -n python/bootstrap.sh
-          bash -n generic/bootstrap.sh
-          bash -n shared/hooks/*.sh
-          bash -n python/.agentic/hooks/*.sh
           bash -n scripts/*.sh
+          bash -n generic/bootstrap.sh
+          bash -n shared/hooks/*.sh workflow/hooks/*.sh
+          bash -n stacks/*/toolchain.sh stacks/*/stack.sh
+          bash -n python/bootstrap.sh typescript/bootstrap.sh
 
       # --severity=warning: the info-level SC2016 hits are intentional
       # single-quoted regex patterns in the hook scripts.
       - name: shellcheck
         run: |
           shellcheck --severity=warning \
-            python/bootstrap.sh \
+            scripts/*.sh \
             generic/bootstrap.sh \
             shared/hooks/*.sh \
-            python/.agentic/hooks/*.sh \
-            scripts/*.sh
+            workflow/hooks/*.sh \
+            stacks/*/toolchain.sh \
+            stacks/*/stack.sh \
+            python/bootstrap.sh \
+            typescript/bootstrap.sh
 
       # Exec-policy validation must not silently disappear on a runner that
       # happens not to have Codex preinstalled. Keep this version aligned with
@@ -62,6 +68,26 @@ jobs:
       - name: Bootstrap generic projects and exercise migration
         run: bash scripts/smoke-test-generic.sh
 
+  typescript-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - strict: ""
+          - strict: --strict-hooks
+    name: typescript-smoke (${{ matrix.strict || 'default' }})
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Bootstrap a TypeScript project and run its quality gate
+        run: bash scripts/smoke-test-typescript.sh ${{ matrix.strict }}
+
   smoke:
     runs-on: ubuntu-latest
     strategy:
@@ -69,11 +95,11 @@ jobs:
       matrix:
         include:
           - profile: minimal
-          - profile: python-core
+          - profile: core
           - profile: full
-          - profile: python-core
+          - profile: core
             strict: --strict-hooks
-          - profile: python-core
+          - profile: core
             strict: --no-stop-gate
     name: smoke (${{ matrix.profile }}${{ matrix.strict && format(' {0}', matrix.strict) || '' }})
     steps:

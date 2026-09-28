@@ -6,7 +6,7 @@
 # the claim the starter src/ + tests/ layout exists to back.
 #
 # Usage:
-#   scripts/smoke-test.sh <minimal|python-core|full> [--strict-hooks|--default-hooks|--no-stop-gate]
+#   scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--default-hooks|--no-stop-gate]
 #
 # Run locally before changing bootstrap.sh or the template pyproject;
 # CI (.github/workflows/ci.yml) runs every profile on each push/PR.
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-PROFILE="${1:?usage: smoke-test.sh <minimal|python-core|full> [--strict-hooks|--default-hooks|--no-stop-gate]}"
+PROFILE="${1:?usage: smoke-test.sh <minimal|core|full> [--strict-hooks|--default-hooks|--no-stop-gate]}"
 STRICT="${2:-}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,6 +58,7 @@ must .agentic/hooks/statusline.sh
 must .agentic/hooks/context-reminder.sh
 must .agentic/hooks/format-after-edit.sh
 must .agentic/hooks/closeout-check.sh
+must .agentic/toolchain.sh
 must .claude/agents/reviewer.md
 must .claude/commands/spec.md
 must .codex/config.toml
@@ -87,7 +88,7 @@ case "$PROFILE" in
     must_not docs/adr/README.md
     must_not .github/dependabot.yml
     ;;
-  python-core)
+  core)
     must .claude/agents/analyzer.md
     must .codex/agents/analyzer.toml
     must .claude/skills/python-module-split/SKILL.md
@@ -261,9 +262,9 @@ run_profile_transition_matrix() {
 
   (
     cd "$root"
-    bash "$REPO_DIR/python/bootstrap.sh" --update --python-core >/dev/null
+    bash "$REPO_DIR/python/bootstrap.sh" --update --core >/dev/null
   )
-  state_must_equal "$root" PROFILE python-core
+  state_must_equal "$root" PROFILE core
   transition_must "$root" .agents/skills/analyze/SKILL.md
   transition_must_not "$root" .agents/skills/security/SKILL.md
 
@@ -310,7 +311,7 @@ run_strict_flagless_update() {
   mkdir -p "$root"
   (
     cd "$root"
-    bash "$REPO_DIR/python/bootstrap.sh" --python-core --strict-hooks >/dev/null
+    bash "$REPO_DIR/python/bootstrap.sh" --core --strict-hooks >/dev/null
   )
   cp "$root/AGENTS.md" "$agents_copy"
 
@@ -331,7 +332,7 @@ run_strict_flagless_update() {
     bash "$REPO_DIR/python/bootstrap.sh" --update > "$log"
   )
 
-  state_must_equal "$root" PROFILE python-core
+  state_must_equal "$root" PROFILE core
   state_must_equal "$root" STRICT_HOOKS 1
   state_must_equal "$root" NO_STOP_GATE 0
   if ! grep -q 'format-after-edit.sh --strict' "$root/.claude/settings.json"; then
@@ -440,15 +441,36 @@ run_claude_only_contract_migration() {
   fi
 }
 
+run_profile_alias() {
+  local root="$WORK/profile-alias"
+  mkdir -p "$root"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --python-core >/dev/null
+  )
+  state_must_equal "$root" PROFILE core
+  # A project whose state still says python-core resolves to core on update.
+  sed -i.bak 's/^PROFILE=core$/PROFILE=python-core/' "$root/.agentic/scaffold-state"
+  rm -f "$root/.agentic/scaffold-state.bak"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --update >/dev/null
+  )
+  state_must_equal "$root" PROFILE core
+  transition_must "$root" .agents/skills/analyze/SKILL.md
+}
+
 # CI runs the profile rows separately. Keep the transition cases on one row
 # each so the matrix covers lifecycle behavior without multiplying uv work.
 if [[ "$PROFILE" == full && -z "$STRICT" ]]; then
   run_profile_transition_matrix
-elif [[ "$PROFILE" == python-core && "$STRICT" == --strict-hooks ]]; then
+elif [[ "$PROFILE" == core && "$STRICT" == --strict-hooks ]]; then
   run_strict_flagless_update
 elif [[ "$PROFILE" == minimal && -z "$STRICT" ]]; then
   run_preserved_stop_gate_update
   run_claude_only_contract_migration
+elif [[ "$PROFILE" == core && -z "$STRICT" ]]; then
+  run_profile_alias
 fi
 
 # --- day-zero placeholder fill (the steps WORKFLOW.md prescribes) ---
@@ -459,11 +481,43 @@ sed -i.bak 's/{{PACKAGE_NAME}}/smoketest/' src/smoketest/__init__.py
 rm -f pyproject.toml.bak src/smoketest/__init__.py.bak
 
 # --- the quality gate a fresh project must pass ---
-uv sync
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src/
-uv run pytest -q
+# Through the runner, the same entry point the Stop hook, /review-check, and
+# consumer CI use, so this proves the seam and not only the tools.
+[[ -x .agentic/toolchain.sh ]] || {
+  echo "SMOKE FAIL ($PROFILE): toolchain.sh is not executable" >&2
+  exit 1
+}
+bash .agentic/toolchain.sh ready || {
+  echo "SMOKE FAIL ($PROFILE): toolchain ready check failed on a fresh project" >&2
+  exit 1
+}
+[[ "$(bash .agentic/toolchain.sh source-dirs)" == "src" ]] || {
+  echo "SMOKE FAIL ($PROFILE): toolchain source-dirs is not src" >&2
+  exit 1
+}
+bash .agentic/toolchain.sh install
+bash .agentic/toolchain.sh gate
+bash .agentic/toolchain.sh test tests/test_smoke.py::test_smoke >/dev/null
+
+# The gate must go red on a real defect and name the failing step, because
+# the Stop hook's block reason is built from exactly that output.
+printf 'def broken(x):\n    return undefined_name\n' > src/smoketest/broken.py
+gate_output="$(bash .agentic/toolchain.sh gate --quiet)" && {
+  echo "SMOKE FAIL ($PROFILE): gate stayed green on a lint/type defect" >&2
+  exit 1
+}
+case "$gate_output" in
+  failed:*lint*) ;;
+  *)
+    echo "SMOKE FAIL ($PROFILE): quiet gate did not name lint; got: $gate_output" >&2
+    exit 1
+    ;;
+esac
+rm -f src/smoketest/broken.py
+bash .agentic/toolchain.sh gate --quiet || {
+  echo "SMOKE FAIL ($PROFILE): gate stayed red after the defect was removed" >&2
+  exit 1
+}
 
 # --- close-out gate behavior ---
 # The rule this enforces was written, specific, and skipped anyway, so the

@@ -1,8 +1,10 @@
 # Generic dual-client scaffold
 
-Use this flavor for repositories that do not need the Python scaffold's
+Use this flavor for repositories that do not need the stack flavors'
 prescribed Spec → Plan → Test-first workflow: infrastructure, shell, FPGA,
-documentation, or another language with its own toolchain.
+documentation, or a language with no `stacks/<name>/` adapter yet. The
+founding session picks it when the stack rubric in
+`workflow/docs/project-types.md` lands here.
 
 ```bash
 cd your-project

@@ -11,7 +11,7 @@ Claude Code import containing only `@AGENTS.md`. In a bootstrapped project,
 edit `AGENTS.md`, not the import. In the scaffold, edit `workflow/` sources
 and render the client surfaces.
 
-Some referenced workflows and docs require `--python-core` or `--full`; use
+Some referenced workflows and docs require `--core` or `--full`; use
 them only when installed.
 
 Standing rules are included below. Put project-specific additions outside the
@@ -73,12 +73,17 @@ Keep personal preferences in ignored local overlays (`CLAUDE.local.md`,
 
 ## How to run things
 
-- Install: `uv sync`
+`.agentic/toolchain.sh` is the one place the gate's tools are named; the
+hooks, `/review-check`, and CI call its subcommands. Use them too, so a
+tool swap changes one file.
+
+- Install: `.agentic/toolchain.sh install` (`uv sync`)
 - Run app: `uv run python -m {{PACKAGE_NAME}}.main` (or `uv run {{ENTRY_POINT}}`)
-- Run tests: `uv run pytest`
-- Lint: `uv run ruff check . && uv run ruff format --check .`
-- Type-check: `uv run mypy src/`
-- Single test: `uv run pytest path/to/test.py::test_name -xvs`
+- Run tests: `.agentic/toolchain.sh test` (`uv run pytest`)
+- Single test: `.agentic/toolchain.sh test path/to/test.py::test_name`
+- Lint / format / type-check: `.agentic/toolchain.sh lint | format | typecheck`
+  (ruff check, ruff format, mypy on `src/`)
+- The whole gate: `.agentic/toolchain.sh gate`
 
 ## Your role: orchestrator
 
@@ -194,7 +199,7 @@ the one a fresh session can verify without tribal knowledge.
 - **Simple control flow.** Early returns over nested conditionals;
   explicit branches over flag arguments threaded through call stacks.
 - **Rich, observable output.** Log meaningful state transitions to
-  stdout/structlog so a session can run the code and *see* what happened
+  stdout or the project logger so a session can run the code and *see* what happened
   rather than inferring it. Example: a dev-mode email sender that prints
   the message to stdout lets an agent verify a sign-up flow end-to-end
   with no mailbox access.
@@ -205,7 +210,7 @@ the one a fresh session can verify without tribal knowledge.
   argument validation and a `--help` that states intent; assume a future
   agent will call them with plausible-but-wrong arguments.
 - **Plain interfaces over frameworks** where the choice is free: a
-  function that takes data and returns data is verifiable in one pytest;
+  function that takes data and returns data is verifiable in one test;
   a framework hook is verifiable only inside the framework.
 
 ---
@@ -230,6 +235,24 @@ it. One occurrence is a mistake; two indicate a missing rule. State the rule
 as the correct action ("call the v2 client"), not only the prohibition
 ("don't call the v1 API"); a ban alone leaves the agent guessing what to do
 instead.
+
+---
+
+# External-reference provenance (implement phase)
+
+Any value or claim whose correctness depends on matching an external
+authority — listed in the spec's `## External references` section — must
+be populated by an in-session retrieval from the declared source URL,
+with the retrieval date + license pinned in a header comment near where the value is
+defined. Reconstructing such values from training is the fabrication
+failure the spec template warns against — if the source isn't fetchable,
+the spec's provenance is wrong; fix the spec, not the code.
+
+Copyleft-licensed sources (GPL/AGPL/LGPL) are consult-only in a
+permissive repo: do not copy their content verbatim and do not check the
+project into `vendor/`. See `docs/specs/README.md` `## External
+references` for the categories this covers and the license
+compatibility rules.
 
 ---
 
@@ -341,20 +364,16 @@ the session.
   `structlog` is a good default for services; stdlib `logging` is fine for
   small libraries and CLIs. Avoid `print` for non-CLI diagnostics.
 
-## External-reference provenance (implement phase)
+## Test-first
 
-Any value or claim whose correctness depends on matching an external
-authority — listed in the spec's `## External references` section — must
-be populated by an in-session retrieval from the declared source URL,
-with the retrieval date + license pinned in a header comment near where the value is
-defined. Reconstructing such values from training is the fabrication
-failure the spec template warns against — if the source isn't fetchable,
-the spec's provenance is wrong; fix the spec, not the code.
-
-Copyleft-licensed sources (GPL/AGPL/LGPL) are consult-only in a
-permissive repo: do not copy their content verbatim and do not check the
-project into `vendor/`. See `docs/specs/README.md` `## External
-references` for the categories this covers and the license
-compatibility rules.
+- Runner: pytest, through `.agentic/toolchain.sh test [target]`; a focused
+  target is `tests/test_x.py::test_name`.
+- Shared fixtures live in `conftest.py` at the repository root and in
+  `tests/conftest.py`; the test-first phase may edit those and `tests/`, nothing
+  else.
+- An expected red is `AttributeError` or `ImportError` on the missing symbol,
+  `NotImplementedError` from a stub, or a behavior-level `AssertionError`. A
+  `SyntaxError`, a fixture error, or a collection error is not a red; it is a
+  broken test.
 
 <!-- agentic-scaffold:standing-rules:end -->

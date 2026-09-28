@@ -1,0 +1,1 @@
+- `pyproject.toml` `[tool.uv]` section — ask first

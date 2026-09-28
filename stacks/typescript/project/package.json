@@ -1,0 +1,22 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "format": ".agentic/toolchain.sh format",
+    "lint": ".agentic/toolchain.sh lint",
+    "typecheck": ".agentic/toolchain.sh typecheck",
+    "test": ".agentic/toolchain.sh test",
+    "gate": ".agentic/toolchain.sh gate"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.0",
+    "vitest": "^5.0.0"
+  }
+}

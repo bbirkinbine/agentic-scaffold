@@ -1,84 +1,103 @@
 # agentic-scaffold
 
-Project-bootstrap templates and agentic-workflow scaffolding for new
-repositories. Two dual-client flavors: a full Python agentic workflow, or a
-lighter stack-neutral contract and safety layer for anything else (infra,
-shell, FPGA, ...).
+Scaffolding that sets up a new repository so a coding agent (Claude Code or
+Codex CLI) works in a disciplined loop: write a spec, plan, write failing
+tests first, implement, then pass a quality gate and an independent review
+before anything is committed. Python and TypeScript get the full loop;
+any other stack gets the contract and safety hooks.
 
-> ## Status
->
-> Published as a personal reference, not a managed product. Issues and
-> PRs are welcome but won't get fast turnaround. The scaffolding evolves
-> as the workflow does — pin a commit if you depend on a snapshot.
-> CI smoke-tests both bootstraps on every push: every Python profile runs
-> its quality gate, and the generic flavor exercises fresh install, update,
-> legacy migration, hooks, and client configuration.
+## Quick start
 
-## Python projects
+1. **Clone this repo once**, anywhere on your machine.
 
-Run [`python/bootstrap.sh`](python/bootstrap.sh) from a new repo's root,
-then open [`python/WORKFLOW.md`](python/WORKFLOW.md) — it walks day-zero
-setup and the per-feature loop, step by step. The default is
-`--python-core`; use `--minimal` for a thinner starter or `--full` for the
-author's complete workflow bundle. The Python scaffold installs Claude Code
-and Codex CLI adapters together, so either client can continue from the same
-spec, tests, diff, and phase handoff.
+   ```bash
+   git clone https://github.com/bbirkinbine/agentic-scaffold.git ~/src/agentic-scaffold
+   ```
+
+2. **Create your project and open the agent in it.**
+
+   ```bash
+   mkdir my-project && cd my-project && git init
+   claude        # or: codex
+   ```
+
+3. **Paste this prompt**, filling in the blank:
+
+   ```text
+   The agentic-scaffold checkout is at ~/src/agentic-scaffold. Read its
+   workflow/docs/project-types.md, section 1. I want to build: <what it does,
+   where it runs, who uses it, what it talks to>. Choose the stack (or the
+   generic flavor), tell me the deciding question, run that flavor's
+   bootstrap.sh here, then fill the placeholders from what I told you and
+   walk me through WORKFLOW.md day zero.
+   ```
+
+The agent picks Python, TypeScript, or the generic flavor and says why,
+installs the scaffolding, drafts the project contract from your description,
+and walks you through the first commit. After that, `WORKFLOW.md` in your
+project is the guide; it opens with the short version of the loop.
+
+Two things to do yourself: read every line of the `AGENTS.md` the agent
+drafted before you commit it, and restart the agent once after setup so its
+hooks load.
+
+## What you get
+
+- **A project contract** (`AGENTS.md`) both agents read: stack, how to run
+  things, standing rules, what not to touch.
+- **The loop as commands:** `/spec`, `/plan`, `/test-first`,
+  `/review-check`, `/review`, with fresh-context subagents for planning and
+  review. Codex uses the same names with `$`.
+- **Gates that do not depend on the agent remembering:** a hook that blocks
+  ending a turn while the source tree is dirty and lint, format, types, or
+  tests are red; a hook that blocks destructive shell commands; a commit
+  hook that keeps AI attribution out of history; CI that runs the same
+  gate plus a dependency audit.
+- **One file that names the tools,** `.agentic/toolchain.sh`. Python: uv,
+  ruff, mypy, pytest. TypeScript: npm, Biome, tsc, Vitest. Swap a tool
+  there and nothing else moves.
+
+## By hand, and reference
 
 ```bash
-cd your-project                              # the new repo you're starting
-bash path/to/agentic-scaffold/python/bootstrap.sh   # wherever you cloned this repo
-# then follow python/WORKFLOW.md
+bash ~/src/agentic-scaffold/python/bootstrap.sh       # or typescript/, or generic/
+bash ~/src/agentic-scaffold/python/bootstrap.sh --help
 ```
 
-New to the scaffolding? [`python/docs/project-types.md`](python/docs/project-types.md)
-is the orientation map: which flavor and profile to pick, what each one
-installs, and when to reach for each agent, skill, and command;
-[`python/docs/workflow-diagram.md`](python/docs/workflow-diagram.md) draws
-the same loop as Mermaid diagrams. For the
-full file inventory and the opt-in pieces, see
-[`python/README.md`](python/README.md). This page deliberately doesn't
-list the commands, subagents, or skills — they change as the scaffold
-evolves, and the two READMEs under `python/` are the source of truth.
-For Codex startup, project trust, workflow invocation, and client switching,
-see [`python/docs/codex-cli.md`](python/docs/codex-cli.md).
+- [`workflow/docs/project-types.md`](workflow/docs/project-types.md) — which
+  flavor and profile, what each installs, when to run each command.
+- [`workflow/WORKFLOW.md`](workflow/WORKFLOW.md) — the loop step by step
+  (copied into every project).
+- [`python/README.md`](python/README.md) and
+  [`typescript/README.md`](typescript/README.md) — file inventory per stack;
+  [`generic/README.md`](generic/README.md) for everything else.
+- [`new-project-checklist.md`](new-project-checklist.md) — the author's
+  repo-creation checklist (GitHub settings, the private-to-public hygiene
+  pass). Optional for others.
+- [`docs/multi-stack-scaffold.md`](docs/multi-stack-scaffold.md) — how a
+  stack is added; [`docs/multi-stack-research.md`](docs/multi-stack-research.md)
+  — the evidence behind the design.
 
-## Non-Python repos
+`python/` and `typescript/` are rendered from `workflow/` and
+`stacks/<name>/`; edit the sources and run
+`scripts/render-client-surfaces.sh`.
 
-Run the generic bootstrap and fill the `{{...}}` placeholders:
+## Status
 
-```bash
-cd your-project
-bash path/to/agentic-scaffold/generic/bootstrap.sh
-rg '{{' .
-```
-
-This installs a complete canonical `AGENTS.md` plus a `CLAUDE.md` import,
-Claude and Codex project configuration, shared safety hooks, Codex command
-rules, and a Codex startup guide. It deliberately does not invent
-language-specific formatting, tests, or workflow skills; fill the contract's
-validation section with the repository's real commands. See
-[`generic/README.md`](generic/README.md).
-
-## Both flavors
-
-Walk [`new-project-checklist.md`](new-project-checklist.md) (git
-identity, GitHub setup, the private→public hygiene checklist) and
-[`github-about.md`](github-about.md) (the repo "About" sidebar).
+A personal reference, not a managed product. Issues and PRs are welcome but
+won't get fast turnaround; pin a commit if you depend on a snapshot. CI
+bootstraps every flavor and profile on every push and runs each fresh
+project's quality gate.
 
 ## Contributing
 
-Each PR carries its own close-tasks: related status, current-state, docs, and
-checklist updates belong in the implementation PR rather than a follow-up.
-The PR template prompts for that closeout before merge.
+Each PR carries its own close-tasks: related status, current-state, docs,
+and checklist updates belong in the implementation PR, not a follow-up.
 
 ## Acknowledgements
 
-Developed with the assistance of AI tools.
-
-Several features here were borrowed from other people's work, and a number of
-rules trace to specific research and talks.
-[`docs/influences.md`](docs/influences.md) credits them, and records what was
-considered and rejected.
+Developed with the assistance of AI tools. Borrowed ideas and the research
+behind specific rules are credited in [`docs/influences.md`](docs/influences.md).
 
 ## License
 

@@ -226,7 +226,7 @@ PY
 # Build one committed fixture, then copy it byte-for-byte for both clients.
 (
   cd "$BASE_DIR"
-  bash "$REPO_DIR/python/bootstrap.sh" --python-core --no-stop-gate >/dev/null
+  bash "$REPO_DIR/python/bootstrap.sh" --core --no-stop-gate >/dev/null
   mv 'src/{{PACKAGE_NAME}}' src/shop
 )
 cat >"$BASE_DIR/.agentic/hooks/capture-subagent-start.sh" <<'EOF'
