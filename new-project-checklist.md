@@ -18,19 +18,26 @@ carries the latest conventions and is updated first.
       shadowing it.
 
 - [ ] **Start the founding conversation.** Open Claude Code or Codex in
-      the empty repo and describe the project; the agent applies the rubric
-      in the scaffold's `workflow/docs/project-types.md` → "Choosing the
-      stack from a project description", states the deciding question, runs
-      the matching bootstrap, and pre-fills the templates. Everything below
+      the empty repo and describe the project, however roughly; the agent
+      interviews you with the product-spec questions when the description
+      is thin, applies the rubric in the scaffold's
+      `workflow/docs/project-types.md` → "Choosing the stack from a project
+      description", states the deciding question, runs the matching
+      bootstrap, writes the interview answers as `docs/specs/0000-product.md`,
+      and pre-fills the templates. Everything below
       is what that session does, kept here so you can check its work or do
       it by hand. The prompt:
       ```
-      The agentic-scaffold checkout is at ~/src/agentic-scaffold. Read its
-      workflow/docs/project-types.md, section 1. I want to build: <what it does,
-      where it runs, who uses it, what it talks to>. Choose the stack (or the
-      generic flavor), tell me the deciding question, run that flavor's
-      bootstrap.sh here, then fill the placeholders from what I told you and
-      walk me through WORKFLOW.md day zero.
+      The agentic-scaffold checkout is at ~/src/agentic-scaffold. I want to
+      build: <what it does, where it runs, who uses it, what it talks to; a rough
+      idea is fine>. If that is too thin to decide anything, interview me first
+      using workflow/commands/product-spec.md from the checkout, one question at
+      a time. Then apply the stack rubric in workflow/docs/project-types.md,
+      section 1, asking me rather than guessing where my answers do not decide
+      it; tell me the deciding question; run that flavor's bootstrap.sh here;
+      write the interview answers to docs/specs/0000-product.md; fill the
+      placeholders from what I told you; and walk me through WORKFLOW.md day
+      zero.
       ```
 
 ### If this is a Python or TypeScript project — use the agentic-workflow scaffolding

@@ -56,8 +56,25 @@ supplies).
 ### Choosing the stack from a project description
 
 The founding conversation happens before anything is installed, so the
-agent reads this rubric from the scaffold checkout. Ask the questions in
-order; the first one with a decisive answer wins.
+agent reads this rubric from the scaffold checkout.
+
+**Interview before deciding.** A rough idea is a normal starting point.
+When the description does not answer the rubric, run the product-spec
+interview first (`workflow/commands/product-spec.md` in the checkout: seven
+questions, one at a time, push back once on a vague answer, then record
+the unknown rather than invent certainty). Its sixth question, constraints,
+is where the runtime and platform usually surface. After the bootstrap,
+write the answers to `docs/specs/0000-product.md`, the file `/product-spec`
+would have produced. Ask the rubric questions in order; the first one with
+a decisive answer wins, and one the answers cannot settle is a question to
+the human, not a guess.
+
+**What is not decided on day zero.** Only the stack. Storage, API shape,
+auth model, sync/async boundaries, and similar cross-cutting choices wait
+for the first feature that needs them and are recorded with `/adr` then,
+with the alternatives considered. Deciding them from a thin description
+would produce a plausible architecture for a project that does not exist
+yet.
 
 | Ask | Decides for | Example |
 | --- | --- | --- |
