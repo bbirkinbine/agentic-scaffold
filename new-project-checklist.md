@@ -140,8 +140,8 @@ carries the latest conventions and is updated first.
 - [ ] Fill in the **About** sidebar — see
       [`github-about.md`](github-about.md). The `ai-assisted` topic tag
       is required; it mirrors the Acknowledgements line in `README.md`.
-- [ ] Description sentence in the About sidebar matches the first line of
-      `README.md`.
+- [ ] Description sentence in the About sidebar is consistent with the
+      `README.md` opening (a condensed version is fine).
 - [ ] Repo visibility is correct (public unless there's a reason).
 - [ ] Enable auto-delete of merged PR branches, so a merge on GitHub
       prunes the head branch instead of leaving stale branches to pile
