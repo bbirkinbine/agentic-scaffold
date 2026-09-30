@@ -2,6 +2,7 @@
 # It only opens PRs; CI (.github/workflows/ci.yml) still has to pass before
 # any merge.
 #
+# PROJECT-OWNED: bootstrap --update preserves this project's ecosystems.
 # One ecosystem ships with the custom stack:
 #   - github-actions — the action versions pinned in the workflows
 # Add this project's package ecosystem (gomod, cargo, ...) when it takes on

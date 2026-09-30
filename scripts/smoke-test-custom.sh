@@ -4,9 +4,9 @@
 # every gate consumer quiet, fill the runner with a small shell toolchain,
 # prove the gate then goes green, goes red on a defect with the step named,
 # and blocks the Stop hook, and prove `--update` leaves the project-owned
-# runner and CI workflow alone. The profile-transition and migration cases
-# live in scripts/smoke-test.sh; they exercise the shared bootstrap body and
-# do not depend on the stack.
+# runner, CI workflow, and Dependabot ecosystems alone. Covers generic
+# migration and active-runner failures across the gate consumers. Broader
+# profile-transition cases live in scripts/smoke-test.sh.
 #
 # Usage:
 #   scripts/smoke-test-custom.sh
@@ -71,9 +71,9 @@ grep -q 'gate-on-stop.sh' .claude/settings.json || fail "Claude Stop hook not wi
 grep -q 'toolchain.sh ready' .github/workflows/ci.yml || fail "consumer CI does not guard on ready"
 grep -q 'toolchain.sh gate' .github/workflows/ci.yml || fail "consumer CI does not call the runner's gate"
 
-# The runner and the CI workflow are the project's: never recorded as managed.
-! grep -q 'toolchain.sh$\|workflows/ci.yml$' .agentic/scaffold-managed-files \
-  || fail "project-owned runner or CI workflow was recorded as scaffold-managed"
+# Toolchain and ecosystem configuration are never recorded as managed.
+! grep -q 'toolchain.sh$\|workflows/ci.yml$\|dependabot.yml$' .agentic/scaffold-managed-files \
+  || fail "project-owned toolchain or ecosystem config was recorded as scaffold-managed"
 
 git add -A
 git -c user.email=smoke@example.com -c user.name=Smoke commit -qm "scaffold" --no-verify
@@ -83,8 +83,26 @@ bash .agentic/toolchain.sh ready && fail "unfilled runner reports ready"
 lint_err="$(bash .agentic/toolchain.sh lint 2>&1)" && fail "unfilled lint step exited 0"
 [[ "$lint_err" == *"not defined yet"* ]] || fail "unfilled step does not say so; got: $lint_err"
 gate_output="$(bash .agentic/toolchain.sh gate --quiet)" && fail "unfilled gate is green"
-[[ "$gate_output" == "failed: lint format-check typecheck test" ]] \
-  || fail "unfilled quiet gate did not name every step; got: $gate_output"
+[[ "$gate_output" == "failed: configuration" ]] \
+  || fail "unfilled quiet gate did not name configuration; got: $gate_output"
+
+# Execute the shipped CI step and pre-commit entries, not copies of their logic.
+python3 - <<'PY'
+from pathlib import Path
+import re
+ci = Path('.github/workflows/ci.yml').read_text()
+body = re.search(r'- name: Quality gate\n        run: \|\n((?:          .*\n)+)', ci)[1]
+Path('ci-gate.sh').write_text(''.join(line[10:] for line in body.splitlines(True)))
+hooks = Path('.pre-commit-config.yaml').read_text()
+for name in ('format', 'lint'):
+    entry = re.search(rf'- id: toolchain-{name}\n.*\n        entry: (.*)', hooks)[1]
+    Path(f'commit-{name}.sh').write_text(entry + '\n')
+PY
+bash -e ci-gate.sh >"$WORK/ci.out" || fail "unconfigured CI should skip"
+grep -q 'no quality gate ran' "$WORK/ci.out" || fail "CI did not announce skip"
+for step in format lint; do
+  bash "commit-$step.sh" || fail "unconfigured pre-commit $step should skip"
+done
 
 mkdir -p scripts tests
 printf '#!/usr/bin/env bash\necho hello\n' >scripts/hello.sh
@@ -123,12 +141,19 @@ bash .agentic/toolchain.sh ready && fail "half-filled runner reports ready"
 # --- filled runner: the gate is on ---
 fill tc_typecheck=no_tool \
   'tc_test=if (($#)); then bash "$@"; else bash tests/run.sh; fi'
+sed -i.bak 's/^TC_CONFIGURED=0/TC_CONFIGURED=1/' .agentic/toolchain.sh
+rm -f .agentic/toolchain.sh.bak
 bash -n .agentic/toolchain.sh || fail "filled runner is not valid bash"
 bash .agentic/toolchain.sh ready || fail "filled runner is not ready"
 [[ "$(bash .agentic/toolchain.sh source-dirs)" == "scripts" ]] || fail "source-dirs is not scripts"
 bash .agentic/toolchain.sh install || fail "no_tool install step failed"
 bash .agentic/toolchain.sh gate >/dev/null || fail "gate is red on a clean filled project"
 bash .agentic/toolchain.sh test tests/run.sh || fail "focused test target failed"
+bash -e ci-gate.sh >"$WORK/ci.out" || fail "CI failed on a clean active project"
+for step in format lint; do
+  bash "commit-$step.sh" || fail "pre-commit $step failed on a clean active project"
+done
+bash .agentic/hooks/format-after-edit.sh --strict || fail "strict edit hook failed on a clean active project"
 git add -A
 git -c user.email=smoke@example.com -c user.name=Smoke commit -qm "fill the runner" --no-verify
 
@@ -155,8 +180,40 @@ gate_output="$(bash .agentic/toolchain.sh gate --quiet)" && fail "gate stayed gr
 [[ "$gate_output" == "failed: test" ]] || fail "quiet gate did not name only test; got: $gate_output"
 git checkout -q -- scripts/hello.sh
 
+# Active gates must fail across consumers on lost directories or broken runners.
+cp .agentic/toolchain.sh "$WORK/active-toolchain.sh"
+for defect in missing-tests missing-source syntax runtime-error missing-function unfilled-step missing-runner; do
+  case "$defect" in
+    missing-tests) mv tests "$WORK/tests" ;;
+    missing-source) mv scripts "$WORK/scripts" ;;
+    syntax) printf '\nif then\n' >>.agentic/toolchain.sh ;;
+    runtime-error) printf '#!/usr/bin/env bash\nexit 1\n' >.agentic/toolchain.sh ;;
+    missing-function) sed -i.bak '/^tc_lint()/d' .agentic/toolchain.sh ;;
+    unfilled-step) sed -i.bak 's/^tc_lint().*/tc_lint() { unfilled lint; }/' .agentic/toolchain.sh ;;
+    missing-runner) rm .agentic/toolchain.sh ;;
+  esac
+  bash -e ci-gate.sh >"$WORK/ci.out" 2>&1 && fail "CI skipped $defect"
+  for step in format lint; do
+    bash "commit-$step.sh" >"$WORK/commit.out" 2>&1 && fail "pre-commit $step skipped $defect"
+  done
+  bash .agentic/hooks/format-after-edit.sh >"$WORK/edit.out" 2>&1 && fail "edit hook skipped $defect"
+  stop_output="$(printf '{"stop_hook_active":false}\n' | bash .agentic/hooks/gate-on-stop.sh 2>/dev/null)"
+  [[ "$stop_output" == *'"decision":"block"'* ]] || fail "Stop hook skipped $defect"
+  [[ ! -d "$WORK/tests" ]] || mv "$WORK/tests" tests
+  [[ ! -d "$WORK/scripts" ]] || mv "$WORK/scripts" scripts
+  cp "$WORK/active-toolchain.sh" .agentic/toolchain.sh
+  rm -f .agentic/toolchain.sh.bak
+done
+
 # --- --update refreshes managed files and leaves the project's alone ---
 printf '\n# PROJECT CI STEP SURVIVES\n' >>.github/workflows/ci.yml
+cat >>.github/dependabot.yml <<'YAML'
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+YAML
+cp .github/dependabot.yml "$WORK/dependabot.yml"
 cp .agentic/toolchain.sh "$WORK/filled-toolchain.sh"
 printf '\n# local tamper\n' >>.agentic/hooks/branch-check.sh
 bash "$REPO_DIR/custom/bootstrap.sh" --update >/dev/null
@@ -164,12 +221,79 @@ cmp -s .agentic/toolchain.sh "$WORK/filled-toolchain.sh" \
   || fail "--update overwrote the project-owned toolchain runner"
 grep -q 'PROJECT CI STEP SURVIVES' .github/workflows/ci.yml \
   || fail "--update overwrote the project-owned CI workflow"
+cmp -s .github/dependabot.yml "$WORK/dependabot.yml" \
+  || fail "--update overwrote the project-owned Dependabot ecosystems"
 cmp -s .agentic/hooks/branch-check.sh "$REPO_DIR/shared/hooks/branch-check.sh" \
   || fail "--update did not refresh a managed hook"
 bash .agentic/toolchain.sh gate --quiet || fail "gate is red after --update"
+for profile in minimal core; do
+  bash "$REPO_DIR/custom/bootstrap.sh" --update "--$profile" >/dev/null
+  cmp -s .github/dependabot.yml "$WORK/dependabot.yml" \
+    || fail "profile transition overwrote project-owned Dependabot configuration"
+done
 
 # --- close-out gate: silent on a chore branch, as in the other flavors ---
 CLOSEOUT_BRANCH=chore/bump-tools bash .agentic/hooks/closeout-check.sh >/dev/null 2>&1 \
   || fail "closeout gate fired on a chore branch"
+
+# Upgrade generic with both stock and customized client settings. Project
+# contracts remain owned by the project; candidates make reconciliation explicit.
+for variant in stock customized update; do
+  mkdir "$WORK/$variant"
+  cd "$WORK/$variant"
+  git init -q -b main
+  bash "$REPO_DIR/generic/bootstrap.sh" >/dev/null
+  printf '\nProject contract survives migration.\n' >>AGENTS.md
+  cp AGENTS.md "$WORK/contract-$variant.md"
+  printf 'Project workflow survives migration.\n' >WORKFLOW.md
+  if [[ "$variant" == customized ]]; then
+    python3 - <<'PY'
+import json
+from pathlib import Path
+for name in ('.claude/settings.json', '.codex/hooks.json'):
+    p = Path(name)
+    data = json.loads(p.read_text())
+    data['hooks']['Stop'] = [{'hooks': [{'type': 'command', 'command': 'echo local-hook'}]}]
+    p.write_text(json.dumps(data) + '\n')
+PY
+    cp .claude/settings.json "$WORK/local-claude.json"
+    cp .codex/hooks.json "$WORK/local-codex.json"
+    printf '\n# Local preference survives migration.\n' >>.codex/config.toml
+    cp .codex/config.toml "$WORK/local-config.toml"
+  fi
+  migration_args=()
+  [[ "$variant" != update ]] || migration_args+=(--update)
+  bash "$REPO_DIR/custom/bootstrap.sh" "${migration_args[@]}" >"$WORK/migration.out"
+  [[ -f .agentic/scaffold-state ]] || fail "generic state directory was not migrated"
+  [[ -d .agentic/generic-scaffold-state ]] || fail "generic hashes were not preserved"
+  cmp -s AGENTS.md "$WORK/contract-$variant.md" || fail "migration changed project contract"
+  grep -Fxq 'Project workflow survives migration.' WORKFLOW.md || fail "migration overwrote project workflow"
+  must .agentic/generic-migration/AGENTS.md
+  must .agents/skills/spec/SKILL.md
+  if [[ "$variant" != customized ]]; then
+    for config in .claude/settings.json .codex/hooks.json; do
+      grep -q 'gate-on-stop.sh' "$config" || fail "migration left generic hooks in $config"
+    done
+  else
+    cmp -s .claude/settings.json "$WORK/local-claude.json" || fail "migration lost Claude customization"
+    cmp -s .codex/hooks.json "$WORK/local-codex.json" || fail "migration lost Codex customization"
+    cmp -s .codex/config.toml "$WORK/local-config.toml" || fail "migration lost Codex preferences"
+    must .agentic/generic-migration/.codex/config.toml
+    for config in .claude/settings.json .codex/hooks.json; do
+      grep -q 'gate-on-stop.sh' ".agentic/generic-migration/$config" || fail "missing hook merge candidate"
+    done
+    grep -q 'manual reconciliation' "$WORK/migration.out" || fail "migration omitted reconciliation warning"
+  fi
+  bash "$REPO_DIR/custom/bootstrap.sh" --update >"$WORK/update.out"
+  grep -q 'Using recorded bootstrap choices' "$WORK/update.out" || fail "migrated state unreadable"
+  grep -Fxq 'PROFILE=core' .agentic/scaffold-state || fail "migration lost core profile"
+  grep -Fxq 'NO_STOP_GATE=0' .agentic/scaffold-state || fail "migration inherited generic no-Stop behavior"
+  if [[ "$variant" == customized ]]; then
+    cmp -s .claude/settings.json "$WORK/local-claude.json" || fail "update lost migrated customization"
+  fi
+  bash "$REPO_DIR/generic/bootstrap.sh" --update >"$WORK/reverse.out" 2>&1 \
+    && fail "generic bootstrap accepted a migrated stack state"
+  grep -q 'uses a stack flavor' "$WORK/reverse.out" || fail "reverse migration did not explain the correct update command"
+done
 
 echo "custom smoke-test OK"

@@ -51,7 +51,7 @@ conventions rule, and skills. Adding a language means adding
 `stacks/<name>/`, not touching `workflow/`. `stacks/custom/` is the stack
 for a language with no adapter: the same loop, with the runner shipped as a
 project-owned template that keeps every gate quiet until the project fills
-it.
+and activates it.
 
 **Everything in this repo is standards-setting.** A change here
 propagates (by copy, via `bootstrap.sh` or the checklist) to every new
@@ -143,7 +143,9 @@ does the same for the TypeScript flavor and also exercises the Stop hook's
 block decision. `scripts/smoke-test-custom.sh` proves the custom flavor's
 unfilled runner keeps the gates quiet, fills it with a small shell
 toolchain, proves the gate and Stop hook then work, and proves `--update`
-leaves the project-owned runner and CI workflow alone.
+leaves the project-owned runner, CI workflow, and Dependabot config alone.
+It also exercises generic-to-custom migration and ensures broken active
+runners fail CI, edit/Stop hooks, and the custom pre-commit entries.
 `scripts/smoke-test-generic.sh` covers the stack-neutral flavor, including
 the branch warning on a repository with no commits. CI
 (`.github/workflows/ci.yml`) runs the shell checks plus every
@@ -232,7 +234,11 @@ Open:
   does not install
   ([design](docs/multi-stack-scaffold.md#the-custom-stack)). The custom
   flavor has a smoke test and no consumer yet: no live hook trial in
-  either client, and no real project has filled its runner.
+  either client, and no real project has filled its runner. Review fixes
+  require explicit runner activation (`TC_CONFIGURED=1`), reserve ready
+  exit 3 for unconfigured projects, migrate generic state and stock client
+  configs while preserving customizations with merge candidates, and keep
+  Dependabot ecosystems project-owned across updates and profile changes.
 - Add `generic-smoke` and `custom-smoke` to this repo's `protect-main`
   required status checks. The jobs run on every PR but are not required,
   so they can go red without blocking a merge.

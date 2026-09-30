@@ -28,25 +28,27 @@ this one ships a template the project fills.
 | `test [target]` | `unfilled` | the suite, and one focused target when an argument is given |
 | `gate` | works as shipped | nothing; it runs the four checks and names every red step |
 
-**Before the runner is filled**, `ready` fails. The Stop hook, the edit
-hook, the pre-commit gate steps, and CI's quality job all check `ready`
-first, so they stay quiet; CI prints a notice saying no quality gate ran.
+**Before activation**, `TC_CONFIGURED=0` makes `ready` exit 3. The Stop
+hook, edit hook, pre-commit steps, and CI quality job skip only that status.
+CI prints a notice saying no quality gate ran.
 The loop still works: `/spec`, `/plan`, and `/review` need no toolchain,
 which is what a research or feasibility phase uses. `/review-check`
 reports that the gate is not defined.
 
 **Fill it in the first spec that adds code to check.** Set
 `TC_SOURCE_DIRS` and `TC_TEST_DIRS`, replace each `unfilled <step>`, and
-use `no_tool` for a step the stack has no tool for. From then on the Stop
-gate, the hooks, and CI enforce it. A step filled with a command that
+use `no_tool` for a step the stack has no tool for. Then set
+`TC_CONFIGURED=1` and run the gate. Keep it active: missing directories,
+unfinished steps, or a broken runner must fail validation. From then on
+the Stop gate, the hooks, and CI enforce it. A step filled with a command that
 cannot fail defeats the gate; the contract's don't-touch list says so.
 
 Project-owned files, laid down once and never overwritten by `--update`:
-`.gitignore`, `.agentic/toolchain.sh`, and `.github/workflows/ci.yml` (the
-last two are scaffold-managed in the other stacks; here the scaffold
-cannot know the tools or how to install them on a CI runner). There is no
+`.gitignore`, `.agentic/toolchain.sh`, `.github/workflows/ci.yml`, and
+`.github/dependabot.yml` (the last three are scaffold-managed in the other
+stacks; here the scaffold cannot know the tools, CI setup, or ecosystems). There is no
 starter layout and no dependency-audit job; `ci.yml` and `dependabot.yml`
-say where to add the project's ecosystem.
+say where to add the project's ecosystem; updates preserve those additions.
 
 The contract's Stack, How-to-run, and Test-first sections are placeholders
 the founding session fills. "Not chosen yet; spec NNNN chooses it" is a
@@ -60,3 +62,20 @@ When a second project wants the same tools, that is the signal to promote
 the filled runner into a real `stacks/<name>/` adapter
 (`docs/multi-stack-scaffold.md` at the scaffold root lists what one
 supplies).
+
+## Moving from generic
+
+Run the same `custom/bootstrap.sh` command inside the generic project.
+The bootstrap archives generic's hashes in `.agentic/generic-scaffold-state`
+and writes readable stack state. Unchanged generic client configs receive
+the workflow hooks; customized configs stay intact, with merge candidates
+under `.agentic/generic-migration/` and a warning that hooks need manual
+reconciliation. Existing contract, README, and hand-written workflow files
+are preserved, including when the migration is invoked with `--update`.
+Merge the contract candidate from `.agentic/generic-migration/AGENTS.md`
+into the project's filled contract, then restart the clients and verify
+hook loading. Subsequent updates use `custom/bootstrap.sh --update`.
+
+Existing custom consumers must merge this revision's activation switch and
+CI status handling manually: those files are project-owned. Activate an
+already-filled runner with `TC_CONFIGURED=1`; do not reset it to skip errors.

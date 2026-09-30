@@ -109,7 +109,7 @@ Every consumer of the quality gate calls one script instead of naming tools:
 .agentic/toolchain.sh test               # pytest -x --tb=short | vitest run
 .agentic/toolchain.sh test <target>      # one test, for the red-first check
 .agentic/toolchain.sh gate [--quiet]     # lint + format-check + typecheck + test
-.agentic/toolchain.sh ready              # exit 0 once src/ and tests/ exist
+.agentic/toolchain.sh ready              # 0 ready, 3 uninitialized; other statuses are errors
 ```
 
 Consumers of the seam:
@@ -317,19 +317,21 @@ adapter. The same trial showed the founding prompt pointing at
 
 - `stacks/custom/toolchain.sh` has the same subcommands as the other
   runners. Its six step functions call `unfilled <step>`, and
-  `TC_SOURCE_DIRS` is empty. `ready` fails while any step is still
-  `unfilled` or the directories are missing. Every gate consumer already
-  checked `ready` first (Stop hook, edit hook, pre-commit steps), so an
-  unfilled runner is silent with no change to `workflow/hooks/`.
+  `TC_SOURCE_DIRS` is empty. `TC_CONFIGURED=0` makes `ready` exit 3,
+  the only status consumers may skip. Set it to 1 after filling the runner:
+  missing directories, missing functions, and unfinished steps then return
+  an error. Shared hooks, custom pre-commit entries, and custom CI check
+  syntax and distinguish the unconfigured status from a broken runner.
 - The project fills each step with its real command, or `no_tool` for a
   step its stack has no tool for. `no_tool` is the only relaxation of the
   four-subcommand rule, and it is explicit and visible in review.
-- The runner and `.github/workflows/ci.yml` are project-owned here: the
-  scaffold cannot write either. A stack claims a normally managed path by
+- The runner, `.github/workflows/ci.yml`, and `.github/dependabot.yml` are
+  project-owned here: the project supplies its tools and ecosystems. A stack
+  claims a normally managed path by
   listing it in `STACK_PROJECT_FILES`; `sync` in the bootstrap body skips a
-  claimed path, so `--update` cannot overwrite it. The consumer CI's quality
-  job checks `ready` and prints a notice when no gate ran, so a green run on
-  an unfilled runner says what it did not check.
+  claimed path, as does profile pruning, so `--update` cannot overwrite or
+  delete it. The consumer CI's quality job prints a notice only for an
+  explicitly unconfigured runner; a broken active configuration fails.
 - No starter layout, no stack skills, no `rules/` file. Conventions and the
   test-first notes live in `contract-stack.md`, which renders into the
   project-owned part of `AGENTS.md`; the standing-rules block is refreshed
@@ -342,8 +344,10 @@ adapter. The same trial showed the founding prompt pointing at
 
 **Against the yardstick.** `scripts/smoke-test-custom.sh` fills the runner
 with a small shell toolchain and exercises rows 1, 2, and 11, without the
-`--no-stop-gate` negative case. Row 3 (edit hook) is exercised only in the
-quiet, unfilled state. Row 7 (pre-commit) is installed and not exercised.
+`--no-stop-gate` negative case. Row 3 (edit hook) is exercised in the
+unconfigured, active, and broken-configuration states. Row 7's custom format/lint
+entries are executed in those states; installation through pre-commit
+itself remains untested.
 Row 10 is met differently: the conventions are a filled placeholder in the
 contract, checked by the render and adapter validation, not a rule file.
 Rows 5 and 6 are partial by design: the quality job is one guarded `gate`
@@ -351,6 +355,17 @@ step and there is no audit job, because both depend on the project's
 ecosystem. Rows 8, 9, 12, and 13 are the project's to supply. Rows 14 and
 15 are open: no live hook trial in either client, and no real project has
 filled the runner yet.
+
+**Migration and regression coverage.** Generic-to-custom installation
+archives the old hash directory, upgrades unchanged client configs, and
+preserves customized configs with merge candidates. Project contracts and
+hand-written workflow files are preserved; the contract candidate must be
+reconciled before using the loop. The custom smoke test covers stock and
+customized migration, readable state on subsequent updates, Dependabot
+ownership across profile changes, and failures from missing directories,
+missing functions, unfinished active steps, syntax/runtime errors, and a
+missing runner. It executes the shipped CI step and pre-commit entries as
+well as the hooks. These checks do not establish live client integration.
 
 **Relation to real adapters.** `custom/` does not replace Go or Rust
 adapters. When a second project wants the same tools, its filled runner is

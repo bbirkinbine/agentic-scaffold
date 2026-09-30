@@ -36,6 +36,11 @@ if [[ "$DST_DIR" == "$REPO_DIR" || "$DST_DIR" == "$GENERIC_DIR" ]]; then
   exit 1
 fi
 
+if [[ -f "$DST_DIR/.agentic/scaffold-state" ]]; then
+  echo "ERROR: this project uses a stack flavor; run that stack's bootstrap.sh --update." >&2
+  exit 1
+fi
+
 sync_from() {
   local source="$1"
   local target="$2"

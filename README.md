@@ -5,8 +5,8 @@ Codex CLI) works in a disciplined loop: write a spec, plan, write failing
 tests first, implement, then pass a quality gate and an independent review
 before anything is committed. Python and TypeScript get the full loop with
 the tools chosen; any other stack gets the same loop with a gate runner it
-fills in (custom); a repository that will not run the loop gets the
-contract and safety hooks (generic).
+fills in and explicitly activates (custom); a repository that will not run
+the loop gets the contract and safety hooks (generic).
 
 > ## Status
 >

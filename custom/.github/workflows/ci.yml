@@ -32,15 +32,20 @@ jobs:
       # The gate runs through the toolchain runner, the same entry point the
       # Stop hook and /review-check use, so CI and the local gate cannot
       # disagree about which tools run. `gate` reports every red step by
-      # name. Until the runner is filled in, `ready` fails and this job says
+      # name. While TC_CONFIGURED=0, `ready` exits 3 and this job says
       # so instead of failing on commands nobody has chosen yet: a green run
-      # with that notice means no quality gate ran.
+      # with that notice means no quality gate ran. Any other readiness error
+      # fails this job, including missing directories after activation.
       - name: Quality gate
         run: |
-          if ! bash .agentic/toolchain.sh ready; then
-            echo "::notice::.agentic/toolchain.sh is not filled in; no quality gate ran."
+          status=0
+          bash -n .agentic/toolchain.sh || exit 1
+          bash .agentic/toolchain.sh ready || status=$?
+          if [ "$status" = 3 ]; then
+            echo "::notice::.agentic/toolchain.sh is deliberately unconfigured; no quality gate ran."
             exit 0
           fi
+          [ "$status" = 0 ] || exit "$status"
           bash .agentic/toolchain.sh install
           bash .agentic/toolchain.sh gate
 

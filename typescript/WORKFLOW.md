@@ -86,8 +86,9 @@ reasons, the options, and the edge cases.
    — dependencies plus the guard that keeps work off `main`. On the custom
    stack the runner is a template: skip the install, wire the commit guard,
    and fill `.agentic/toolchain.sh` (its header says how) in the first spec
-   that adds code to check. Until then the Stop gate and CI's quality job
-   stay quiet and `/review` is the verification.
+   that adds code to check, then set `TC_CONFIGURED=1` to activate it.
+   Once active, configuration errors fail validation. Until then the Stop
+   gate and CI's quality job stay quiet and `/review` is the verification.
 6. **Issue mode only — create the GitHub issue labels** the issue forms
    use: `feature`, `bug`, `spec-needed`, `triage` (e.g.
    `gh label create spec-needed`). In the default local mode, skip

@@ -41,8 +41,11 @@ If all steps pass:
     `README.md` ("Opt-in subagents" → `performance-reviewer.md`).
 - Do NOT commit. The human commits.
 
-If `.agentic/toolchain.sh ready` fails (the source and test directories do
-not exist yet, or the custom stack's runner is not filled in), say that no
-gate ran and why, and skip the steps that would error. Do not substitute
-commands of your own for an undefined step; `/review` is the verification
-until the runner is filled.
+First syntax-check the runner with `bash -n .agentic/toolchain.sh`, then
+check `.agentic/toolchain.sh ready`. Exit 0 means run the steps above.
+Exit 3 means intentionally unconfigured: say that no gate ran and why,
+and use `/review` to verify the evidence. Any other exit status, a missing
+runner, or a syntax error is a broken gate: report failure and repair it.
+Do not substitute commands of your own for an undefined step. In the custom
+stack, set `TC_CONFIGURED=1` once the steps and directories are defined;
+keep it active thereafter so configuration regressions fail validation.

@@ -35,10 +35,12 @@ usage() {
   sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
+# Exit 3 is the shared consumer protocol for an uninitialized project;
+# other failures must not be interpreted as permission to skip the gate.
 ready() {
   local dir
   for dir in $TC_SOURCE_DIRS $TC_TEST_DIRS; do
-    [[ -d "$dir" ]] || return 1
+    [[ -d "$dir" ]] || return 3
   done
   return 0
 }

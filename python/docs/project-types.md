@@ -43,11 +43,11 @@ flowchart TD
 The **custom flavor** is the full loop for a stack with no adapter: every
 command, role, hook, and rule the Python and TypeScript flavors ship, with
 `.agentic/toolchain.sh` as a project-owned template instead of a filled
-runner. Until the project fills it, `ready` fails and the Stop gate, the
+runner. While `TC_CONFIGURED=0`, `ready` exits 3 and the Stop gate, the
 edit hook, and CI's quality job stay quiet, so a research or feasibility
 phase runs on `/spec`, `/plan`, and `/review` alone. The first spec that
-adds code to check fills the runner, and the mechanical gate is on from
-then. Run:
+adds code to check fills the runner and sets `TC_CONFIGURED=1`. From then
+on, configuration errors fail the gate instead of skipping it. Run:
 
 ```bash
 bash path/to/agentic-scaffold/custom/bootstrap.sh

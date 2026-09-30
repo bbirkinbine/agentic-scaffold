@@ -17,19 +17,19 @@
 #                         after a failure so every red step is reported.
 #                         --quiet swallows tool output and prints only
 #                         "failed: <steps>" on red (nothing on green).
-#   ready                 exit 0 once every step is filled and the source
-#                         and test dirs exist
+#   ready                 exit 0 if active and valid, 3 if deliberately
+#                         unconfigured, 2 if the active configuration is broken
 #   source-dirs           print the source directories the gate guards
 #
 # Custom stack: the scaffold ships no adapter for this project's tools, so
 # this file starts as a template and is PROJECT-OWNED; `bootstrap.sh
 # --update` never overwrites it. Fill the two FILL blocks below when the
-# project has code to check:
+# project has code to check, then set TC_CONFIGURED=1:
 #   - set TC_SOURCE_DIRS and TC_TEST_DIRS;
 #   - replace each `unfilled <step>` with the project's real command;
 #   - write `no_tool` for a step this stack has no tool for, and say so in
 #     AGENTS.md -> "Stack".
-# Until then `ready` fails, which keeps the Stop hook, the edit hook, and
+# Until activation `ready` exits 3, which keeps the Stop hook, the edit hook, and
 # CI's quality job quiet; /review is the verification in that period. Never
 # fill a step with a command that cannot fail in order to turn the gate on.
 
@@ -45,6 +45,7 @@ unfilled() {
 no_tool() { return 0; }
 
 # ---- FILL: the directories the gate guards (space-separated) -------------
+TC_CONFIGURED=0 # Set to 1 when the steps and directories below are defined.
 TC_SOURCE_DIRS="" # e.g. "src" | "rtl" | "cmd internal" | "modules"
 TC_TEST_DIRS=""   # e.g. "tests" | "sim"; empty only when tc_test is no_tool
 
@@ -64,19 +65,33 @@ usage() {
   sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
-# Ready means the gate is defined and has something to guard. A step still
-# calling `unfilled` makes the whole runner not ready, so a half-filled gate
-# never blocks a turn or turns CI red on a step nobody chose yet.
+# Only an explicit unconfigured state permits consumers to skip. Once
+# activated, missing functions/directories and unfinished steps are errors.
 ready() {
-  local step dir
+  local step dir body
+  case "$TC_CONFIGURED" in
+    0) return 3 ;;
+    1) ;;
+    *) echo "toolchain: TC_CONFIGURED must be 0 or 1" >&2; return 2 ;;
+  esac
   for step in install format format_check lint typecheck test; do
-    case "$(declare -f "tc_${step}")" in
-      *unfilled*) return 1 ;;
+    body="$(declare -f "tc_${step}")" || {
+      echo "toolchain: missing tc_${step}" >&2
+      return 2
+    }
+    case "$body" in
+      *unfilled*) echo "toolchain: tc_${step} is unfilled" >&2; return 2 ;;
     esac
   done
-  [[ -n "$TC_SOURCE_DIRS" ]] || return 1
+  [[ -n "$TC_SOURCE_DIRS" ]] || {
+    echo "toolchain: TC_SOURCE_DIRS is empty" >&2
+    return 2
+  }
   for dir in $TC_SOURCE_DIRS $TC_TEST_DIRS; do
-    [[ -d "$dir" ]] || return 1
+    [[ -d "$dir" ]] || {
+      echo "toolchain: missing directory: $dir" >&2
+      return 2
+    }
   done
   return 0
 }
@@ -84,6 +99,8 @@ ready() {
 gate() {
   local quiet=0 step failed=""
   [[ "${1:-}" == "--quiet" ]] && quiet=1
+
+  ready || { echo "failed: configuration"; return 1; }
 
   for step in lint format-check typecheck test; do
     if [[ "$quiet" == 1 ]]; then

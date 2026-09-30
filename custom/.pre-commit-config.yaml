@@ -58,15 +58,15 @@ repos:
 
       # The project's own gate steps, through the toolchain runner so the
       # commit-time check cannot disagree with the Stop hook or CI about
-      # which tools run. The `ready` guard keeps both quiet until the runner
-      # is filled in.
+      # which tools run. Only ready exit 3 (deliberately unconfigured) skips
+      # a check; active configuration and tool failures must fail the commit.
       - id: toolchain-format
         name: format (through .agentic/toolchain.sh)
-        entry: bash -c '.agentic/toolchain.sh ready && .agentic/toolchain.sh format || true'
+        entry: bash -c 'bash -n .agentic/toolchain.sh || exit 1; status=0; bash .agentic/toolchain.sh ready || status=$?; [ "$status" = 3 ] && exit 0; [ "$status" = 0 ] || exit "$status"; bash .agentic/toolchain.sh format'
         language: system
         pass_filenames: false
       - id: toolchain-lint
         name: lint (through .agentic/toolchain.sh)
-        entry: bash -c '! .agentic/toolchain.sh ready || .agentic/toolchain.sh lint'
+        entry: bash -c 'bash -n .agentic/toolchain.sh || exit 1; status=0; bash .agentic/toolchain.sh ready || status=$?; [ "$status" = 3 ] && exit 0; [ "$status" = 0 ] || exit "$status"; bash .agentic/toolchain.sh lint'
         language: system
         pass_filenames: false

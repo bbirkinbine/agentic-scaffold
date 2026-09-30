@@ -77,10 +77,12 @@ hooks, `/review-check`, and CI call its subcommands. Use them too, so a
 tool swap changes one file.
 
 The scaffold has no adapter for this stack, so the runner starts as a
-template and this project owns it. Until every step is filled, `ready`
-fails: the Stop gate, the edit hook, and CI's quality job stay quiet,
+template and this project owns it. While `TC_CONFIGURED=0`, `ready`
+exits 3: the Stop gate, the edit hook, and CI's quality job stay quiet,
 `/review-check` reports that the gate is not defined, and `/review` is the
-verification. Fill the runner in the first spec that adds code to check.
+verification. Fill the runner in the first spec that adds code to check,
+then set `TC_CONFIGURED=1`. Once active, missing directories, unfinished steps, and
+runner errors fail validation; keep the gate active when repairing them.
 Never fill a step with a command that cannot fail.
 
 - Install: `.agentic/toolchain.sh install`

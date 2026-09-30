@@ -244,6 +244,28 @@ PREVIOUS_ADVANCED_DOCS=0
 CLAUDE_SETTINGS_HASH=""
 CODEX_CONFIG_HASH=""
 CODEX_HOOKS_HASH=""
+GENERIC_MIGRATION=0
+MIGRATION_PENDING=0
+# Generic used a directory of hashes at the path stack bootstraps use for
+# one state file. Detect it before profile inference or any project writes.
+if [[ -d "$STATE_FILE" ]]; then
+  if [[ "$STACK" != custom ]] ||
+    [[ ! -f "$STATE_FILE/.claude__settings.json.sha256" &&
+      ! -f "$STATE_FILE/.codex__hooks.json.sha256" &&
+      ! -f "$STATE_FILE/.codex__config.toml.sha256" ]]; then
+    echo "ERROR: state directory is not a supported generic-to-custom migration." >&2
+    exit 1
+  fi
+  if [[ -e "$DST_DIR/.agentic/generic-scaffold-state" ||
+    -e "$DST_DIR/.agentic/generic-migration" ]]; then
+    echo "ERROR: generic migration backup/candidates already exist; reconcile them before retrying." >&2
+    exit 1
+  fi
+  GENERIC_MIGRATION=1
+  # This is an install of the workflow, even when invoked with --update.
+  # Existing hand-written workflow files are not managed by the new stack.
+  MODE=install
+fi
 
 read_bootstrap_state() {
   local key value
@@ -529,7 +551,7 @@ sync_protected_config() {
   fi
 
   current_hash="$(content_hash "$dst")"
-  if [[ "$MODE" == install ]]; then
+  if [[ "$MODE" == install && "$GENERIC_MIGRATION" == 0 ]]; then
     if matches_known_scaffold_config "$rel" "$dst"; then
       printf -v "$hash_var" '%s' "$current_hash"
       if cmp -s "$dst" "$src"; then
@@ -562,7 +584,39 @@ sync_protected_config() {
     printf -v "$hash_var" 'custom:%s' "$current_hash"
     echo "  WARNING: preserving customized client config: $rel"
     echo "           Merge scaffold changes manually; its recorded choices still persist."
+    if [[ "$GENERIC_MIGRATION" == 1 ]]; then
+      mkdir -p "$DST_DIR/.agentic/generic-migration/$(dirname "$rel")"
+      cp "$src" "$DST_DIR/.agentic/generic-migration/$rel"
+      MIGRATION_PENDING=1
+    fi
   fi
+}
+
+migrate_generic_state() {
+  local rel hash_var recorded generic_source
+  [[ "$GENERIC_MIGRATION" == 1 ]] || return 0
+  for rel in .claude/settings.json .codex/hooks.json .codex/config.toml; do
+    case "$rel" in
+      .claude/settings.json) hash_var=CLAUDE_SETTINGS_HASH; generic_source="$REPO_DIR/generic/$rel" ;;
+      .codex/hooks.json) hash_var=CODEX_HOOKS_HASH; generic_source="$REPO_DIR/generic/$rel" ;;
+      .codex/config.toml) hash_var=CODEX_CONFIG_HASH; generic_source="$REPO_DIR/shared/codex/config.toml" ;;
+    esac
+    recorded=""
+    [[ ! -f "$STATE_FILE/${rel//\//__}.sha256" ]] || recorded="$(cat "$STATE_FILE/${rel//\//__}.sha256")"
+    if [[ "$recorded" =~ ^[a-fA-F0-9]{64}$ ]]; then
+      printf -v "$hash_var" 'sha256:%s' "$recorded"
+    elif cmp -s "$DST_DIR/$rel" "$generic_source"; then
+      printf -v "$hash_var" '%s' "$(content_hash "$generic_source")"
+    else
+      printf -v "$hash_var" '%s' 'custom:unknown'
+    fi
+  done
+  mv "$STATE_FILE" "$DST_DIR/.agentic/generic-scaffold-state"
+  mkdir -p "$DST_DIR/.agentic/generic-migration"
+  cp "$SRC_DIR/AGENTS.md" "$DST_DIR/.agentic/generic-migration/AGENTS.md"
+  echo "  migrated: generic state (original hashes retained in .agentic/generic-scaffold-state)"
+  echo "  manual reconciliation: merge the custom contract from .agentic/generic-migration/AGENTS.md"
+  echo "    Keep the project's filled sections; adopt the workflow and runner instructions."
 }
 
 client_config_references_stop_gate() {
@@ -576,6 +630,7 @@ prune_managed_file() {
   local recorded_hash current_hash
   local safe_to_remove=0
 
+  stack_owns "$rel" && return 0
   [[ -e "$dst" ]] || return 0
   recorded_hash="$(previous_managed_hash "$rel")"
   current_hash="$(content_hash "$dst")"
@@ -961,6 +1016,7 @@ render_strict_settings "$RUNTIME_DIR/settings.strict.json"
 render_no_stop_settings "$RUNTIME_DIR/settings.no-stop.json"
 
 # --- project-owned: copied once, never overwritten ---
+migrate_generic_state
 # Preserve a pre-existing Claude-only project contract before the canonical
 # AGENTS.md copy step. sync_claude_import() replaces the duplicate with the
 # supported one-line Claude import after all managed files are installed.
@@ -1254,6 +1310,15 @@ refresh_managed_contract_rules
 write_bootstrap_state
 
 echo
+if [[ "$GENERIC_MIGRATION" == 1 ]]; then
+  echo "Generic contract preserved: merge .agentic/generic-migration/AGENTS.md before using the loop."
+fi
+if [[ "$MIGRATION_PENDING" == 1 ]]; then
+  echo "WARNING: client configuration needs manual reconciliation; migration is not fully active."
+  echo "Merge the candidates under .agentic/generic-migration into the preserved client configs."
+  echo "Then restart both clients and verify the workflow hooks loaded."
+  exit 0
+fi
 
 if [[ "$MODE" == update ]]; then
   echo "Update complete. Review what changed:"

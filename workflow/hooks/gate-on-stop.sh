@@ -45,10 +45,20 @@ if printf '%s' "$INPUT" | grep -q '"stop_hook_active"[[:space:]]*:[[:space:]]*tr
 fi
 
 TOOLCHAIN=.agentic/toolchain.sh
-[ -x "$TOOLCHAIN" ] || exit 0
-
-# Only meaningful in an initialized project.
-bash "$TOOLCHAIN" ready || exit 0
+# Exit 3 is deliberately uninitialized; any other readiness failure is a
+# broken gate, not permission to skip validation. Check syntax separately
+# so a malformed runner cannot masquerade as the uninitialized status.
+status=0
+if bash -n "$TOOLCHAIN"; then
+  bash "$TOOLCHAIN" ready || status=$?
+else
+  status=2
+fi
+[[ "$status" == 3 ]] && exit 0
+if [[ "$status" != 0 ]]; then
+  printf '%s\n' '{"decision":"block","reason":"Quality gate configuration is broken. Repair .agentic/toolchain.sh and its configured directories, then re-run validation."}'
+  exit 0
+fi
 
 # 2. change guard — modified OR untracked files under the source dirs both
 # count. The runner says which dirs those are (src/ for Python; Go would

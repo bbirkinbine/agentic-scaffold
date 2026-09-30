@@ -8,7 +8,12 @@ it when the stack rubric in `workflow/docs/project-types.md` lands here.
 A project that wants the loop but has no `stacks/<name>/` adapter (Go,
 Rust, FPGA/HDL, infrastructure code) takes the **custom** flavor instead:
 `custom/bootstrap.sh` installs the whole workflow with a gate runner the
-project fills in. This flavor installs no `WORKFLOW.md`, no spec
+project fills in. Running it in an existing generic project migrates the
+state and unchanged client configs. Customized configs and the project
+contract are preserved with merge candidates under
+`.agentic/generic-migration/`; reconcile those, restart the clients, and
+verify hook loading before using the loop. After migration, update with
+`custom/bootstrap.sh --update`. This flavor installs no `WORKFLOW.md`, no spec
 convention, and no workflow commands; do not hand-write them here.
 
 ```bash

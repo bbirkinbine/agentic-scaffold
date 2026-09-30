@@ -11,8 +11,11 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 0
 
 TOOLCHAIN=.agentic/toolchain.sh
-[ -x "$TOOLCHAIN" ] || exit 0
-bash "$TOOLCHAIN" ready || exit 0
+bash -n "$TOOLCHAIN" || exit 1
+status=0
+bash "$TOOLCHAIN" ready || status=$?
+[[ "$status" == 3 ]] && exit 0
+[[ "$status" == 0 ]] || exit "$status"
 
 bash "$TOOLCHAIN" format
 

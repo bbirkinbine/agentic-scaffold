@@ -93,6 +93,7 @@ carries the latest conventions and is updated first.
       ```
       Custom stack: skip the first line until `.agentic/toolchain.sh` is
       filled in, which happens in the first spec that adds code to check.
+      Then set `TC_CONFIGURED=1` and prove the gate goes red on a defect.
 - [ ] Write your first spec: `docs/specs/0001-<feature>.md`. See
       `docs/specs/README.md` (copied by bootstrap) for the convention.
 - [ ] Fill in `docs/agent-handoff.md` (dropped by bootstrap as a
