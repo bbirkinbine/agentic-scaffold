@@ -215,33 +215,19 @@ check, agent-configuration re-runs) are settled there.
 
 Open:
 
-- The multi-stack split shipped on `multi-language-scaffold` (2026-09-26):
-  `workflow/` + `stacks/<name>/` rendered into `python/` and `typescript/`,
+- The multi-stack split is on `main` (2026-09-30): `workflow/` +
+  `stacks/<name>/` rendered into `python/`, `typescript/`, and `custom/`,
   one `.agentic/toolchain.sh` gate runner per stack, the `--core` profile
-  with `--python-core` as an alias, and a TypeScript smoke test in CI.
+  with `--python-core` as an alias, and smoke tests for every flavor in CI.
   [Design](docs/multi-stack-scaffold.md), [evidence](docs/multi-stack-research.md).
-  Still open from its maturity yardstick: live hook trials of the TypeScript
-  flavor in both clients (the Codex acceptance scripts still target the
-  Python flavor), and validation in a real TypeScript consumer project. Go
-  and Rust are designed for in the runner seam, not built.
-- The branch's first real-project trial (2026-09-29, an FPGA feasibility
-  project) took the generic flavor, so it exercised the founding interview
-  and the rubric but not a rendered stack. Its feedback is applied on the
-  branch (2026-09-30): the branch warning now fires on a repository with no
-  commits, the contracts state "treat as public" as a rule instead of
-  asserting visibility, tool logs are named as a path-leak surface, and the
-  custom stack exists because that project hand-built the loop generic
-  does not install
-  ([design](docs/multi-stack-scaffold.md#the-custom-stack)). The custom
-  flavor has a smoke test and no consumer yet: no live hook trial in
-  either client, and no real project has filled its runner. Review fixes
-  require explicit runner activation (`TC_CONFIGURED=1`), reserve ready
-  exit 3 for unconfigured projects, migrate generic state and stock client
-  configs while preserving customizations with merge candidates, and keep
-  Dependabot ecosystems project-owned across updates and profile changes.
-- Add `generic-smoke` and `custom-smoke` to this repo's `protect-main`
-  required status checks. The jobs run on every PR but are not required,
-  so they can go red without blocking a merge.
+  It merged without a rendered-stack field trial; the first real project
+  (2026-09-29, FPGA feasibility) took the generic flavor, and its feedback
+  produced the custom stack. Still open, to be closed as projects adopt the
+  flavors rather than as merge blockers: live hook trials of the TypeScript
+  and custom flavors in both clients (the Codex acceptance scripts still
+  target the Python flavor), a real TypeScript consumer project, and a real
+  project that fills the custom runner. Go and Rust are designed for in the
+  runner seam, not built.
 - Revisit local execution with Codex CLI as orchestrator and a pinned local
   model as bounded coder. Keep one canonical scaffold: send the local model a
   self-contained `/delegate` packet, deny direct worktree/tool access, and add

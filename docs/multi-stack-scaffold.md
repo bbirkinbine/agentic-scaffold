@@ -1,14 +1,15 @@
 # Multi-stack scaffold: one workflow, per-stack toolchains
 
-**Status:** implemented through step 5 on `multi-language-scaffold`
-(2026-09-26); the layout below is now the repository's. Two yardstick rows
-remain open: live hook trials of the TypeScript flavor in both clients, and
-validation in a real TypeScript consumer project. The evidence behind the
-direction, and what could not be verified, is in
-[`multi-stack-research.md`](multi-stack-research.md).
+**Status:** implemented through step 5 (2026-09-26) and merged to `main`
+(2026-09-30); the layout below is now the repository's. Open yardstick rows,
+left for real projects to close rather than held as merge blockers: live
+hook trials of the TypeScript and custom flavors in both clients, validation
+in a real TypeScript consumer project, and a real project that fills the
+custom runner. The evidence behind the direction, and what could not be
+verified, is in [`multi-stack-research.md`](multi-stack-research.md).
 
-A third stack, `stacks/custom/`, was added on 2026-09-30 after the branch's
-first real-project trial; see [The custom stack](#the-custom-stack). It
+A third stack, `stacks/custom/`, was added on 2026-09-30 after the first
+real-project trial; see [The custom stack](#the-custom-stack). It
 revises two statements below that routed every adapter-less repository to
 `generic/`; each is marked where it stands.
 
