@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Static validation for the shared workflow sources and rendered Codex surface.
+# Static validation for the shared workflow sources and every rendered stack
+# flavor. Runs the byte-level checks per stack (python/, typescript/, ...)
+# and the hook-matrix and bootstrap-migration fixtures on the Python flavor.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_DIR="$REPO_DIR/python"
 SHARED_DIR="$REPO_DIR/shared"
+WORKFLOW_DIR="$REPO_DIR/workflow"
+STACKS_DIR="$REPO_DIR/stacks"
 
 fail() {
   echo "CODEX ADAPTER FAIL: $*" >&2
@@ -21,28 +25,75 @@ assert_agents_import() {
 # The scaffold repository follows the same model as generated projects:
 # AGENTS.md is the canonical contract and CLAUDE.md is the one-line import.
 assert_agents_import "$REPO_DIR/CLAUDE.md"
-assert_agents_import "$PYTHON_DIR/CLAUDE.md"
 assert_agents_import "$REPO_DIR/CLAUDE.md.template"
-assert_agents_import "$PYTHON_DIR/subdir-CLAUDE.md.example"
+assert_agents_import "$WORKFLOW_DIR/subdir-CLAUDE.md.example"
 cmp -s "$REPO_DIR/generic/project-contract.md" \
   "$REPO_DIR/AGENTS.md.template" \
   || fail "stale generic contract templates"
-[[ -s "$PYTHON_DIR/subdir-AGENTS.md.example" ]] \
+[[ -s "$WORKFLOW_DIR/subdir-AGENTS.md.example" ]] \
   || fail "nested AGENTS.md example is empty"
 
-for source in "$SHARED_DIR"/hooks/*.sh; do
-  name="$(basename "$source")"
-  cmp -s "$source" "$PYTHON_DIR/.agentic/hooks/$name" \
-    || fail "python/.agentic/hooks/$name differs from shared/hooks/$name.
-    It is a rendered copy, so an edit made there is lost on the next render.
-    Move the change into shared/hooks/$name and re-run
-    scripts/render-client-surfaces.sh."
+# Every stack directory must have a rendered flavor, and every rendered
+# flavor a stack; the renderer replaces flavors whole, so a mismatch means
+# it was not run.
+for stack_dir in "$STACKS_DIR"/*/; do
+  stack="$(basename "$stack_dir")"
+  [[ -f "$REPO_DIR/$stack/stack.sh" ]] \
+    || fail "stacks/$stack has no rendered $stack/ flavor; run scripts/render-client-surfaces.sh"
+  for required in toolchain.sh stack.sh contract-stack.md contract-dont-touch.md README.md; do
+    [[ -f "$stack_dir/$required" ]] || fail "stacks/$stack is missing $required"
+  done
+  # starter/ is optional: a stack whose runner is a template (custom) has
+  # no source tree to seed.
+  [[ -d "$stack_dir/project" ]] || fail "stacks/$stack is missing project/"
 done
-cmp -s "$SHARED_DIR/codex/config.toml" "$PYTHON_DIR/.codex/config.toml" \
-  || fail "stale shared Codex config adapter"
-cmp -s "$SHARED_DIR/codex/safety.rules" \
-  "$PYTHON_DIR/.codex/rules/safety.rules" \
-  || fail "stale shared Codex rules adapter"
+
+# Byte-identical rendered copies, per stack.
+for stack_dir in "$STACKS_DIR"/*/; do
+  stack="$(basename "$stack_dir")"
+  flavor="$REPO_DIR/$stack"
+  assert_agents_import "$flavor/CLAUDE.md"
+  for source in "$SHARED_DIR"/hooks/*.sh "$WORKFLOW_DIR"/hooks/*.sh; do
+    name="$(basename "$source")"
+    cmp -s "$source" "$flavor/.agentic/hooks/$name" \
+      || fail "$stack/.agentic/hooks/$name differs from its source $source.
+    It is a rendered copy, so an edit made there is lost on the next render.
+    Move the change into the source and re-run scripts/render-client-surfaces.sh."
+  done
+  cmp -s "$stack_dir/toolchain.sh" "$flavor/.agentic/toolchain.sh" \
+    || fail "stale rendered toolchain runner: $stack/.agentic/toolchain.sh"
+  [[ -x "$flavor/.agentic/toolchain.sh" ]] \
+    || fail "rendered toolchain runner is not executable: $stack"
+  cmp -s "$SHARED_DIR/codex/config.toml" "$flavor/.codex/config.toml" \
+    || fail "stale shared Codex config adapter: $stack"
+  cmp -s "$SHARED_DIR/codex/safety.rules" "$flavor/.codex/rules/safety.rules" \
+    || fail "stale shared Codex rules adapter: $stack"
+  cmp -s "$WORKFLOW_DIR/client/claude/settings.json" "$flavor/.claude/settings.json" \
+    || fail "stale Claude settings adapter: $stack"
+  for variant in hooks.json hooks.strict.json hooks.no-stop.json; do
+    cmp -s "$WORKFLOW_DIR/client/codex/$variant" "$flavor/.codex/$variant" \
+      || fail "stale Codex hook adapter: $stack/.codex/$variant"
+  done
+  for entry in WORKFLOW.md README.md.template subdir-AGENTS.md.example subdir-CLAUDE.md.example; do
+    cmp -s "$WORKFLOW_DIR/$entry" "$flavor/$entry" || fail "stale rendered $stack/$entry"
+  done
+  diff -rq "$WORKFLOW_DIR/docs" "$flavor/docs" >/dev/null \
+    || fail "stale rendered docs in $stack/docs"
+  if [[ -d "$stack_dir/starter" ]]; then
+    diff -rq "$stack_dir/starter" "$flavor/starter" >/dev/null \
+      || fail "stale rendered starter in $stack/starter"
+  else
+    [[ ! -e "$flavor/starter" ]] || fail "orphaned rendered starter in $stack/starter"
+  fi
+  cmp -s "$stack_dir/stack.sh" "$flavor/stack.sh" || fail "stale rendered $stack/stack.sh"
+  cmp -s "$stack_dir/README.md" "$flavor/README.md" || fail "stale rendered $stack/README.md"
+  while IFS= read -r project_file; do
+    rel="${project_file#"$stack_dir/project/"}"
+    cmp -s "$project_file" "$flavor/$rel" || fail "stale rendered project file: $stack/$rel"
+  done < <(find "$stack_dir/project" -type f)
+  grep -q -- "--stack $stack " "$flavor/bootstrap.sh" \
+    || fail "$stack/bootstrap.sh is not the rendered wrapper for its stack"
+done
 
 contract_bytes="$(wc -c < "$PYTHON_DIR/AGENTS.md" | tr -d ' ')"
 default_contract_limit=32768
@@ -77,23 +128,28 @@ representative_chain_bytes=$((contract_bytes + nested_contract_bytes + 2))
 ((representative_chain_bytes < default_contract_limit)) \
   || fail "Python root+nested instruction chain is ${representative_chain_bytes} bytes; default limit is ${default_contract_limit}"
 
-for source in "$PYTHON_DIR"/workflow/commands/*.md; do
-  name="$(basename "$source" .md)"
-  cmp -s "$source" "$PYTHON_DIR/.claude/commands/$name.md" \
-    || fail "stale Claude command adapter: $name"
-  [[ -f "$PYTHON_DIR/.agents/skills/$name/SKILL.md" ]] \
-    || fail "missing Codex workflow skill: $name"
+for stack_dir in "$STACKS_DIR"/*/; do
+  stack="$(basename "$stack_dir")"
+  flavor="$REPO_DIR/$stack"
+  for source in "$WORKFLOW_DIR"/commands/*.md; do
+    name="$(basename "$source" .md)"
+    cmp -s "$source" "$flavor/.claude/commands/$name.md" \
+      || fail "stale Claude command adapter: $stack/$name"
+    [[ -f "$flavor/.agents/skills/$name/SKILL.md" ]] \
+      || fail "missing Codex workflow skill: $stack/$name"
+  done
+  for source in "$stack_dir"/skills/*/SKILL.md; do
+    [[ -f "$source" ]] || continue
+    name="$(basename "$(dirname "$source")")"
+    cmp -s "$source" "$flavor/.claude/skills/$name/SKILL.md" \
+      || fail "stale Claude skill adapter: $stack/$name"
+    cmp -s "$source" "$flavor/.agents/skills/$name/SKILL.md" \
+      || fail "stale Codex skill adapter: $stack/$name"
+  done
 done
 
-for source in "$PYTHON_DIR"/workflow/skills/*/SKILL.md; do
-  name="$(basename "$(dirname "$source")")"
-  cmp -s "$source" "$PYTHON_DIR/.claude/skills/$name/SKILL.md" \
-    || fail "stale Claude skill adapter: $name"
-  cmp -s "$source" "$PYTHON_DIR/.agents/skills/$name/SKILL.md" \
-    || fail "stale Codex skill adapter: $name"
-done
-
-python3 - "$PYTHON_DIR" <<'PY'
+for stack_dir in "$STACKS_DIR"/*/; do
+python3 - "$REPO_DIR/$(basename "$stack_dir")" "$stack_dir" <<'PY'
 import json
 import os
 import re
@@ -103,9 +159,11 @@ from collections import Counter
 from pathlib import Path
 
 root = Path(sys.argv[1])
+stack_dir = Path(sys.argv[2])
 repo = root.parent
 generic = repo / "generic"
 shared = repo / "shared"
+workflow = repo / "workflow"
 
 
 def fail(message: str) -> None:
@@ -155,8 +213,17 @@ def assert_inventory(label: str, expected: set[str], actual: set[str]) -> None:
 # Reproduce the renderer's complete canonical contract, including every byte
 # of every standing rule. Heading-only checks allow Claude and Codex policy to
 # diverge while looking structurally complete.
+contract_source = (workflow / "project-contract.md").read_text()
+contract_source = contract_source.replace(
+    "<!-- agentic-scaffold:stack -->\n",
+    (stack_dir / "contract-stack.md").read_text(),
+)
+contract_source = contract_source.replace(
+    "- <!-- agentic-scaffold:stack-dont-touch -->\n",
+    (stack_dir / "contract-dont-touch.md").read_text(),
+)
 expected_contract = [
-    (root / "workflow" / "project-contract.md").read_text(),
+    contract_source,
     "\n<!-- agentic-scaffold:standing-rules:start -->\n",
     "\n## Standing rules\n\n",
     "These rules are authoritative for every client. They live here once\n",
@@ -165,7 +232,10 @@ expected_contract = [
     "`bootstrap.sh --update` refreshes it while preserving content outside\n",
     "the markers.\n",
 ]
-for source in sorted((root / "workflow" / "rules").glob("*.md")):
+rule_sources = list((workflow / "rules").glob("*.md")) + list(
+    (stack_dir / "rules").glob("*.md")
+)
+for source in sorted(rule_sources, key=lambda path: path.name):
     expected_contract.extend(["\n---\n\n", markdown_source(source)])
 expected_contract.append("\n<!-- agentic-scaffold:standing-rules:end -->\n")
 if root.joinpath("AGENTS.md").read_text() != "".join(expected_contract):
@@ -179,11 +249,11 @@ if rule_adapters:
     )
 
 command_sources = {
-    path.stem for path in (root / "workflow" / "commands").glob("*.md")
+    path.stem for path in (workflow / "commands").glob("*.md")
 }
 skill_sources = {
     path.parent.name
-    for path in (root / "workflow" / "skills").glob("*/SKILL.md")
+    for path in (stack_dir / "skills").glob("*/SKILL.md")
 }
 overlap = command_sources & skill_sources
 if overlap:
@@ -211,7 +281,7 @@ assert_inventory(
     },
 )
 
-for source in sorted((root / "workflow" / "commands").glob("*.md")):
+for source in sorted((workflow / "commands").glob("*.md")):
     metadata, body = split_frontmatter(source)
     name = source.stem
     target = root / ".agents" / "skills" / name / "SKILL.md"
@@ -223,7 +293,7 @@ for source in sorted((root / "workflow" / "commands").glob("*.md")):
     if not skill_body.rstrip("\n").endswith(body.rstrip("\n")):
         fail(f"stale workflow skill body: {name}")
 
-for source in sorted((root / "workflow" / "skills").glob("*/SKILL.md")):
+for source in sorted((stack_dir / "skills").glob("*/SKILL.md")):
     name = source.parent.name
     for target in (
         root / ".claude" / "skills" / name / "SKILL.md",
@@ -275,8 +345,8 @@ def validate_roles(source_dir: Path, optional: bool) -> None:
             fail(f"stale Codex {label} prompt: {name}")
 
 
-validate_roles(root / "workflow" / "roles", optional=False)
-validate_roles(root / "workflow" / "roles" / "optional", optional=True)
+validate_roles(workflow / "roles", optional=False)
+validate_roles(workflow / "roles" / "optional", optional=True)
 
 for path in sorted((root / ".codex").rglob("*.toml")):
     tomllib.loads(path.read_text())
@@ -470,6 +540,7 @@ assert_hook_matrix(
     generic_default,
 )
 PY
+done
 
 bash "$REPO_DIR/scripts/validate-safety-guardrails.sh"
 
@@ -485,6 +556,7 @@ cp "$PYTHON_DIR/.agentic/hooks/specs-status.sh" \
   "$fixture_project/.agentic/hooks/specs-status.sh"
 cp "$PYTHON_DIR/.agentic/hooks/gate-on-stop.sh" \
   "$fixture_project/.agentic/hooks/gate-on-stop.sh"
+cp "$PYTHON_DIR/.agentic/toolchain.sh" "$fixture_project/.agentic/toolchain.sh"
 printf '%s\n' \
   '# Specs' \
   '<!-- specs-status:start -->' \

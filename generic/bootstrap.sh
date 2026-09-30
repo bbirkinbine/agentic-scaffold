@@ -36,6 +36,11 @@ if [[ "$DST_DIR" == "$REPO_DIR" || "$DST_DIR" == "$GENERIC_DIR" ]]; then
   exit 1
 fi
 
+if [[ -f "$DST_DIR/.agentic/scaffold-state" ]]; then
+  echo "ERROR: this project uses a stack flavor; run that stack's bootstrap.sh --update." >&2
+  exit 1
+fi
+
 sync_from() {
   local source="$1"
   local target="$2"
@@ -239,4 +244,7 @@ else
   echo "Done. Fill every {{PLACEHOLDER}} in AGENTS.md and README.md."
   echo "CLAUDE.md imports AGENTS.md; keep shared policy in AGENTS.md."
   echo "For Codex, trust the project .codex layer and review hooks with /hooks."
+  echo "Day-zero steps: $GENERIC_DIR/README.md -> After bootstrap."
+  echo "This flavor installs no spec/plan/review loop; for that, run"
+  echo "  bash $(dirname "$GENERIC_DIR")/custom/bootstrap.sh"
 fi

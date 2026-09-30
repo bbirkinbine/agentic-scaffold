@@ -1,0 +1,1 @@
+- `.agentic/toolchain.sh` once filled — it defines this project's gate. Change a step only with the human's approval, never to turn a red gate green

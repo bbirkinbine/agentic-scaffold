@@ -17,19 +17,49 @@ carries the latest conventions and is updated first.
       either the global got overridden or a per-repo `.git/config` is
       shadowing it.
 
-### If this is a Python project — use the agentic-workflow scaffolding
+- [ ] **Start the founding conversation.** Open Claude Code or Codex in
+      the empty repo and describe the project, however roughly; the agent
+      interviews you with the product-spec questions when the description
+      is thin, applies the rubric in the scaffold's
+      `workflow/docs/project-types.md` → "Choosing the stack from a project
+      description", states the deciding question, runs the matching
+      bootstrap, writes the interview answers as `docs/specs/0000-product.md`,
+      and pre-fills the templates. Everything below
+      is what that session does, kept here so you can check its work or do
+      it by hand. The prompt:
+      ```
+      The agentic-scaffold checkout is at ~/src/agentic-scaffold. I want to
+      build: <what it does, where it runs, who uses it, what it talks to; a rough
+      idea is fine>. If that is too thin to decide anything, interview me first
+      using workflow/commands/product-spec.md from the checkout, one question at
+      a time. Then apply the stack rubric in workflow/docs/project-types.md,
+      section 1, asking me rather than guessing where my answers do not decide
+      it; tell me the deciding question; run that flavor's bootstrap.sh here;
+      write the interview answers to docs/specs/0000-product.md; fill the
+      placeholders from what I told you, writing "not decided yet" where that
+      is the truth instead of guessing; and walk me through day zero
+      (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
+      generic flavor).
+      ```
 
-- [ ] Run the Python bootstrap:
+### If the project will run the loop — use the agentic-workflow scaffolding
+
+- [ ] Run the stack's bootstrap (the founding session normally does this).
+      Python or TypeScript when the project is one; custom for any other
+      stack (Go, Rust, FPGA/HDL, infra), where the gate runner is a
+      template the project fills:
       ```
       bash path/to/agentic-scaffold/python/bootstrap.sh
+      bash path/to/agentic-scaffold/typescript/bootstrap.sh
+      bash path/to/agentic-scaffold/custom/bootstrap.sh
       ```
       This installs canonical `AGENTS.md` plus a `CLAUDE.md` import,
-      `WORKFLOW.md`, Python tooling, shared hooks under `.agentic/`,
-      Claude commands/agents under `.claude/`, Codex skills under
-      `.agents/`, Codex project configuration/agents/rules under
-      `.codex/`, and the specs/CI surface. Optional specialist agents
-      remain opt-in; see `python/README.md`. Existing project-owned files
-      are preserved.
+      `WORKFLOW.md`, the stack's tool configs and the `.agentic/toolchain.sh`
+      gate runner, shared hooks under `.agentic/`, Claude commands/agents
+      under `.claude/`, Codex skills under `.agents/`, Codex project
+      configuration/agents/rules under `.codex/`, and the specs/CI surface.
+      Optional specialist agents remain opt-in; see the flavor's
+      `README.md`. Existing project-owned files are preserved.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied
       into the new project's root as `WORKFLOW.md`) — the human-facing
       walkthrough: day-zero setup and the per-feature loop, step by step.
@@ -51,16 +81,19 @@ carries the latest conventions and is updated first.
       short files more successful — file length itself had no significant
       effect on success. The rule is ownership, not authorship (see
       `python/README.md` → "Don't" for the study and the numbers).
-      Mechanical fills like the project name in `pyproject.toml` are fine
+      Mechanical fills like the project name in the manifest are fine
       to delegate. Fill the bootstrapped `README.md` too, preserving its
       Acknowledgements section.
 - [ ] If using Codex, start it from the repository root, trust the project
       `.codex/` layer, and review the checked-in hooks with `/hooks`.
 - [ ] Install dev environment:
       ```
-      uv sync
-      uv run pre-commit install
+      .agentic/toolchain.sh install
+      pre-commit install        # the bootstrap prints the stack's install line
       ```
+      Custom stack: skip the first line until `.agentic/toolchain.sh` is
+      filled in, which happens in the first spec that adds code to check.
+      Then set `TC_CONFIGURED=1` and prove the gate goes red on a defect.
 - [ ] Write your first spec: `docs/specs/0001-<feature>.md`. See
       `docs/specs/README.md` (copied by bootstrap) for the convention.
 - [ ] Fill in `docs/agent-handoff.md` (dropped by bootstrap as a
@@ -72,7 +105,7 @@ carries the latest conventions and is updated first.
       contract's "Open work / current state" here — the handoff points back
       to it.
 
-### If this is a non-Python repo (infra, FPGA, shell, etc.)
+### If the repo will not run the loop (dotfiles, notes, a one-script utility)
 
 - [ ] Run the generic bootstrap:
       ```
@@ -84,11 +117,12 @@ carries the latest conventions and is updated first.
 - [ ] Replace every `{{PLACEHOLDER}}` in `AGENTS.md` and `README.md`;
       leave `CLAUDE.md` as `@AGENTS.md`. Replace the sample validation block with
       this repository's real commands; do not leave checks for a stack the
-      repository does not use. Preserve the README Acknowledgements.
+      repository does not use. Preserve the README Acknowledgements. The
+      full day-zero list is `generic/README.md` → "After bootstrap".
 - [ ] If using Codex, trust the project `.codex/` layer and review hooks
       with `/hooks`.
 
-### Both flavors
+### Every flavor
 
 - [ ] Add a `LICENSE` file (MIT for personal projects unless there's a
       reason otherwise).
@@ -98,7 +132,7 @@ carries the latest conventions and is updated first.
 - [ ] Gitignore client-local overlays — `CLAUDE.local.md` and
       `.claude/settings.local.json`. Personal preferences (pace,
       verbosity, machine-local paths) stay out of the shared contracts
-      and checked-in client settings. The Python bootstrap's `.gitignore`
+      and checked-in client settings. The stack flavors' `.gitignore`
       already covers the Claude files; generic repos add them by hand.
 
 ## On GitHub (after `git push`)
@@ -222,6 +256,14 @@ the private phase, this is the moment to catch and fix them.
       Fill in the patterns from memory — the names of people, employers,
       and internal services you've worked with. Aim for false positives
       over false negatives; it's faster to skim hits than to miss one.
+- [ ] **Local-path sweep.** Committed tool output (build, test, and
+      synthesis logs, captured terminal sessions) prints absolute paths,
+      which carry your username and directory layout.
+      ```
+      git log --all -p | rg -n '/(Users|home)/[A-Za-z]'
+      ```
+      Replace hits with `~/` or a relative path; a hit in history means
+      the usual rewrite-or-start-fresh decision.
 - [ ] **Issues, PRs, Discussions, Wiki on the GitHub side.**
       Flipping public exposes every issue and comment, including ones
       from collaborators. If anyone else has commented, ask them before

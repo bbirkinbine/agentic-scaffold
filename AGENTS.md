@@ -13,8 +13,9 @@
 Project-bootstrap templates and agentic-workflow scaffolding for new
 repos — a stack-neutral dual-client bootstrap under `generic/`, generic
 contract/README templates, the new-project checklist, the GitHub About
-checklist, and the full Python agentic-workflow scaffolding under
-`python/` (subagents, workflows, skills, hooks, `bootstrap.sh`).
+checklist, and the full agentic-workflow scaffolding (subagents, workflows,
+skills, hooks, bootstrap) authored once under `workflow/` and rendered per
+stack from `stacks/<name>/` into `python/`, `typescript/`, and `custom/`.
 This content moved here from `templates/` in the
 `github.com/bbirkinbine/dotfiles` repo on 2026-06-09; pre-move history
 is in that repo's log.
@@ -35,11 +36,22 @@ engines. No secrets, no internal hostnames, no work-related context.
 
 ## Stack / scope
 
-Markdown templates plus bash (both bootstrap scripts, client-neutral hook
-sources under `shared/hooks/`, rendered Python hooks under
-`python/.agentic/hooks/`, and validation under `scripts/`). No build or
+Markdown templates plus bash (the generic bootstrap, the shared stack
+bootstrap body `scripts/bootstrap-stack.sh`, client-neutral hook sources
+under `shared/hooks/` and `workflow/hooks/`, one gate runner per stack under
+`stacks/<name>/toolchain.sh`, and validation under `scripts/`). No build or
 deploy target — files here are consumed by copy into new repos, and smoke
 tests validate those generated projects.
+
+The language axis is deliberate: the workflow layer never names a tool.
+Every gate consumer (Stop hook, edit hook, `/review-check`, consumer CI,
+smoke tests) calls `.agentic/toolchain.sh` subcommands, and each stack
+supplies that runner plus its manifest, tool configs, starter layout,
+conventions rule, and skills. Adding a language means adding
+`stacks/<name>/`, not touching `workflow/`. `stacks/custom/` is the stack
+for a language with no adapter: the same loop, with the runner shipped as a
+project-owned template that keeps every gate quiet until the project fills
+and activates it.
 
 **Everything in this repo is standards-setting.** A change here
 propagates (by copy, via `bootstrap.sh` or the checklist) to every new
@@ -113,21 +125,33 @@ apply to this repo itself, not just to repos bootstrapped from it.
 ## Validation gates before claiming done
 
 ```bash
-bash -n python/bootstrap.sh
-bash -n generic/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
-shellcheck --severity=warning generic/bootstrap.sh python/bootstrap.sh shared/hooks/*.sh python/.agentic/hooks/*.sh scripts/*.sh
+bash scripts/render-client-surfaces.sh   # after any change under workflow/, shared/, or stacks/
+bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
+shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 bash scripts/validate-codex-adapters.sh
 bash scripts/smoke-test-generic.sh
-bash scripts/smoke-test.sh <profile>   # for changes to bootstrap.sh, pyproject.toml,
-                                       # hooks, or anything the bootstrap copies
+bash scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--no-stop-gate]
+bash scripts/smoke-test-typescript.sh [--strict-hooks|--no-stop-gate]
+bash scripts/smoke-test-custom.sh
 ```
 
 `scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
-asserts the installed file set, fills the day-zero placeholders, and runs
-the fresh project's full quality gate. `scripts/smoke-test-generic.sh`
-covers the stack-neutral flavor. CI (`.github/workflows/ci.yml`) runs the
-shell checks plus every flavor/profile smoke test on each push and PR — a
-red run means the template would ship broken projects.
+asserts the installed file set, fills the day-zero placeholders, runs the
+fresh project's gate through the toolchain runner, and proves the gate goes
+red on a defect with the failing step named. `scripts/smoke-test-typescript.sh`
+does the same for the TypeScript flavor and also exercises the Stop hook's
+block decision. `scripts/smoke-test-custom.sh` proves the custom flavor's
+unfilled runner keeps the gates quiet, fills it with a small shell
+toolchain, proves the gate and Stop hook then work, and proves `--update`
+leaves the project-owned runner, CI workflow, and Dependabot config alone.
+It also exercises generic-to-custom migration and ensures broken active
+runners fail CI, edit/Stop hooks, and the custom pre-commit entries.
+`scripts/smoke-test-generic.sh` covers the stack-neutral flavor, including
+the branch warning on a repository with no commits. CI
+(`.github/workflows/ci.yml`) runs the shell checks plus every
+flavor/profile smoke test on each push and PR — a red run means the
+template would ship broken projects. The TypeScript smoke test needs `node`
+and `npm` and network access for the first install.
 
 `{{PLACEHOLDER}}` markers throughout the repo (in template contracts
 and in `python/AGENTS.md` / `python/pyproject.toml`) are intentional —
@@ -137,8 +161,8 @@ placeholder check on this repo itself.
 Don't claim a change is "ready" without at least:
 
 1. A clean run of the checks above for the affected file(s).
-2. An updated `README.md` (this repo's, `python/README.md`, or both) if
-   the change adds/removes files or changes how the scaffolding is used.
+2. An updated `README.md` (this repo's, `stacks/<name>/README.md`, or both)
+   if the change adds/removes files or changes how the scaffolding is used.
 
 ---
 
@@ -151,26 +175,34 @@ Don't claim a change is "ready" without at least:
 
 ## Generated surfaces: edit the source, then re-render
 
-`python/workflow/` and top-level `shared/` are the client-neutral source of
-truth. `python/.claude/`, `python/.agents/`, and `python/.codex/` are
-generated by `scripts/render-client-surfaces.sh`, which prunes any file it
-does not own — a file added straight to a generated directory disappears on
-the next run. This file is authored directly and is not rendered.
+`workflow/` (the loop: contract, commands, roles, rules, workflow hooks,
+client config, docs), `shared/` (safety hooks, Codex policy), and
+`stacks/<name>/` (one toolchain: runner, manifest, tool configs, starter,
+conventions rule, skills) are the sources of truth. `python/`,
+`typescript/`, and `custom/` are generated whole by `scripts/render-client-surfaces.sh`,
+which replaces each flavor directory on every run — a file added straight
+to a flavor directory disappears on the next render. The stack's `AGENTS.md`
+is the workflow contract with `contract-stack.md` and
+`contract-dont-touch.md` spliced in at the markers. This file is authored
+directly and is not rendered.
 
 ---
 
 ## How consumers use this repo
 
-A Claude Code or Codex session is pointed at the latest checkout, installs
-the scaffold into the new repo, and pre-fills the templates from the
-founding conversation. Consumer projects are snapshots: `bootstrap.sh
+A Claude Code or Codex session is pointed at the latest checkout, chooses
+the stack from the project description using the rubric in
+`workflow/docs/project-types.md` (section 1), installs the scaffold into
+the new repo, and pre-fills the templates from the founding conversation.
+The prompt that starts that session is in the top-level `README.md` and
+`new-project-checklist.md`; keep the two copies identical. Consumer projects are snapshots: `bootstrap.sh
 --update` is rarely run, so a change here reaches projects at their next
 bootstrap, not retroactively. The methodology behind the scaffold is kept in
 personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-09-25)
+## Current state (updated 2026-09-30)
 
 The scaffold is dual-client (Claude Code and Codex CLI) since 2026-08-11 and
 validated in day-to-day use across multiple real projects, both flavors.
@@ -183,9 +215,19 @@ check, agent-configuration re-runs) are settled there.
 
 Open:
 
-- Add `generic-smoke` to this repo's `protect-main` required status
-  checks. The job runs on every PR but is not required, so it can go red
-  without blocking a merge.
+- The multi-stack split is on `main` (2026-09-30): `workflow/` +
+  `stacks/<name>/` rendered into `python/`, `typescript/`, and `custom/`,
+  one `.agentic/toolchain.sh` gate runner per stack, the `--core` profile
+  with `--python-core` as an alias, and smoke tests for every flavor in CI.
+  [Design](docs/multi-stack-scaffold.md), [evidence](docs/multi-stack-research.md).
+  It merged without a rendered-stack field trial; the first real project
+  (2026-09-29, FPGA feasibility) took the generic flavor, and its feedback
+  produced the custom stack. Still open, to be closed as projects adopt the
+  flavors rather than as merge blockers: live hook trials of the TypeScript
+  and custom flavors in both clients (the Codex acceptance scripts still
+  target the Python flavor), a real TypeScript consumer project, and a real
+  project that fills the custom runner. Go and Rust are designed for in the
+  runner seam, not built.
 - Revisit local execution with Codex CLI as orchestrator and a pinned local
   model as bounded coder. Keep one canonical scaffold: send the local model a
   self-contained `/delegate` packet, deny direct worktree/tool access, and add

@@ -19,10 +19,12 @@
 
 {{ONE_PARAGRAPH_DESCRIPTION}}
 
-This repo is **public** on GitHub (`github.com/bbirkinbine/{{REPO_NAME}}`).
-Treat every change as world-readable: file contents, commit messages,
-branch names, PR descriptions, and issue text are all indexed by search
-engines. No secrets, no internal hostnames, no work-related context.
+Treat this repo as **public** from commit #1, whether or not it is yet
+(`github.com/bbirkinbine/{{REPO_NAME}}`). A private repo can flip to public
+later, and its whole history flips with it. Every change is world-readable:
+file contents, commit messages, branch names, PR descriptions, and issue
+text are all indexed by search engines. No secrets, no internal hostnames,
+no work-related context.
 
 ---
 
@@ -113,6 +115,12 @@ contents:
   [`new-project-checklist.md`](https://github.com/bbirkinbine/agentic-scaffold/blob/main/new-project-checklist.md).
 - CI logs. Echoed env vars, full filesystem paths, and stack traces are
   all visible to anyone the moment the repo is public.
+- Tool output committed as evidence: build, synthesis, and test logs,
+  captured terminal sessions. Tools print absolute paths, so a log carries
+  the local username and directory layout (`/Users/<name>/...`,
+  `/home/<name>/...`) and sometimes the hostname. Commit a summary, or
+  scrub the log first; `git grep -nE '/(Users|home)/'` before a push finds
+  what slipped in.
 - Screenshots embedded in PRs or `docs/`. Crop or blur anything showing
   real data, real hostnames, or filesystem layout.
 
@@ -132,6 +140,9 @@ scrubbing is expensive and incomplete.
 > The command families below are mutually exclusive examples, not a
 > prescribed Python gate. Until this section is filled, the agent must ask
 > for the repository's real validation commands rather than choosing one.
+> A project with none yet (research stage, toolchain not chosen) says so
+> here in one line and names the work that will define them. Checks of the
+> scaffold's own hooks and configs are not this project's validation.
 
 ```bash
 # Python (uv-managed)

@@ -143,7 +143,8 @@ cp "$REPO_DIR/python/.agentic/hooks/block-destructive.sh" \
   "$postdir/.agentic/hooks/"
 cp "$REPO_DIR/python/.agentic/hooks/context-reminder.sh" \
   "$postdir/.agentic/hooks/"
-chmod +x "$postdir"/.agentic/hooks/*.sh
+cp "$REPO_DIR/python/.agentic/toolchain.sh" "$postdir/.agentic/"
+chmod +x "$postdir"/.agentic/hooks/*.sh "$postdir/.agentic/toolchain.sh"
 cat >"$postdir/bin/uv" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$(git rev-parse --show-toplevel)/uv-hook.log"
@@ -173,7 +174,8 @@ mkdir -p "$stopdir/.codex" "$stopdir/.agentic/hooks" \
 git -C "$stopdir" init -q
 cp "$REPO_DIR/python/.codex/hooks.json" "$stopdir/.codex/hooks.json"
 cp "$REPO_DIR/python/.agentic/hooks/"*.sh "$stopdir/.agentic/hooks/"
-chmod +x "$stopdir"/.agentic/hooks/*.sh
+cp "$REPO_DIR/python/.agentic/toolchain.sh" "$stopdir/.agentic/"
+chmod +x "$stopdir"/.agentic/hooks/*.sh "$stopdir/.agentic/toolchain.sh"
 cat >"$stopdir/bin/uv" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$(git rev-parse --show-toplevel)/uv-stop.log"

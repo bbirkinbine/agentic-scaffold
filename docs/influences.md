@@ -7,10 +7,9 @@ Where the ideas in this scaffold came from.
 The scaffold requires every spec that cites an outside authority to declare
 it — source, URL, retrieval date, license — and both reviewer agents treat an
 undeclared authority as a finding
-([`python/docs/specs/README.md`](../python/docs/specs/README.md) →
+([`workflow/docs/specs/README.md`](../workflow/docs/specs/README.md) →
 "External references";
-[`python/workflow/rules/python-code.md`](../python/workflow/rules/python-code.md)
-→ "External-reference provenance").
+[`workflow/rules/external-reference-provenance.md`](../workflow/rules/external-reference-provenance.md)).
 
 That rule governed the specs written *with* the scaffold, but never the
 scaffold's own design. Several features here were taken from other people's
@@ -66,6 +65,9 @@ the framework's full living-spec maintenance burden was not.
 | One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
 | Review findings as a trigger for `AGENTS.md` rules (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); reviewers excluding mechanical findings the local gate and CI already enforce | Anthropic, *The AI-Native SDLC Playbook* — <https://claude.com/blog/the-ai-native-sdlc-playbook>, published 2026-08-21, retrieved 2026-09-01 |
 | State a learned rule as the correct action, not only the prohibition (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); repeat product-eval cases and report success frequency under a spec-approved acceptance policy (`python/docs/evals.md` → "Run each case more than once", the `evaluator` role) | Nick Saraev, "I Spent $31,141 On Claude Code To Learn This" (YouTube, 2026-09-25) — <https://youtu.be/45K3zHckCnQ>, retrieved 2026-09-25; repeated evaluations at 2:55–3:14, learned rules at 24:00–24:30 |
+| The multi-stack direction (`docs/multi-stack-scaffold.md`): keep the workflow layer language-neutral and put the language's strict gate behind one runner, because per-language agent capability varies by model and task in no stable order, so the gate must not vary by language | Zan et al., "Multi-SWE-bench", [arXiv:2504.02605](https://arxiv.org/abs/2504.02605) (NeurIPS 2025); SWE-bench Multilingual, <https://www.swebench.com/multilingual.html>; "SWE-Bench ProMax", [arXiv:2608.09802](https://arxiv.org/abs/2608.09802) (COLM 2026), whose Table 3 reversed the first draft's assumption of a persisting Python advantage; Mündler et al., "Type-Constrained Code Generation with Language Models", [arXiv:2504.09246](https://arxiv.org/abs/2504.09246) (PLDI 2025); Berger et al., "On the Impact of Programming Languages on Code Quality: A Reproduction Study", [TOPLAS 2019](https://dl.acm.org/doi/10.1145/3340571), cited as a caution, not support. All retrieved 2026-09-26; per-claim grounding and what could not be verified are in `docs/multi-stack-research.md` |
+| TypeScript stack defaults in `docs/multi-stack-scaffold.md`: Biome over ESLint while TypeScript 7 has no programmatic API; Node 24 LTS; Vitest 5; `--reporter concise` in hooks | Microsoft, [Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) (2026-07-08); typescript-eslint, [Dependency Versions](https://typescript-eslint.io/users/dependency-versions/); Biome, [v2.5](https://biomejs.dev/blog/biome-v2-5/) (2026-06-05) and [Roadmap 2026](https://biomejs.dev/blog/roadmap-2026/); Node.js, [Evolving the Node.js Release Schedule](https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule) (2026-03-10) and [endoflife.date](https://endoflife.date/nodejs); [Vitest 5.0](https://vitest.dev/blog/) (2026-09-03). All retrieved 2026-09-26; these decay in months, re-verify at step 4 |
+| Go and Rust gate rows in `docs/multi-stack-scaffold.md` | [golangci-lint releases](https://github.com/golangci/golangci-lint/releases) (v2.14.0, 2026-09-24); [Go release history](https://go.dev/doc/devel/release) (1.27, 2026-08-19); [Govulncheck v1.0.0](https://go.dev/blog/govulncheck) (2023-07-13); [RustSec](https://rustsec.org/) for cargo-audit and cargo-deny. Retrieved 2026-09-26 |
 
 ### A tension, and how it was resolved
 
