@@ -6,8 +6,11 @@ deliberately when the repo is created.
 
 ## Description
 
-One sentence, sentence-cased, ending in a period. Match the first sentence
-of `README.md` so the description and the landing page stay in sync.
+One sentence, sentence-cased, ending in a period. Keep it short enough to
+read at a glance in the sidebar and in search results; it can be a
+condensed version of the `README.md` opening rather than a copy. It must
+not contradict the README: when the README's scope changes (a new
+supported tool, platform, or language), update the description too.
 
 ## Website
 
