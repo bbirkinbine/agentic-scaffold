@@ -3,8 +3,10 @@
 Scaffolding that sets up a new repository so a coding agent (Claude Code or
 Codex CLI) works in a disciplined loop: write a spec, plan, write failing
 tests first, implement, then pass a quality gate and an independent review
-before anything is committed. Python and TypeScript get the full loop;
-any other stack gets the contract and safety hooks.
+before anything is committed. Python and TypeScript get the full loop with
+the tools chosen; any other stack gets the same loop with a gate runner it
+fills in (custom); a repository that will not run the loop gets the
+contract and safety hooks (generic).
 
 > ## Status
 >
@@ -41,14 +43,16 @@ any other stack gets the contract and safety hooks.
    section 1, asking me rather than guessing where my answers do not decide
    it; tell me the deciding question; run that flavor's bootstrap.sh here;
    write the interview answers to docs/specs/0000-product.md; fill the
-   placeholders from what I told you; and walk me through WORKFLOW.md day
-   zero.
+   placeholders from what I told you, writing "not decided yet" where that
+   is the truth instead of guessing; and walk me through day zero
+   (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
+   generic flavor).
    ```
 
 If your description is thin, the agent runs the product interview first
 (seven questions, one at a time; "not sure" is an allowed answer and gets
-recorded as an open question). It then picks Python, TypeScript, or the
-generic flavor and says why, installs the scaffolding, writes the interview
+recorded as an open question). It then picks Python, TypeScript, custom, or
+the generic flavor and says why, installs the scaffolding, writes the interview
 answers as the product spec, drafts the project contract, and walks you
 through the first commit. Architecture beyond the stack is not decided on
 day zero; `/adr` records such a decision when a feature forces one. After that, `WORKFLOW.md` in your
@@ -72,12 +76,14 @@ hooks load.
   gate plus a dependency audit.
 - **One file that names the tools,** `.agentic/toolchain.sh`. Python: uv,
   ruff, mypy, pytest. TypeScript: npm, Biome, tsc, Vitest. Swap a tool
-  there and nothing else moves.
+  there and nothing else moves. Custom: a template you fill for any other
+  stack; the gates stay quiet until you do, so a research phase can run on
+  specs and reviews first.
 
 ## By hand, and reference
 
 ```bash
-bash ~/src/agentic-scaffold/python/bootstrap.sh       # or typescript/, or generic/
+bash ~/src/agentic-scaffold/python/bootstrap.sh       # or typescript/, custom/, generic/
 bash ~/src/agentic-scaffold/python/bootstrap.sh --help
 ```
 
@@ -87,7 +93,9 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   (copied into every project).
 - [`python/README.md`](python/README.md) and
   [`typescript/README.md`](typescript/README.md) — file inventory per stack;
-  [`generic/README.md`](generic/README.md) for everything else.
+  [`custom/README.md`](custom/README.md) — the loop for a stack with no
+  adapter; [`generic/README.md`](generic/README.md) — contract and safety
+  hooks only.
 - [`new-project-checklist.md`](new-project-checklist.md) — the author's
   repo-creation checklist (GitHub settings, the private-to-public hygiene
   pass). Optional for others.
@@ -95,7 +103,7 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   stack is added; [`docs/multi-stack-research.md`](docs/multi-stack-research.md)
   — the evidence behind the design.
 
-`python/` and `typescript/` are rendered from `workflow/` and
+`python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run
 `scripts/render-client-surfaces.sh`.
 

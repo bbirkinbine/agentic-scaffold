@@ -97,6 +97,28 @@ grep -q 'BLOCKED' "$WORK_DIR/block.err" \
 bash "$fresh/.agentic/hooks/context-reminder.sh" --codex \
   | python3 -m json.tool >/dev/null
 
+# The branch warning must fire on main before the first commit (the founding
+# session, where it is the first evidence that hooks loaded), on main after
+# it, and stay silent on a feature branch and on a detached HEAD.
+branch_repo="$WORK_DIR/branch-check"
+mkdir -p "$branch_repo"
+git -C "$branch_repo" init -q -b main
+branch_warning() {
+  (cd "$branch_repo" && bash "$fresh/.agentic/hooks/branch-check.sh")
+}
+# Captured, not piped: grep -q closing the pipe early would fail the hook
+# under pipefail.
+[[ "$(branch_warning)" == *"started on 'main'"* ]] \
+  || fail "branch warning is silent on main before the first commit"
+git -C "$branch_repo" -c user.email=smoke@example.com -c user.name=Smoke \
+  commit -q --allow-empty -m "first"
+[[ "$(branch_warning)" == *"started on 'main'"* ]] \
+  || fail "branch warning is silent on main"
+git -C "$branch_repo" switch -q -c chore/fixture
+[[ -z "$(branch_warning)" ]] || fail "branch warning fired on a feature branch"
+git -C "$branch_repo" switch -q --detach
+[[ -z "$(branch_warning)" ]] || fail "branch warning fired on a detached HEAD"
+
 printf '\nPROJECT-SPECIFIC CONTRACT SURVIVES\n' >>"$fresh/AGENTS.md"
 printf '\nPROJECT README SURVIVES\n' >>"$fresh/README.md"
 printf '\n# PROJECT CONFIG SURVIVES\n' >>"$fresh/.codex/config.toml"

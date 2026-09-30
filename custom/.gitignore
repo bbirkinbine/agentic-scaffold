@@ -1,0 +1,30 @@
+# Build output and tool logs — add this stack's directories here.
+# Tool logs print absolute paths (your username, your directory layout);
+# ignore them, or scrub them before committing one as evidence.
+build/
+dist/
+*.log
+
+# Environment files — never commit real values.
+# .env.*.example IS committed (it carries no secrets); nothing else is.
+.env
+.env.*
+!.env.*.example
+
+# serena MCP (optional, opt-in) — local symbol cache + project config.
+# Machine-specific; regenerated on first run. See docs/serena-setup.md.
+.serena/
+
+# Claude Code local-only files — personal settings and notes that must
+# not propagate to other machines or contributors. The shared
+# counterparts (.claude/settings.json, CLAUDE.md, .claude/agents/,
+# .claude/skills/, .claude/commands/) ARE committed.
+.claude/settings.local.json
+CLAUDE.local.md
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

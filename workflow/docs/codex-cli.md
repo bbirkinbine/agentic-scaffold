@@ -42,7 +42,7 @@ Bootstrap normally; dual-client support is the default:
 
 ```bash
 cd your-project
-bash path/to/agentic-scaffold/<stack>/bootstrap.sh --core   # python or typescript
+bash path/to/agentic-scaffold/<stack>/bootstrap.sh --core   # python, typescript, or custom
 .agentic/toolchain.sh install
 pre-commit install    # the bootstrap prints the stack's install line
 ```

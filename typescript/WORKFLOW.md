@@ -39,7 +39,7 @@ reasons, the options, and the edge cases.
 1. **Run bootstrap.** Normally the founding session did this after choosing
    the stack from your description (scaffold `README.md` → "Start here").
    By hand: `bash path/to/agentic-scaffold/<stack>/bootstrap.sh`
-   (wherever you cloned this repo; `python` or `typescript`) — drops the
+   (wherever you cloned this repo; `python`, `typescript`, or `custom`) — drops the
    default `--core` scaffolding into your repo. Use `--minimal` for a thinner starter and
    `--full` for the author's full workflow bundle. The Stop gate (blocks
    ending a turn on a red gate) is on by default — `--no-stop-gate`
@@ -83,7 +83,11 @@ reasons, the options, and the edge cases.
    scaffold's `python/README.md` → "Opt-in subagents").
 5. **Install the dev tools.** `.agentic/toolchain.sh install`, then wire
    the commit guard with the `pre-commit install` line the bootstrap printed
-   — dependencies plus the guard that keeps work off `main`.
+   — dependencies plus the guard that keeps work off `main`. On the custom
+   stack the runner is a template: skip the install, wire the commit guard,
+   and fill `.agentic/toolchain.sh` (its header says how) in the first spec
+   that adds code to check. Until then the Stop gate and CI's quality job
+   stay quiet and `/review` is the verification.
 6. **Issue mode only — create the GitHub issue labels** the issue forms
    use: `feature`, `bug`, `spec-needed`, `triage` (e.g.
    `gh label create spec-needed`). In the default local mode, skip
@@ -314,6 +318,7 @@ Don't run the full loop on tiny work.
 | Small — one function | Branch + one-sentence spec; `/test-first`; skip `/plan`. |
 | Medium — 3–10 files | The full loop above. |
 | Large — new subsystem | Capture the cross-cutting technical decision in an ADR (`/adr`) first, then split into medium pieces, one spec each. |
+| Research, measurement, or docs — no code to test | Spec whose success criteria name the evidence each will be checked against; `/plan` if it is more than one sitting; skip `/test-first` and the gate; `/review` checks the evidence against the spec. |
 
 A throwaway script needs none of this — just write the code.
 

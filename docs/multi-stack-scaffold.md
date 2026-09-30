@@ -7,6 +7,11 @@ validation in a real TypeScript consumer project. The evidence behind the
 direction, and what could not be verified, is in
 [`multi-stack-research.md`](multi-stack-research.md).
 
+A third stack, `stacks/custom/`, was added on 2026-09-30 after the branch's
+first real-project trial; see [The custom stack](#the-custom-stack). It
+revises two statements below that routed every adapter-less repository to
+`generic/`; each is marked where it stands.
+
 Two deviations from the plan as written, both recorded when they were made:
 `dependency-hygiene` moved to `stacks/python/skills/` rather than staying
 neutral, because every command in it is PyPI- and uv-specific; and the
@@ -79,16 +84,18 @@ A flavor is a composition:
 | `generic/` | shared | `generic/bootstrap.sh` (unchanged) |
 | `python/` | shared + workflow + `stacks/python` | `python/bootstrap.sh` (unchanged) |
 | `typescript/` | shared + workflow + `stacks/typescript` | `typescript/bootstrap.sh` (new) |
+| `custom/` | shared + workflow + `stacks/custom` | `custom/bootstrap.sh` (added 2026-09-30) |
 
 `python/` and `typescript/` remain rendered surfaces, as `python/.claude/`,
 `python/.agents/`, and `python/.codex/` are today. The renderer iterates over
 `stacks/*` instead of assuming one. Consumer usage does not change for
 existing Python projects.
 
-`generic/` stays as the floor for repositories that have no stack adapter or
-do not want the prescribed loop. The routing in `docs/project-types.md`
-changes from "Python or not" to "is there a stack adapter for this
-repository's language".
+`generic/` stays as the floor for repositories that do not want the
+prescribed loop. The routing in `docs/project-types.md` changes from
+"Python or not" to "is there a stack adapter for this repository's
+language"; since 2026-09-30 a repository with no adapter that wants the loop
+takes `custom/`, not `generic/`.
 
 ## The seam: one gate runner per stack
 
@@ -280,9 +287,76 @@ Steps 1 and 2 change no consumer behavior; they make the seam exist.
    consulted for the TypeScript defaults in `docs/influences.md` in the same
    PR.
 
-Later stacks (Go, Rust) are step 4 repeated. A stack that cannot supply a
-`format`, `lint`, `typecheck`, and `test` subcommand is not a stack for this
-scaffold; it uses `generic/`.
+Later stacks (Go, Rust) are step 4 repeated. As written on 2026-09-26: a
+stack that cannot supply a `format`, `lint`, `typecheck`, and `test`
+subcommand is not a stack for this scaffold; it uses `generic/`. Revised
+2026-09-30: it uses `custom/`, which lets the project supply those
+subcommands itself and mark a missing one `no_tool`.
+
+## The custom stack
+
+Added 2026-09-30. It is the loop for a repository with no adapter: every
+command, role, hook, and rule from `workflow/`, with the gate runner
+shipped as a template instead of a filled file.
+
+**Evidence.** The branch's first real-project trial (2026-09-29) was an
+FPGA feasibility project. The rubric sent it to `generic/`, as designed.
+The owner wanted the scaffold's discipline anyway, so the founding agent
+hand-wrote a `WORKFLOW.md` and a spec convention, and in two days the
+project shipped two specs through them and drafted a third. The first was
+research with no code; the second installed a toolchain and reached the
+decisive result (the core did not fit the device). The loop earned its keep
+with no Stop gate and no workflow commands installed, and for the first
+spec with no toolchain at all, which is the case "generic is the floor" did
+not cover: a
+project that wants the loop before it has, or without ever having, an
+adapter. The same trial showed the founding prompt pointing at
+`WORKFLOW.md` and `docs/specs/`, neither of which generic installs.
+
+**Shape.**
+
+- `stacks/custom/toolchain.sh` has the same subcommands as the other
+  runners. Its six step functions call `unfilled <step>`, and
+  `TC_SOURCE_DIRS` is empty. `ready` fails while any step is still
+  `unfilled` or the directories are missing. Every gate consumer already
+  checked `ready` first (Stop hook, edit hook, pre-commit steps), so an
+  unfilled runner is silent with no change to `workflow/hooks/`.
+- The project fills each step with its real command, or `no_tool` for a
+  step its stack has no tool for. `no_tool` is the only relaxation of the
+  four-subcommand rule, and it is explicit and visible in review.
+- The runner and `.github/workflows/ci.yml` are project-owned here: the
+  scaffold cannot write either. A stack claims a normally managed path by
+  listing it in `STACK_PROJECT_FILES`; `sync` in the bootstrap body skips a
+  claimed path, so `--update` cannot overwrite it. The consumer CI's quality
+  job checks `ready` and prints a notice when no gate ran, so a green run on
+  an unfilled runner says what it did not check.
+- No starter layout, no stack skills, no `rules/` file. Conventions and the
+  test-first notes live in `contract-stack.md`, which renders into the
+  project-owned part of `AGENTS.md`; the standing-rules block is refreshed
+  by `--update` and would overwrite a filled placeholder.
+- The contract's don't-touch list names the filled runner, since an agent
+  that can edit the gate definition can also weaken it.
+- Work with no code to test (research, measurement, documentation) skips
+  `/test-first`; the spec names the evidence and `/review` checks it. That
+  line is in `WORKFLOW.md` for every stack.
+
+**Against the yardstick.** `scripts/smoke-test-custom.sh` fills the runner
+with a small shell toolchain and exercises rows 1, 2, and 11, without the
+`--no-stop-gate` negative case. Row 3 (edit hook) is exercised only in the
+quiet, unfilled state. Row 7 (pre-commit) is installed and not exercised.
+Row 10 is met differently: the conventions are a filled placeholder in the
+contract, checked by the render and adapter validation, not a rule file.
+Rows 5 and 6 are partial by design: the quality job is one guarded `gate`
+step and there is no audit job, because both depend on the project's
+ecosystem. Rows 8, 9, 12, and 13 are the project's to supply. Rows 14 and
+15 are open: no live hook trial in either client, and no real project has
+filled the runner yet.
+
+**Relation to real adapters.** `custom/` does not replace Go or Rust
+adapters. When a second project wants the same tools, its filled runner is
+the draft of `stacks/<name>/toolchain.sh`, and the adapter adds what a
+template cannot: a manifest, a starter that is green on day zero, an audit
+job.
 
 ## Deliberately not in scope
 
@@ -290,7 +364,9 @@ scaffold; it uses `generic/`.
   seam is the runner's subcommand names, nothing deeper.
 - Per-stack review roles. The reviewer and adversarial reviewer read diffs;
   their checklists are about behavior, hygiene, and spec fit, not syntax.
-- Rewriting the `generic/` flavor. It remains the no-loop floor.
+- Rewriting the `generic/` flavor. It remains the no-loop floor. (Still
+  true after 2026-09-30: `custom/` sits beside it; generic gained only a
+  day-zero list in its README and a pointer to `custom/`.)
 - Retroactive `--update` of consumer projects. They are snapshots; the change
   reaches them at their next bootstrap.
 

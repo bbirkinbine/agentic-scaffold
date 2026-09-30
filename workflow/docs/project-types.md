@@ -8,14 +8,16 @@
 > **rules** both clients follow see [`../AGENTS.md`](../AGENTS.md); for
 > Codex startup and switching see [`codex-cli.md`](codex-cli.md).
 
-A stack flavor (Python, TypeScript) standardizes a five-phase loop —
+A stack flavor (Python, TypeScript, custom) standardizes a five-phase loop —
 `Spec -> Plan -> Test-first -> Implement -> Verify` — and its profiles
 change how much scaffolding surrounds that loop. The loop is the same in
 every stack; what differs is the toolchain behind `.agentic/toolchain.sh`,
 the one file that names the stack's formatter, linter, type checker, and
-test runner. The generic flavor does not impose that methodology on a stack
-without an adapter; it standardizes the dual-client contract and safety
-layer while leaving workflow and validation to the repository owner.
+test runner. Python and TypeScript ship that file filled in. The custom
+stack ships it as a template the project fills, so a repository with no
+adapter still gets the loop. The generic flavor installs no loop at all: it
+standardizes the dual-client contract and safety layer and leaves workflow
+and validation to the repository owner.
 
 ---
 
@@ -26,13 +28,29 @@ flowchart TD
     Q{"What kind of repo?"}
     Q -->|"Python package / app / service"| PY["Python flavor:<br/>python/bootstrap.sh with a profile<br/>(section 2)"]
     Q -->|"TypeScript / Node package / app / service"| TS["TypeScript flavor:<br/>typescript/bootstrap.sh with a profile<br/>(section 2)"]
-    Q -->|"infra · shell · FPGA · docs · a language with no stack adapter yet"| NP["Generic flavor:<br/>run generic/bootstrap.sh<br/>fill {{placeholders}} + real validation commands"]
+    Q -->|"anything else: Go · Rust · FPGA/HDL · infra · shell"| LOOP{"Want the spec -> plan -><br/>test-first -> review loop?"}
+    LOOP -->|"yes (the default for a project that will grow)"| CU["Custom flavor:<br/>custom/bootstrap.sh with a profile (section 2)<br/>fill .agentic/toolchain.sh when there is code to check"]
+    LOOP -->|"no: contract and safety hooks only"| NP["Generic flavor:<br/>run generic/bootstrap.sh<br/>fill {{placeholders}} + real validation commands"]
     NP --> BOTH["Every flavor: walk new-project-checklist.md<br/>in the agentic-scaffold repo — not copied here<br/>(identity · GitHub About · private->public scrub)"]
     PY --> BOTH
     TS --> BOTH
+    CU --> BOTH
 
     classDef nonpy fill:#f3f4f6,stroke:#6b7280,color:#111;
     class NP nonpy;
+```
+
+The **custom flavor** is the full loop for a stack with no adapter: every
+command, role, hook, and rule the Python and TypeScript flavors ship, with
+`.agentic/toolchain.sh` as a project-owned template instead of a filled
+runner. Until the project fills it, `ready` fails and the Stop gate, the
+edit hook, and CI's quality job stay quiet, so a research or feasibility
+phase runs on `/spec`, `/plan`, and `/review` alone. The first spec that
+adds code to check fills the runner, and the mechanical gate is on from
+then. Run:
+
+```bash
+bash path/to/agentic-scaffold/custom/bootstrap.sh
 ```
 
 The **generic flavor** installs one canonical `AGENTS.md` contract with a
@@ -45,13 +63,19 @@ the actual stack. Run:
 bash path/to/agentic-scaffold/generic/bootstrap.sh
 ```
 
-Fill its validation section with the repository's real commands. The rest of
-this document is about the **stack flavors**, where the prescribed workflow
-surface lives. Choose the language for the project, not for the scaffold:
-every stack flavor ships the same loop, hooks, gate, and CI shape. A language
-with no `stacks/<name>/` adapter yet gets the generic flavor until one is
-added (the scaffold's `docs/multi-stack-scaffold.md` lists what an adapter
-supplies).
+Fill its validation section with the repository's real commands. Pick it
+for a repository that will not run the loop: dotfiles, a notes or docs
+repository, a one-script utility. It installs no `WORKFLOW.md`; its day
+zero is the "After bootstrap" list in the scaffold's `generic/README.md`.
+A project that expects specs and reviews takes the custom flavor instead,
+even before it has chosen its tools.
+
+The rest of this document is about the **stack flavors**, where the
+prescribed workflow surface lives. Choose the language for the project, not
+for the scaffold: every stack flavor ships the same loop, hooks, gate, and
+CI shape. A language with no `stacks/<name>/` adapter yet gets the custom
+flavor until one is added (the scaffold's `docs/multi-stack-scaffold.md`
+lists what an adapter supplies).
 
 ### Choosing the stack from a project description
 
@@ -81,7 +105,7 @@ yet.
 | **Where must it run?** A browser, a Node-hosted platform, a Python-hosted platform, or a single static binary each name a language. | The runtime's language | Browser extension or Cloudflare Worker: TypeScript. Airflow DAG or Jupyter tooling: Python. |
 | **Which ecosystem has the libraries it needs?** | The ecosystem's language | ML, data, scientific: Python. Web front end, Node tooling: TypeScript. |
 | **How much should the compiler catch?** Long-lived services with many contributors, or code the agent will write mostly unattended, benefit from a strict type checker in the Stop gate. | TypeScript strict, or Python with mypy strict | Both stacks run a type checker in the gate; TypeScript's is the compiler itself. |
-| **Does a stack adapter exist?** | `stacks/<name>/` present, or the generic flavor | Go and Rust are designed for but not built; they take the generic flavor today. |
+| **Does a stack adapter exist?** | `stacks/<name>/` present; otherwise the custom flavor, or generic for a repository that will not run the loop | Go, Rust, and FPGA/HDL have no adapter; they take the custom flavor and fill the runner. |
 | **Tie?** | The owner's review fluency | Python here: review is where a human's reading speed pays, and the loop makes the agent's language weakness moot either way. |
 
 Do not choose from benchmark rankings of agent skill by language; those
@@ -162,14 +186,18 @@ Read top-down: everything in a tier includes the tiers above it.
   `strip-ai-attribution` (commit-msg backstop); default settings run
   `.agentic/toolchain.sh format` on edit
 - **Gate runner:** `.agentic/toolchain.sh` — the one file naming the stack's
-  tools (Python: ruff, mypy, pytest; TypeScript: Biome, tsc, Vitest); hooks,
-  `/review-check`, and CI call its subcommands
+  tools (Python: ruff, mypy, pytest; TypeScript: Biome, tsc, Vitest; custom:
+  a project-owned template, quiet until filled); hooks, `/review-check`, and
+  CI call its subcommands
 - **Rules:** git-workflow, commit-style, public-repo-hygiene,
   external-reference-provenance, agent-legible-code, plus the stack's code
-  conventions (`python-code` or `typescript-code`)
+  conventions (`python-code` or `typescript-code`; the custom stack keeps
+  its conventions and test-first notes in the contract's project-owned
+  Stack section, so `--update` does not overwrite them)
 - **Convention + CI:** `docs/specs/README.md`, `.github/workflows/ci.yml`
-  (the four gate steps through the runner, plus a dependency audit), PR
-  template, issue forms, `.pre-commit-config.yaml`
+  (the four gate steps through the runner, plus a dependency audit; the
+  custom stack's is project-owned, runs the gate once the runner is filled,
+  and ships no audit job), PR template, issue forms, `.pre-commit-config.yaml`
 - **Codex:** `.codex/config.toml`, trusted hooks, command rules, and
   `docs/codex-cli.md`
 

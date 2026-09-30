@@ -10,7 +10,7 @@
 
 ## Requirements
 
-- Python 3.12+ and [`uv`](https://github.com/astral-sh/uv)
+- {{RUNTIME_AND_PACKAGE_MANAGER — the prerequisites in AGENTS.md → "Stack"}}
 - {{ANY_OTHER_PREREQS — system libs, services, the gh CLI for PRs/issues}}
 
 ## Quick start
@@ -18,29 +18,29 @@
 ```bash
 git clone {{CLONE_URL}}
 cd {{PROJECT_NAME}}
-uv sync                                  # install deps into a managed venv
-uv run python -m {{PACKAGE_NAME}}.main   # or: uv run {{ENTRY_POINT}}
+.agentic/toolchain.sh install   # install dependencies
+{{RUN_COMMAND — the "Run" line in AGENTS.md → "How to run things"}}
 ```
 
 ## Repository layout
 
-{{TOP_LEVEL_DIRECTORY_TOUR — e.g. src/{{PACKAGE_NAME}}/ (the package),
-tests/ (pytest suite), docs/ (specs and runbooks)}}
+{{TOP_LEVEL_DIRECTORY_TOUR — e.g. src/ (the code), tests/ (the suite),
+docs/ (specs and runbooks)}}
 
 ## Development
 
 ```bash
-.agentic/toolchain.sh install   # dependencies (uv sync)
-.agentic/toolchain.sh test      # tests (pytest)
-.agentic/toolchain.sh lint      # lint (ruff)
-.agentic/toolchain.sh typecheck # type-check (mypy)
+.agentic/toolchain.sh install   # dependencies
+.agentic/toolchain.sh test      # tests
+.agentic/toolchain.sh lint      # lint
+.agentic/toolchain.sh typecheck # type-check
 .agentic/toolchain.sh gate      # all of the above plus the format check
-uv run pre-commit install       # wire the local gate (+ secret scan) to every commit
+{{COMMIT_GUARD_INSTALL — the pre-commit install line the bootstrap printed}}
 ```
 
-See [`CLAUDE.md`](CLAUDE.md) for the per-project agent contract (what
-Claude Code should and shouldn't do in this repo) and
-[`WORKFLOW.md`](WORKFLOW.md) for the spec-driven loop.
+See [`AGENTS.md`](AGENTS.md) for the per-project agent contract both
+clients follow (Claude Code imports it through [`CLAUDE.md`](CLAUDE.md))
+and [`WORKFLOW.md`](WORKFLOW.md) for the spec-driven loop.
 
 ## Acknowledgements
 

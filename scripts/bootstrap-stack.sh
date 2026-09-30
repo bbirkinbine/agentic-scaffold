@@ -35,7 +35,8 @@
 #                   with --strict-hooks, which requires the gate.
 #
 # Every gate consumer (hooks, /review-check, CI) calls .agentic/toolchain.sh,
-# the one file that names the stack's tools (uv, ruff, mypy, pytest here).
+# the one file that names the stack's tools (uv, ruff, mypy, pytest in the
+# Python stack; a template the project fills in the custom stack).
 #   --default-hooks  Use format-only edit hooks plus the default Stop gate.
 #                   This is the explicit way to move away from a previously
 #                   persisted --strict-hooks or --no-stop-gate choice.
@@ -54,6 +55,9 @@
 #     unchanged. README.md is laid down from
 #     README.md.template (suffix dropped); keep its Acknowledgements
 #     section — that is the single AI-attribution surface.
+#     A stack may also claim a normally MANAGED path by listing it in its
+#     STACK_PROJECT_FILES: the custom stack owns .agentic/toolchain.sh and
+#     .github/workflows/ci.yml, because the project writes both.
 #   - MANAGED  (everything else — .agentic/, .agents/, .claude/, .codex/,
 #     WORKFLOW.md, .pre-commit-config.yaml, docs/specs/README.md, the
 #     .github/ tree) — the agentic scaffolding itself. Bootstrap choices
@@ -88,7 +92,7 @@
 # What it also creates (only if absent):
 #   - the stack's starter layout (<stack>/starter/, e.g. a src/ package and a
 #     tests/ smoke test) so the gate is green from the first run. Rename the
-#     package dir when you fill placeholders.
+#     package dir when you fill placeholders. The custom stack has none.
 #
 # What it does NOT copy:
 #   - bootstrap.sh, stack.sh, starter/, README.md (the flavor's own index —
@@ -442,13 +446,25 @@ previous_managed_hash() {
     "$MANAGED_FILES_FILE"
 }
 
+# A stack claims a path as PROJECT-OWNED by listing it in STACK_PROJECT_FILES.
+stack_owns() {
+  local rel="$1" owned
+  for owned in "${STACK_PROJECT_FILES[@]}"; do
+    [[ "$owned" == "$rel" ]] && return 0
+  done
+  return 1
+}
+
 # sync: MANAGED files. Copied if absent; with --update, overwritten so
-# the project tracks template improvements.
+# the project tracks template improvements. A path the stack claimed as
+# project-owned was already laid down by copy() and is left alone here, so
+# --update cannot overwrite it and it is never recorded as managed.
 sync() {
   local rel="$1"
   local src="$SRC_DIR/$rel"
   local dst="$DST_DIR/$rel"
   local existed=0
+  stack_owns "$rel" && return 0
   [[ -e "$dst" ]] && existed=1
   if [[ "$existed" == 1 && "$MODE" == install ]]; then
     echo "  skip (exists): $rel"
@@ -963,6 +979,8 @@ fi
 # top-level entry is created only when absent, so existing code is never
 # touched. ---
 for starter_entry in "$SRC_DIR"/starter/*/; do
+  # No starter/ in this stack (custom): the unmatched glob stays literal.
+  [[ -d "$starter_entry" ]] || continue
   starter_name="$(basename "$starter_entry")"
   if [[ -e "$DST_DIR/$starter_name" ]]; then
     echo "  skip (exists): $starter_name/"
@@ -1246,7 +1264,11 @@ if [[ "$MODE" == update ]]; then
   exit 0
 fi
 
-echo "Done. Scaffolding and the $STACK_LABEL starter layout are in place."
+if [[ -d "$SRC_DIR/starter" ]]; then
+  echo "Done. Scaffolding and the $STACK_LABEL starter layout are in place."
+else
+  echo "Done. $STACK_LABEL scaffolding is in place."
+fi
 echo
 case "$PROFILE" in
   minimal)
@@ -1282,6 +1304,10 @@ else
   echo "lint + typecheck after every edit, or --no-stop-gate to remove the gate."
 fi
 echo
+if [[ -n "${STACK_BOOTSTRAP_NOTE:-}" ]]; then
+  echo "$STACK_BOOTSTRAP_NOTE"
+  echo
+fi
 echo "Wire the commit guard: $STACK_DEV_INSTALL_HINT"
 echo "Read WORKFLOW.md next — it's in your project root and is the source"
 echo "of truth for what to do: day-zero setup and the per-feature loop."

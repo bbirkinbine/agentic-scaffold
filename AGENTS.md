@@ -15,7 +15,7 @@ repos — a stack-neutral dual-client bootstrap under `generic/`, generic
 contract/README templates, the new-project checklist, the GitHub About
 checklist, and the full agentic-workflow scaffolding (subagents, workflows,
 skills, hooks, bootstrap) authored once under `workflow/` and rendered per
-stack from `stacks/<name>/` into `python/` and `typescript/`.
+stack from `stacks/<name>/` into `python/`, `typescript/`, and `custom/`.
 This content moved here from `templates/` in the
 `github.com/bbirkinbine/dotfiles` repo on 2026-06-09; pre-move history
 is in that repo's log.
@@ -48,7 +48,10 @@ Every gate consumer (Stop hook, edit hook, `/review-check`, consumer CI,
 smoke tests) calls `.agentic/toolchain.sh` subcommands, and each stack
 supplies that runner plus its manifest, tool configs, starter layout,
 conventions rule, and skills. Adding a language means adding
-`stacks/<name>/`, not touching `workflow/`.
+`stacks/<name>/`, not touching `workflow/`. `stacks/custom/` is the stack
+for a language with no adapter: the same loop, with the runner shipped as a
+project-owned template that keeps every gate quiet until the project fills
+it.
 
 **Everything in this repo is standards-setting.** A change here
 propagates (by copy, via `bootstrap.sh` or the checklist) to every new
@@ -124,11 +127,12 @@ apply to this repo itself, not just to repos bootstrapped from it.
 ```bash
 bash scripts/render-client-surfaces.sh   # after any change under workflow/, shared/, or stacks/
 bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
-shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh
+shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 bash scripts/validate-codex-adapters.sh
 bash scripts/smoke-test-generic.sh
 bash scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-typescript.sh [--strict-hooks|--no-stop-gate]
+bash scripts/smoke-test-custom.sh
 ```
 
 `scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
@@ -136,8 +140,13 @@ asserts the installed file set, fills the day-zero placeholders, runs the
 fresh project's gate through the toolchain runner, and proves the gate goes
 red on a defect with the failing step named. `scripts/smoke-test-typescript.sh`
 does the same for the TypeScript flavor and also exercises the Stop hook's
-block decision. `scripts/smoke-test-generic.sh` covers the stack-neutral
-flavor. CI (`.github/workflows/ci.yml`) runs the shell checks plus every
+block decision. `scripts/smoke-test-custom.sh` proves the custom flavor's
+unfilled runner keeps the gates quiet, fills it with a small shell
+toolchain, proves the gate and Stop hook then work, and proves `--update`
+leaves the project-owned runner and CI workflow alone.
+`scripts/smoke-test-generic.sh` covers the stack-neutral flavor, including
+the branch warning on a repository with no commits. CI
+(`.github/workflows/ci.yml`) runs the shell checks plus every
 flavor/profile smoke test on each push and PR — a red run means the
 template would ship broken projects. The TypeScript smoke test needs `node`
 and `npm` and network access for the first install.
@@ -167,8 +176,8 @@ Don't claim a change is "ready" without at least:
 `workflow/` (the loop: contract, commands, roles, rules, workflow hooks,
 client config, docs), `shared/` (safety hooks, Codex policy), and
 `stacks/<name>/` (one toolchain: runner, manifest, tool configs, starter,
-conventions rule, skills) are the sources of truth. `python/` and
-`typescript/` are generated whole by `scripts/render-client-surfaces.sh`,
+conventions rule, skills) are the sources of truth. `python/`,
+`typescript/`, and `custom/` are generated whole by `scripts/render-client-surfaces.sh`,
 which replaces each flavor directory on every run — a file added straight
 to a flavor directory disappears on the next render. The stack's `AGENTS.md`
 is the workflow contract with `contract-stack.md` and
@@ -191,7 +200,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-09-26)
+## Current state (updated 2026-09-30)
 
 The scaffold is dual-client (Claude Code and Codex CLI) since 2026-08-11 and
 validated in day-to-day use across multiple real projects, both flavors.
@@ -213,9 +222,20 @@ Open:
   flavor in both clients (the Codex acceptance scripts still target the
   Python flavor), and validation in a real TypeScript consumer project. Go
   and Rust are designed for in the runner seam, not built.
-- Add `generic-smoke` to this repo's `protect-main` required status
-  checks. The job runs on every PR but is not required, so it can go red
-  without blocking a merge.
+- The branch's first real-project trial (2026-09-29, an FPGA feasibility
+  project) took the generic flavor, so it exercised the founding interview
+  and the rubric but not a rendered stack. Its feedback is applied on the
+  branch (2026-09-30): the branch warning now fires on a repository with no
+  commits, the contracts state "treat as public" as a rule instead of
+  asserting visibility, tool logs are named as a path-leak surface, and the
+  custom stack exists because that project hand-built the loop generic
+  does not install
+  ([design](docs/multi-stack-scaffold.md#the-custom-stack)). The custom
+  flavor has a smoke test and no consumer yet: no live hook trial in
+  either client, and no real project has filled its runner.
+- Add `generic-smoke` and `custom-smoke` to this repo's `protect-main`
+  required status checks. The jobs run on every PR but are not required,
+  so they can go red without blocking a merge.
 - Revisit local execution with Codex CLI as orchestrator and a pinned local
   model as bounded coder. Keep one canonical scaffold: send the local model a
   self-contained `/delegate` packet, deny direct worktree/tool access, and add

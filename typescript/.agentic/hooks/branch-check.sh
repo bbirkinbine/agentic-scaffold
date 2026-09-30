@@ -2,12 +2,18 @@
 # SessionStart hook — warns when a coding session opens on main/master.
 #
 # Feature and fix code must be written on a dedicated branch, never on
-# main. This hook is the early reminder; the no-commit-to-branch
-# pre-commit hook is the hard backstop. See AGENTS.md -> "Git workflow".
+# main. This hook is the early reminder; where the flavor installs
+# pre-commit, its no-commit-to-branch hook is the hard backstop. See
+# AGENTS.md -> "Git workflow".
 #
 # Hook output is surfaced to the agent at session start.
 
-branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+# symbolic-ref, not `rev-parse --abbrev-ref HEAD`: a repository with no
+# commits yet has a branch but no revision, and rev-parse answers "HEAD"
+# there. That is the founding session, where this warning is also the
+# first evidence that the client loaded its hooks. Detached HEAD prints
+# nothing and stays silent.
+branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
 
 case "$branch" in
   main | master)

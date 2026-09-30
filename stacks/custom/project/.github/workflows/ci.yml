@@ -1,0 +1,88 @@
+name: CI
+
+# The repository backstop for the Verify phase. Local pre-commit hooks and
+# /review-check can be bypassed (--no-verify, forgetting to run them); the
+# quality, hygiene, and closeout jobs run on every pull request.
+#
+# This file is PROJECT-OWNED in the custom stack: the scaffold cannot know
+# how to install this project's tools on a runner, so `bootstrap.sh --update`
+# never overwrites it. Edit the marked step in the quality job.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: all jobs only read the checkout and run tooling — no
+# writes, no secrets. Declared explicitly so a consumer whose org default
+# is "read and write" does not inherit an over-privileged CI token.
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # FILL: set up this project's toolchain on the runner before the gate
+      # runs — a setup-* action, apt-get, or a container image on the job.
+      # Whatever it installs, `.agentic/toolchain.sh install` must then work.
+
+      # The gate runs through the toolchain runner, the same entry point the
+      # Stop hook and /review-check use, so CI and the local gate cannot
+      # disagree about which tools run. `gate` reports every red step by
+      # name. Until the runner is filled in, `ready` fails and this job says
+      # so instead of failing on commands nobody has chosen yet: a green run
+      # with that notice means no quality gate ran.
+      - name: Quality gate
+        run: |
+          if ! bash .agentic/toolchain.sh ready; then
+            echo "::notice::.agentic/toolchain.sh is not filled in; no quality gate ran."
+            exit 0
+          fi
+          bash .agentic/toolchain.sh install
+          bash .agentic/toolchain.sh gate
+
+  hygiene:
+    # Client-independent public-repository backstop. Run the non-quality
+    # pre-commit hooks against the complete tree so --no-verify cannot bypass
+    # secret, private-key, malformed YAML, merge-marker, large-file, or
+    # AGENTS/CLAUDE import checks. The gate has its own job above.
+    # pre-commit is a Python tool; uv provides it here without a project
+    # Python environment.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run public-repo and client-contract checks
+        env:
+          SKIP: no-commit-to-branch,toolchain-format,toolchain-lint
+        run: uvx pre-commit run --all-files
+
+  closeout:
+    # Close-tasks backstop. A feature PR carries its own bookkeeping — the
+    # spec's **Status:** flip, the regenerated dashboard, the current-state
+    # note — so one merge completes the work. Without a gate that rule gets
+    # skipped and the bookkeeping becomes a second, wasted PR.
+    #
+    # pull_request only: on a push to main the branch name is gone, and the
+    # question is meaningless once merged. Silent on chore branches and on
+    # projects that do not use docs/specs.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check feature close-tasks rode the PR
+        run: bash .agentic/hooks/closeout-check.sh
+
+  # No dependency-audit job ships with the custom stack: the audit tool is
+  # ecosystem-specific (govulncheck, cargo audit, ...). Add one here when
+  # the project takes on third-party dependencies, and add the ecosystem to
+  # .github/dependabot.yml at the same time.

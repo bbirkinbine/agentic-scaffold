@@ -9,7 +9,8 @@
 #   stacks/<name>/               one toolchain: gate runner, manifest, rules,
 #                                skills, project files, starter layout
 #
-# Output: <name>/ for every stacks/<name>/ (python/, typescript/, ...). Each
+# Output: <name>/ for every stacks/<name>/ (python/, typescript/, custom/).
+# Each
 # is generated whole and replaced on every run; a file added straight to a
 # rendered directory disappears on the next render. Edit the sources, run
 # this script, then commit sources and rendered output together.
@@ -213,7 +214,11 @@ render_project_files() {
   mkdir -p "$build/.github"
   cp -R "$WORKFLOW_DIR/github/." "$build/.github/"
   cp -R "$stack_dir/project/." "$build/"
-  cp -R "$stack_dir/starter" "$build/starter"
+  # A stack with no starter layout (custom: the project brings its own
+  # source tree) has no starter/ to render.
+  if [[ -d "$stack_dir/starter" ]]; then
+    cp -R "$stack_dir/starter" "$build/starter"
+  fi
   cp "$stack_dir/stack.sh" "$build/stack.sh"
   cp "$stack_dir/README.md" "$build/README.md"
 }

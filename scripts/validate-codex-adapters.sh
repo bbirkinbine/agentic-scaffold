@@ -43,8 +43,9 @@ for stack_dir in "$STACKS_DIR"/*/; do
   for required in toolchain.sh stack.sh contract-stack.md contract-dont-touch.md README.md; do
     [[ -f "$stack_dir/$required" ]] || fail "stacks/$stack is missing $required"
   done
-  [[ -d "$stack_dir/project" && -d "$stack_dir/starter" ]] \
-    || fail "stacks/$stack is missing project/ or starter/"
+  # starter/ is optional: a stack whose runner is a template (custom) has
+  # no source tree to seed.
+  [[ -d "$stack_dir/project" ]] || fail "stacks/$stack is missing project/"
 done
 
 # Byte-identical rendered copies, per stack.
@@ -78,8 +79,12 @@ for stack_dir in "$STACKS_DIR"/*/; do
   done
   diff -rq "$WORKFLOW_DIR/docs" "$flavor/docs" >/dev/null \
     || fail "stale rendered docs in $stack/docs"
-  diff -rq "$stack_dir/starter" "$flavor/starter" >/dev/null \
-    || fail "stale rendered starter in $stack/starter"
+  if [[ -d "$stack_dir/starter" ]]; then
+    diff -rq "$stack_dir/starter" "$flavor/starter" >/dev/null \
+      || fail "stale rendered starter in $stack/starter"
+  else
+    [[ ! -e "$flavor/starter" ]] || fail "orphaned rendered starter in $stack/starter"
+  fi
   cmp -s "$stack_dir/stack.sh" "$flavor/stack.sh" || fail "stale rendered $stack/stack.sh"
   cmp -s "$stack_dir/README.md" "$flavor/README.md" || fail "stale rendered $stack/README.md"
   while IFS= read -r project_file; do

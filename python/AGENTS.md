@@ -2,9 +2,9 @@
 
 {{ONE_PARAGRAPH_DESCRIPTION}}
 
-This repo is **public** on GitHub (`github.com/bbirkinbine/{{PROJECT_NAME}}`)
-or will become public after the first feature lands. Treat every change as
-world-readable from commit #1.
+Treat this repo (`github.com/bbirkinbine/{{PROJECT_NAME}}`) as **public**
+from commit #1, whether or not it is yet: a private repo can flip to public
+later, and its whole history flips with it.
 
 `AGENTS.md` is the single client-neutral project contract. `CLAUDE.md` is a
 Claude Code import containing only `@AGENTS.md`. In a bootstrapped project,
@@ -325,6 +325,9 @@ Commit identities must use the public GitHub identity, never a work address.
 - Non-consenting coworker, manager, or customer names.
 - Private tracker IDs or internal document links.
 - Employer references, identity-leaking paths, or personal information.
+- Unscrubbed tool output. Build, test, and tool logs print absolute paths, so
+  they carry the local username and directory layout; commit a summary or
+  scrub first (`git grep -nE '/(Users|home)/'` finds them).
 
 Before making a private repo public, audit its entire history and all surfaces:
 

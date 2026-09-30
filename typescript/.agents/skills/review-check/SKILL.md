@@ -42,5 +42,7 @@ If all steps pass:
 - Do NOT commit. The human commits.
 
 If `.agentic/toolchain.sh ready` fails (the source and test directories do
-not exist yet, an early-stage repo), surface that and skip the steps that
-would error.
+not exist yet, or the custom stack's runner is not filled in), say that no
+gate ran and why, and skip the steps that would error. Do not substitute
+commands of your own for an undefined step; `/review` is the verification
+until the runner is filled.

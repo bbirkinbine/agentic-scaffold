@@ -15,6 +15,9 @@ Commit identities must use the public GitHub identity, never a work address.
 - Non-consenting coworker, manager, or customer names.
 - Private tracker IDs or internal document links.
 - Employer references, identity-leaking paths, or personal information.
+- Unscrubbed tool output. Build, test, and tool logs print absolute paths, so
+  they carry the local username and directory layout; commit a summary or
+  scrub first (`git grep -nE '/(Users|home)/'` finds them).
 
 Before making a private repo public, audit its entire history and all surfaces:
 

@@ -1,0 +1,22 @@
+# Dependabot keeps CI actions patched without a human remembering to check.
+# It only opens PRs; CI (.github/workflows/ci.yml) still has to pass before
+# any merge.
+#
+# One ecosystem ships with the custom stack:
+#   - github-actions — the action versions pinned in the workflows
+# Add this project's package ecosystem (gomod, cargo, ...) when it takes on
+# third-party dependencies, together with an audit job in ci.yml.
+#
+# Updates are grouped to cut PR noise: one PR for the routine patch/minor
+# bumps, separate PRs only for majors (which deserve individual review).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
