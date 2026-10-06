@@ -3,7 +3,7 @@ name: product-spec
 description: Interview the human to create or refresh docs/specs/0000-product.md — the product-level spec (the PRD's job). One question at a time; writes the file from the answers.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Product-spec interview. Where `/spec` covers one unit of work, this

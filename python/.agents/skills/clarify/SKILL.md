@@ -3,7 +3,7 @@ name: clarify
 description: Interrogate a draft spec for underspecified areas and write the answers back into it. Run after /spec and the human's first edit, before /plan, on features with real unknowns.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Spec clarification pass. Run AFTER the human has edited the draft spec

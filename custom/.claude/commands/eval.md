@@ -12,8 +12,9 @@ trajectory (did it follow the spec/plan) is Sense A, and that is `/review`,
 explains both senses.
 
 Preflight: confirm the active client's `evaluator` adapter exists
-(`.claude/agents/evaluator.md` for Claude Code or
-`.codex/agents/evaluator.toml` for Codex). If not, this project hasn't
+(`.claude/agents/evaluator.md` for Claude Code,
+`.codex/agents/evaluator.toml` for Codex, or `.pi/agents/evaluator.md` for
+Pi). If not, this project hasn't
 opted into product evals. Most projects shouldn't —
 they are only for a product that contains an LLM/AI surface (see
 `docs/evals.md` → "Sense B — do I need product evals?"). If the project does
@@ -28,6 +29,8 @@ answer, chatbot, agent trajectory). To enable:
      .claude/agents/evaluator.md
   cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
      .codex/agents/evaluator.toml
+  cp path/to/agentic-scaffold/python/.pi/agents/optional/evaluator.md \
+     .pi/agents/evaluator.md
 
 Then add a one-line mention in AGENTS.md; Claude receives it through the
 @AGENTS.md import. See docs/evals.md for the decision rule.

@@ -3,9 +3,11 @@
 **Status:** implemented through step 5 (2026-09-26) and merged to `main`
 (2026-09-30); the layout below is now the repository's. Open yardstick rows,
 left for real projects to close rather than held as merge blockers: live
-hook trials of the TypeScript and custom flavors in both clients, validation
-in a real TypeScript consumer project, and a real project that fills the
-custom runner. The evidence behind the direction, and what could not be
+hook trials of the TypeScript and custom flavors in Claude Code and Codex
+(Pi evidence is tracked separately in
+[`pi-portability.md`](pi-portability.md)), validation in a real TypeScript
+consumer project, and a real project that fills the custom runner. The
+evidence behind the direction, and what could not be
 verified, is in [`multi-stack-research.md`](multi-stack-research.md).
 
 A third stack, `stacks/custom/`, was added on 2026-09-30 after the first
@@ -279,8 +281,8 @@ Steps 1 and 2 change no consumer behavior; they make the seam exist.
    conventions rule, and `typescript/bootstrap.sh`. Add
    `scripts/smoke-test-typescript.sh` and a CI row for it. Validation: a
    fresh TypeScript project is green on day zero through `toolchain.sh gate`;
-   both clients' hooks fire on it, following the live trial pattern from
-   `docs/codex-portability.md`; every row of the maturity yardstick has an
+   Claude Code and Codex hooks fire on it, following the live trial pattern
+   from `docs/codex-portability.md`; every row of the maturity yardstick has an
    answer.
 5. **Docs and close-tasks.** Top-level `README.md`, `python/README.md`, a
    `typescript/README.md`, `docs/project-types.md` routing, the new-project
@@ -354,8 +356,8 @@ contract, checked by the render and adapter validation, not a rule file.
 Rows 5 and 6 are partial by design: the quality job is one guarded `gate`
 step and there is no audit job, because both depend on the project's
 ecosystem. Rows 8, 9, 12, and 13 are the project's to supply. Rows 14 and
-15 are open: no live hook trial in either client, and no real project has
-filled the runner yet.
+15 are open: no live Claude Code or Codex hook trial, and no real project has
+filled the runner yet. Pi's live evidence remains tracked separately.
 
 **Migration and regression coverage.** Generic-to-custom installation
 archives the old hash directory, upgrades unchanged client configs, and

@@ -1,0 +1,5 @@
+{
+  "extensions": [
+    "+./extensions/agentic-hooks.ts"
+  ]
+}

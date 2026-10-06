@@ -42,6 +42,10 @@ for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md \
   .claude/settings.json .claude/agents/reviewer.md .claude/agents/test-first.md \
   .claude/commands/review-check.md .claude/commands/test-first.md \
   .codex/config.toml .codex/hooks.json .codex/rules/safety.rules \
+  .pi/settings.json .pi/extensions/agentic-hooks.ts \
+  .pi/extensions/agentic-child-hooks.ts \
+  .pi/agents/reviewer.md .pi/agents/test-first.md \
+  .pi/prompts/review-check.md .pi/prompts/test-first.md docs/pi-agent.md \
   .agents/skills/review-check/SKILL.md .github/workflows/ci.yml \
   .github/dependabot.yml docs/specs/README.md docs/project-types.md \
   src/index.ts tests/index.test.ts; do

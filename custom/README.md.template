@@ -38,9 +38,9 @@ docs/ (specs and runbooks)}}
 {{COMMIT_GUARD_INSTALL — the pre-commit install line the bootstrap printed}}
 ```
 
-See [`AGENTS.md`](AGENTS.md) for the per-project agent contract both
-clients follow (Claude Code imports it through [`CLAUDE.md`](CLAUDE.md))
-and [`WORKFLOW.md`](WORKFLOW.md) for the spec-driven loop.
+See [`AGENTS.md`](AGENTS.md) for the per-project contract every client
+follows (Claude Code imports it through [`CLAUDE.md`](CLAUDE.md)) and
+[`WORKFLOW.md`](WORKFLOW.md) for the spec-driven loop.
 
 ## Acknowledgements
 

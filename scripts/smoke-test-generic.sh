@@ -28,12 +28,15 @@ for path in \
   .codex/config.toml \
   .codex/hooks.json \
   .codex/rules/safety.rules \
+  .pi/settings.json \
+  .pi/extensions/agentic-hooks.ts \
   .agentic/hooks/branch-check.sh \
   .agentic/hooks/block-destructive.sh \
   .agentic/hooks/context-reminder.sh \
   .agentic/hooks/statusline.sh \
   .agentic/hooks/strip-ai-attribution.sh \
-  docs/codex-cli.md; do
+  docs/codex-cli.md \
+  docs/pi-agent.md; do
   [[ -e "$fresh/$path" ]] || fail "missing fresh-project file: $path"
 done
 
@@ -52,7 +55,11 @@ root = Path(sys.argv[1])
 tomllib.loads((root / ".codex/config.toml").read_text())
 json.loads((root / ".codex/hooks.json").read_text())
 json.loads((root / ".claude/settings.json").read_text())
+json.loads((root / ".pi/settings.json").read_text())
 PY
+
+[[ ! -e "$fresh/.pi/prompts" && ! -e "$fresh/.pi/agents" ]] \
+  || fail "generic flavor installed workflow prompts or roles"
 
 for hook in "$fresh"/.agentic/hooks/*.sh; do
   [[ -x "$hook" ]] || fail "installed hook is not executable: $hook"
@@ -124,8 +131,10 @@ printf '\nPROJECT README SURVIVES\n' >>"$fresh/README.md"
 printf '\n# PROJECT CONFIG SURVIVES\n' >>"$fresh/.codex/config.toml"
 printf '\n' >>"$fresh/.claude/settings.json"
 printf '\n' >>"$fresh/.codex/hooks.json"
+printf '\n' >>"$fresh/.pi/settings.json"
 cp "$fresh/.claude/settings.json" "$WORK_DIR/custom-claude-settings.json"
 cp "$fresh/.codex/hooks.json" "$WORK_DIR/custom-codex-hooks.json"
+cp "$fresh/.pi/settings.json" "$WORK_DIR/custom-pi-settings.json"
 (
   cd "$fresh"
   bash "$REPO_DIR/generic/bootstrap.sh" --update >/dev/null
@@ -142,6 +151,8 @@ cmp -s "$fresh/.claude/settings.json" "$WORK_DIR/custom-claude-settings.json" \
   || fail "update overwrote customized Claude settings"
 cmp -s "$fresh/.codex/hooks.json" "$WORK_DIR/custom-codex-hooks.json" \
   || fail "update overwrote customized Codex hooks"
+cmp -s "$fresh/.pi/settings.json" "$WORK_DIR/custom-pi-settings.json" \
+  || fail "update overwrote customized Pi settings"
 
 legacy="$WORK_DIR/legacy"
 mkdir -p "$legacy"

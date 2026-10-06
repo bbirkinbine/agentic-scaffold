@@ -3,14 +3,15 @@ name: performance
 description: Invoke the performance-reviewer subagent on the complete current semantic change set. Requires the opt-in subagent to be installed in this project.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Invoke the `performance-reviewer` subagent.
 
 Preflight: confirm the active client's `performance-reviewer` adapter exists
-(`.claude/agents/performance-reviewer.md` for Claude Code or
-`.codex/agents/performance-reviewer.toml` for Codex). If not, this project
+(`.claude/agents/performance-reviewer.md` for Claude Code,
+`.codex/agents/performance-reviewer.toml` for Codex, or
+`.pi/agents/performance-reviewer.md` for Pi). If not, this project
 hasn't opted into performance review. Tell the user:
 
 ```
@@ -20,6 +21,8 @@ Performance-reviewer is not installed in this project. To enable:
      .claude/agents/performance-reviewer.md
   cp path/to/agentic-scaffold/python/.codex/agents/optional/performance-reviewer.toml \
      .codex/agents/performance-reviewer.toml
+  cp path/to/agentic-scaffold/python/.pi/agents/optional/performance-reviewer.md \
+     .pi/agents/performance-reviewer.md
 
 Then add a one-line mention under "Subagents" in AGENTS.md. CLAUDE.md
 continues to import that contract with @AGENTS.md.

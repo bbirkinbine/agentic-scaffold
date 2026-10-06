@@ -3,7 +3,7 @@ name: scope-check
 description: Five forcing questions to clarify a feature before /spec. Run manually on features where the goal or scope is ambiguous. Output feeds the spec's Goal and Non-goals sections.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Pre-spec scope check. Run BEFORE `/spec` when the feature's goal or scope feels unclear. The point is to surface ambiguity before it propagates into the spec, the plan, and the tests.

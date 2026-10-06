@@ -1,4 +1,4 @@
-# Generic dual-client scaffold
+# Generic multi-client scaffold
 
 Use this flavor for repositories that will not run the stack flavors'
 prescribed Spec → Plan → Test-first workflow: dotfiles, a notes or
@@ -24,11 +24,12 @@ bash path/to/agentic-scaffold/generic/bootstrap.sh
 The bootstrap installs:
 
 - a complete canonical `AGENTS.md` contract plus a `CLAUDE.md` import shim;
-- `.claude/settings.json` and trusted-project `.codex/` configuration;
+- `.claude/settings.json`, trusted-project `.codex/` configuration, and
+  `.pi/settings.json` plus its local safety extension;
 - stack-neutral branch, destructive-command, compaction, and status-line
   hooks under `.agentic/hooks/`;
 - Codex secret-read permissions and command-execution rules;
-- `docs/codex-cli.md`.
+- `docs/codex-cli.md` and `docs/pi-agent.md`.
 
 It does not install a formatter, test runner, Stop gate, workflow skills,
 custom agents, CI, or pre-commit configuration because those choices depend
@@ -52,8 +53,9 @@ This is the generic flavor's day zero; there is no `WORKFLOW.md` to walk.
    first commit, the session-start hook hands the agent a branch warning;
    asking the agent whether it received one is the quick check that hooks
    loaded. In Codex, trust the project `.codex/`
-   layer and review the hooks with `/hooks` (`docs/codex-cli.md`). A
-   sandboxed founding session may need approval to write `.codex/` and
+   layer and review the hooks with `/hooks` (`docs/codex-cli.md`). In Pi,
+   approve project trust, restart or `/reload`, and verify the local extension
+   (`docs/pi-agent.md`). A sandboxed founding session may need approval to write `.codex/` and
    `.git/hooks/`; re-running the bootstrap after approval is safe.
 5. Make the one scaffolding commit on `main`, then branch for real work.
 
@@ -64,4 +66,4 @@ merge warning instead of overwriting it. Project-owned contracts and
 `README.md` are preserved. A recognizable legacy
 `AGENTS.md` pointer, byte-identical contract pair, or Claude-only contract is
 migrated to canonical `AGENTS.md` plus `CLAUDE.md`'s `@AGENTS.md` import, so
-both clients load the same existing policy without duplicate maintenance.
+all clients load the same existing policy without duplicate maintenance.

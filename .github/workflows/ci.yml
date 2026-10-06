@@ -30,6 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Syntax-check shell scripts (bash -n)
         run: |
           bash -n scripts/*.sh
@@ -53,16 +58,18 @@ jobs:
             typescript/bootstrap.sh \
             custom/bootstrap.sh
 
-      # Exec-policy validation must not silently disappear on a runner that
-      # happens not to have Codex preinstalled. Keep this version aligned with
-      # the verified baseline in docs/codex-portability.md.
-      - name: Install pinned Codex CLI
+      # Client validation must not silently disappear on a runner that lacks
+      # Codex or Pi. Keep these versions aligned with the portability docs.
+      - name: Install pinned client validation baselines
         run: |
-          npm install --global @openai/codex@0.146.0
+          npm install --global @openai/codex@0.146.0 @earendil-works/pi-coding-agent@1.0.4
           test "$(codex --version)" = "codex-cli 0.146.0"
+          test "$(pi --version)" = "1.0.4"
 
-      - name: Validate shared sources and Codex adapters
-        run: bash scripts/validate-codex-adapters.sh
+      - name: Validate shared sources and client adapters
+        run: |
+          bash scripts/validate-codex-adapters.sh
+          bash scripts/validate-pi-adapters.sh
 
   generic-smoke:
     runs-on: ubuntu-latest

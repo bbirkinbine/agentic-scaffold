@@ -1,14 +1,15 @@
 # Workflow — how to use this scaffolding
 
-Companion to the shared `AGENTS.md` project contract. Codex reads it
+Companion to the shared `AGENTS.md` project contract. Codex and Pi read it
 directly; Claude Code loads it through the `@AGENTS.md` import in
 `CLAUDE.md`. This file is the human's step-by-step — what to run, in order,
 with a one-line reason for each step.
 
 The whole thing is five phases: **Spec → Plan → Test-first → Implement →
 Verify.** Each workflow entry runs one phase and stops, so you stay in
-control. Claude Code uses `/<name>` slash commands; Codex uses `$<name>`
-repository skills (or `/skills`). New to the terms? A *spec* is a short
+control. Claude Code and Pi use `/<name>` project prompts; Codex uses
+`$<name>` repository skills (or `/skills`). Pi can also use the same portable
+skills as `/skill:<name>`. New to the terms? A *spec* is a short
 design note; a *subagent* is a fresh agent with its own clean context.
 
 ## The short version
@@ -47,7 +48,9 @@ reasons, the options, and the edge cases.
    lint/type checks after every edit. Restart the client after setup so
    its settings and hooks load. In Codex, review the project trust prompt
    and run `/hooks` to trust the checked-in hook definitions; see
-   `docs/codex-cli.md`.
+   `docs/codex-cli.md`. In Pi, approve project trust and restart or `/reload`
+   so settings, prompts, the local extension, and `pi-subagents` load; see
+   `docs/pi-agent.md`.
 2. **Fill the placeholders.** `rg '\{\{' .`, then replace every `{{...}}`
    — the agent reads the project contract, so a leftover placeholder
    misleads it. One placeholder is the starter package directory
@@ -397,6 +400,8 @@ core loop; `--core` adds ADR/status/workflow docs; `--full` or
   a visual map (Mermaid diagrams).
 - [`docs/codex-cli.md`](docs/codex-cli.md) — Codex trust, workflow mapping,
   client switching, non-interactive use, and guardrail differences.
+- [`docs/pi-agent.md`](docs/pi-agent.md) — Pi trust/reload, prompt and
+  subagent mapping, provider-neutral model use, and guardrail limits.
 - `docs/specs/README.md` — spec numbering, the opt-in issue mode, the product spec, section shapes.
 - `docs/adr/README.md` — architecture decision records: when a choice is
   cross-cutting and costly to reverse, log the decision and its rationale
@@ -411,5 +416,5 @@ core loop; `--core` adds ADR/status/workflow docs; `--full` or
   local model: the one rule that makes it safe, what to delegate and what
   never to, and why the failures are serialization rather than reasoning.
 - `docs/agent-handoff.md` — operational runbook: risks, rollback, "when X breaks."
-- `AGENTS.md` — the single contract both clients follow; `CLAUDE.md` imports
+- `AGENTS.md` — the single contract every client follows; `CLAUDE.md` imports
   it for Claude Code.

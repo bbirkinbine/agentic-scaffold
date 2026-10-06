@@ -5,7 +5,7 @@
 > give me*, and *when do I run each agent / skill / command*. For the
 > **shape** of the loop see [`workflow-diagram.md`](workflow-diagram.md);
 > for the **steps** in order see [`../WORKFLOW.md`](../WORKFLOW.md); for the
-> **rules** both clients follow see [`../AGENTS.md`](../AGENTS.md); for
+> **rules** every client follows see [`../AGENTS.md`](../AGENTS.md); for
 > Codex startup and switching see [`codex-cli.md`](codex-cli.md).
 
 A stack flavor (Python, TypeScript, custom) standardizes a five-phase loop —
@@ -16,7 +16,7 @@ the one file that names the stack's formatter, linter, type checker, and
 test runner. Python and TypeScript ship that file filled in. The custom
 stack ships it as a template the project fills, so a repository with no
 adapter still gets the loop. The generic flavor installs no loop at all: it
-standardizes the dual-client contract and safety layer and leaves workflow
+standardizes the multi-client contract and safety layer and leaves workflow
 and validation to the repository owner.
 
 ---
@@ -54,7 +54,7 @@ bash path/to/agentic-scaffold/custom/bootstrap.sh
 ```
 
 The **generic flavor** installs one canonical `AGENTS.md` contract with a
-Claude import shim, Claude/Codex configuration, stack-neutral safety hooks,
+Claude import shim, Claude/Codex/Pi configuration, stack-neutral safety hooks,
 Codex command rules, and a Codex startup guide. It has no formatter, Stop
 gate, workflow skills, custom agents, or CI because those choices depend on
 the actual stack. Run:
@@ -146,7 +146,7 @@ flowchart TD
 
 | Profile | Who it is for | One-line summary |
 | --- | --- | --- |
-| `--minimal` | A small repo that wants the core loop without the full doctrine surface | Claude commands + Codex skills, both clients' core agents, shared safety hooks, rules, specs convention, CI |
+| `--minimal` | A small repo that wants the core loop without the full doctrine surface | Claude commands + portable Codex/Pi skills + Pi prompts, all clients' core roles, shared safety hooks, rules, specs convention, CI |
 | `--core` (default) | The normal attended agentic workflow | Minimal + the stack's skills, ADRs, the sharpening commands, status dashboard, workflow diagram, Dependabot |
 | `--full` | The author's complete workflow bundle | Core + advanced docs (parallel agents, plugin path, serena, evals) + optional-reviewer command stubs |
 
@@ -161,7 +161,8 @@ canonical `AGENTS.md` through the scaffold-managed `CLAUDE.md` import shim.
 Bootstrap records the selected profile, hook mode, advanced-docs option, and
 managed-file checksums under `.agentic/`. A flagless `bootstrap.sh --update`
 reuses those choices. Updates also checksum-protect `.claude/settings.json`,
-`.codex/config.toml`, and `.codex/hooks.json`: unchanged scaffold copies
+`.codex/config.toml`, `.codex/hooks.json`, and `.pi/settings.json`: unchanged
+scaffold copies
 receive template improvements, while project-customized copies remain intact
 for a manual merge.
 
@@ -174,11 +175,12 @@ Read top-down: everything in a tier includes the tiers above it.
 ### Core — every profile, including `--minimal`
 
 - **Context:** canonical `AGENTS.md` plus Claude's `@AGENTS.md` import shim
-- **Workflows:** Claude `/spec`, `/plan`, `/test-first`, `/review-check`,
-  `/review`; equivalent Codex `$spec`, `$plan`, `$test-first`,
-  `$review-check`, `$review`
-- **Agents:** Claude Markdown and Codex TOML adapters for `planner`,
-  `test-first`, `reviewer`
+- **Workflows:** Claude and Pi `/spec`, `/plan`, `/test-first`,
+  `/review-check`, `/review`; equivalent Codex `$spec`, `$plan`,
+  `$test-first`, `$review-check`, `$review`. Pi can also invoke the portable
+  skills as `/skill:<name>`.
+- **Agents:** Claude Markdown, Codex TOML, and Pi Markdown adapters for
+  `planner`, `test-first`, `reviewer`
 - **Hooks:** `branch-check` (warn on `main`), `block-destructive`
   (deny unrecoverable Bash), `specs-status` (refresh the spec dashboard),
   `gate-on-stop` (block turn-end while the source tree is dirty and
@@ -200,12 +202,14 @@ Read top-down: everything in a tier includes the tiers above it.
   and ships no audit job), PR template, issue forms, `.pre-commit-config.yaml`
 - **Codex:** `.codex/config.toml`, trusted hooks, command rules, and
   `docs/codex-cli.md`
+- **Pi:** `.pi/settings.json`, project prompts and roles, the local lifecycle
+  extension, exact-pinned extension-only `pi-subagents`, and `docs/pi-agent.md`
 
 ### Added by `--core` (the default)
 
-- **Workflows:** Claude `/product-spec`, `/scope-check`, `/clarify`, `/adr`,
-  `/analyze`, `/specs-status`, `/review-adversarial`; Codex uses the same
-  names with `$`
+- **Workflows:** Claude and Pi `/product-spec`, `/scope-check`, `/clarify`,
+  `/adr`, `/analyze`, `/specs-status`, `/review-adversarial`; Codex uses the
+  same names with `$`
 - **Agents:** `analyzer`, `reviewer-adversarial`
 - **Skills (auto-fire, section 5):** the stack's skills — Python ships
   `python-module-split`, `python-docstrings`, `dependency-hygiene`;
@@ -219,14 +223,15 @@ Read top-down: everything in a tier includes the tiers above it.
 - **Docs:** `docs/parallel-agents.md`, `docs/plugin-packaging.md`,
   `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`,
   `docs/local-executor.md`
-- **Workflows (`--full` only):** Claude `/security`, `/performance`,
+- **Workflows (`--full` only):** Claude and Pi `/security`, `/performance`,
   `/eval`, `/delegate` and matching Codex `$` skills (the first three are
   stubs — each requires its opt-in agent, below)
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
 ### Added by `--strict-hooks` (any profile)
 
-- Both clients' hook wiring is selected so edits run
+- Claude and Codex hook wiring plus Pi's shared scaffold state are selected
+  so edits run
   `.agentic/toolchain.sh format` + `lint` + `typecheck`
   (the Stop gate is already on by default; `--strict-hooks` keeps it and
   is incompatible with `--no-stop-gate`; select `--default-hooks` to return
@@ -234,8 +239,9 @@ Read top-down: everything in a tier includes the tiers above it.
 
 ### Opt-in agents — never auto-copied, manual per project (section 6)
 
-- `security-reviewer`, `performance-reviewer`, `evaluator` — copy both
-  `.claude/agents/optional/` and `.codex/agents/optional/` adapters only
+- `security-reviewer`, `performance-reviewer`, `evaluator` — copy the
+  `.claude/agents/optional/`, `.codex/agents/optional/`, and
+  `.pi/agents/optional/` adapters only
   when the project's surface warrants it.
 
 ---
@@ -244,8 +250,8 @@ Read top-down: everything in a tier includes the tiers above it.
 
 The loop's five phases are fixed; these are the tools that drive them plus
 the optional sharpening passes. "Profile" is the thinnest profile that
-ships the workflow. The table uses Claude `/<name>` notation; Codex uses the
-same name as `$<name>`.
+ships the workflow. The table uses the `/<name>` notation shared by Claude
+and Pi; Codex uses the same name as `$<name>`.
 
 | Run this | It does | Reach for it when | Profile |
 | --- | --- | --- | --- |
@@ -317,8 +323,8 @@ flowchart LR
 These are cross-cutting properties of a project, not profiles. Decide them
 at day zero (see the day-zero diagram in
 [`workflow-diagram.md`](workflow-diagram.md)) and enable only what applies.
-The reviewer agents have optional adapters under both client directories;
-copy both files and add a one-line mention in `AGENTS.md`.
+The reviewer agents have optional adapters under each client's directory;
+copy all three files and add a one-line mention in `AGENTS.md`.
 
 | Your project has… | Enable | When to skip | Reference |
 | --- | --- | --- | --- |
@@ -340,7 +346,9 @@ available in the scaffold's `.claude/agents/optional/` and
 - [`workflow-diagram.md`](workflow-diagram.md) — the loop as diagrams:
   day zero, the per-feature loop, the automation layer, "scale to the task."
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the steps in order, one line of why each.
-- [`../AGENTS.md`](../AGENTS.md) — the complete rules both clients follow.
+- [`../AGENTS.md`](../AGENTS.md) — the complete rules every client follows.
+- [`pi-agent.md`](pi-agent.md) — Pi trust/reload, project prompts and roles,
+  model portability, and known enforcement gaps.
 - [`codex-cli.md`](codex-cli.md) — Codex trust, invocation, switching, and
   non-interactive use.
 - [`specs/README.md`](specs/README.md) — spec numbering, the opt-in issue mode,

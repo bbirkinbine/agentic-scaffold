@@ -1,7 +1,8 @@
 # agentic-scaffold
 
-Scaffolding that sets up a new repository so a coding agent (Claude Code or
-Codex CLI) works in a disciplined loop: write a spec, plan, write failing
+Scaffolding that sets up a new repository so a coding agent (Claude Code,
+Codex CLI, or Pi with a hosted or local model capable of the required tool
+protocol) works in a disciplined loop: write a spec, plan, write failing
 tests first, implement, then pass a quality gate and an independent review
 before anything is committed. Python and TypeScript get the full loop with
 the tools chosen; any other stack gets the same loop with a gate runner it
@@ -14,7 +15,9 @@ the loop gets the contract and safety hooks (generic).
 > PRs are welcome but won't get fast turnaround. The scaffolding evolves
 > as the workflow does — pin a commit if you depend on a snapshot.
 > CI bootstraps every flavor and profile on every push and runs each fresh
-> project's quality gate.
+> project's quality gate. Claude Code and Codex have field use; Pi is
+> statically and smoke validated, with authenticated workflow and normal
+> trust/reload evidence still open ([details](docs/pi-portability.md)).
 
 ## Quick start
 
@@ -28,7 +31,7 @@ the loop gets the contract and safety hooks (generic).
 
    ```bash
    mkdir my-project && cd my-project && git init
-   claude        # or: codex
+   claude        # or: codex, or: pi
    ```
 
 3. **Paste this prompt**, filling in the blank. A rough idea is enough;
@@ -42,9 +45,11 @@ the loop gets the contract and safety hooks (generic).
    a time. Then apply the stack rubric in workflow/docs/project-types.md,
    section 1, asking me rather than guessing where my answers do not decide
    it; tell me the deciding question; run that flavor's bootstrap.sh here;
-   write the interview answers to docs/specs/0000-product.md; fill the
-   placeholders from what I told you, writing "not decided yet" where that
-   is the truth instead of guessing; and walk me through day zero
+   if that flavor runs the workflow loop, write the interview answers to
+   docs/specs/0000-product.md; otherwise use them to fill README.md and
+   AGENTS.md; fill the remaining placeholders from what I told you, using
+   "not decided yet" where that is the truth instead of guessing; and walk me
+   through day zero
    (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
    generic flavor).
    ```
@@ -52,11 +57,12 @@ the loop gets the contract and safety hooks (generic).
 If your description is thin, the agent runs the product interview first
 (seven questions, one at a time; "not sure" is an allowed answer and gets
 recorded as an open question). It then picks Python, TypeScript, custom, or
-the generic flavor and says why, installs the scaffolding, writes the interview
-answers as the product spec, drafts the project contract, and walks you
-through the first commit. Architecture beyond the stack is not decided on
-day zero; `/adr` records such a decision when a feature forces one. After that, `WORKFLOW.md` in your
-project is the guide; it opens with the short version of the loop.
+the generic flavor and says why, installs the scaffolding, records the
+interview in the product spec for loop-enabled flavors or in README/AGENTS for
+generic, drafts the project contract, and walks you through the first commit.
+Architecture beyond the stack is not decided on day zero; `/adr` records such
+a decision when a feature forces one. After that, `WORKFLOW.md` in your project
+is the guide; it opens with the short version of the loop.
 
 Two things to do yourself: read every line of the `AGENTS.md` the agent
 drafted before you commit it, and restart the agent once after setup so its
@@ -64,11 +70,12 @@ hooks load.
 
 ## What you get
 
-- **A project contract** (`AGENTS.md`) both agents read: stack, how to run
+- **A project contract** (`AGENTS.md`) every client reads: stack, how to run
   things, standing rules, what not to touch.
 - **The loop as commands:** `/spec`, `/plan`, `/test-first`,
   `/review-check`, `/review`, with fresh-context subagents for planning and
-  review. Codex uses the same names with `$`.
+  review. Codex uses the same names with `$`; Pi loads them as project prompts
+  and can also invoke the shared skills explicitly.
 - **Gates that do not depend on the agent remembering:** a hook that blocks
   ending a turn while the source tree is dirty and lint, format, types, or
   tests are red; a hook that blocks destructive shell commands; a commit
@@ -95,13 +102,18 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   [`typescript/README.md`](typescript/README.md) — file inventory per stack;
   [`custom/README.md`](custom/README.md) — the loop for a stack with no
   adapter; [`generic/README.md`](generic/README.md) — contract and safety
-  hooks only.
+  hooks only. [`workflow/docs/pi-agent.md`](workflow/docs/pi-agent.md)
+  explains Pi trust, reload, prompts, roles, model portability, and limits.
 - [`new-project-checklist.md`](new-project-checklist.md) — the author's
   repo-creation checklist (GitHub settings, the private-to-public hygiene
   pass). Optional for others.
 - [`docs/multi-stack-scaffold.md`](docs/multi-stack-scaffold.md) — how a
   stack is added; [`docs/multi-stack-research.md`](docs/multi-stack-research.md)
   — the evidence behind the design.
+- [`docs/pi-agent-support.md`](docs/pi-agent-support.md) — the Pi adapter plan
+  and implementation record; [`docs/pi-portability.md`](docs/pi-portability.md)
+  — remaining evidence and containment gaps. The earlier Codex adapter record
+  is in [`docs/codex-portability.md`](docs/codex-portability.md).
 
 `python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run

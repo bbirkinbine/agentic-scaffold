@@ -139,7 +139,7 @@ render_row() {
 # --- render the body (sorted by rank, then spec number) ---
 body="$(mktemp)"
 if [ ! -s "$rows" ]; then
-  printf '%s\n' '_No specs yet. Run the spec workflow (`/spec <name>` in Claude or `$spec <name>` in Codex) to create the first one; this list fills in and stays current as statuses change._' > "$body"
+  printf '%s\n' '_No specs yet. Run the spec workflow (`/spec <name>` in Claude or Pi, or `$spec <name>` in Codex) to create the first one; this list fills in and stays current as statuses change._' > "$body"
 else
   ranked="$(mktemp)"
   while IFS=$'\t' read -r num st title slug dep; do

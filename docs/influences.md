@@ -63,6 +63,7 @@ the framework's full living-spec maintenance burden was not.
 | Own every line of the shared `AGENTS.md` contract rather than committing a generated one unread, and keep it short (`python/README.md` → "Don't") | Gloaguen, Mündler, Müller, Raychev, Vechev, "Evaluating AGENTS.md: Are Repository-Level Context Files Helpful for Coding Agents?", [arXiv:2602.11988v2](https://arxiv.org/abs/2602.11988) (2026-06-23), retrieved 2026-07-22 |
 | Dual-client contract/adapters: complete `AGENTS.md`, repository skills, project custom agents, trusted hooks, permission profiles, command rules, and Codex TUI status line | Official Codex documentation for [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills), [subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [hooks](https://learn.chatgpt.com/docs/hooks), [rules](https://learn.chatgpt.com/docs/agent-configuration/rules), and [configuration](https://learn.chatgpt.com/docs/config-reference), verified 2026-07-30 against Codex CLI 0.146.0 |
 | One canonical `AGENTS.md`, imported by Claude instead of duplicated; read-only Claude reviewer/planner subagents | Official Claude Code documentation for [project memory and `AGENTS.md` imports](https://code.claude.com/docs/en/memory) and [subagent `permissionMode: plan`](https://code.claude.com/docs/en/sub-agents), verified 2026-07-30 against Claude Code 2.1.220 |
+| Pi adapter surfaces: project prompts and skills, trusted settings/extensions, lifecycle events, model inheritance, and Markdown specialist roles backed by an extension-only package pin | Official Pi [README](https://github.com/earendil-works/pi/tree/main/packages/coding-agent), [extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md), [settings](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/settings.md), [prompt templates](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/prompt-templates.md), [skills](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md), and [security](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/security.md) documentation, plus [`pi-subagents`](https://github.com/nicobailon/pi-subagents) agent/configuration docs; retrieved 2026-10-05 and reverified 2026-10-06 against Pi 1.0.4 and `pi-subagents` 0.76.1. Both repositories are MIT-licensed; only interfaces and pattern-level behavior were used. |
 | Review findings as a trigger for `AGENTS.md` rules (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); reviewers excluding mechanical findings the local gate and CI already enforce | Anthropic, *The AI-Native SDLC Playbook* — <https://claude.com/blog/the-ai-native-sdlc-playbook>, published 2026-08-21, retrieved 2026-09-01 |
 | State a learned rule as the correct action, not only the prohibition (`workflow/rules/commit-style.md` → "Mistakes feed back into the rules"); repeat product-eval cases and report success frequency under a spec-approved acceptance policy (`python/docs/evals.md` → "Run each case more than once", the `evaluator` role) | Nick Saraev, "I Spent $31,141 On Claude Code To Learn This" (YouTube, 2026-09-25) — <https://youtu.be/45K3zHckCnQ>, retrieved 2026-09-25; repeated evaluations at 2:55–3:14, learned rules at 24:00–24:30 |
 | The multi-stack direction (`docs/multi-stack-scaffold.md`): keep the workflow layer language-neutral and put the language's strict gate behind one runner, because per-language agent capability varies by model and task in no stable order, so the gate must not vary by language | Zan et al., "Multi-SWE-bench", [arXiv:2504.02605](https://arxiv.org/abs/2504.02605) (NeurIPS 2025); SWE-bench Multilingual, <https://www.swebench.com/multilingual.html>; "SWE-Bench ProMax", [arXiv:2608.09802](https://arxiv.org/abs/2608.09802) (COLM 2026), whose Table 3 reversed the first draft's assumption of a persisting Python advantage; Mündler et al., "Type-Constrained Code Generation with Language Models", [arXiv:2504.09246](https://arxiv.org/abs/2504.09246) (PLDI 2025); Berger et al., "On the Impact of Programming Languages on Code Quality: A Reproduction Study", [TOPLAS 2019](https://dl.acm.org/doi/10.1145/3340571), cited as a caution, not support. All retrieved 2026-09-26; per-claim grounding and what could not be verified are in `docs/multi-stack-research.md` |
@@ -102,9 +103,9 @@ Two sources arguing for a shorter contract did not settle what to cut, so on
 current model still needs to be told. The rendered `python/AGENTS.md` went
 from 27,859 to 16,476 bytes, a 41% reduction. What left was the material a
 session does not need in context in order to act: the rationale behind each
-rule, worked examples, and enforcement backstory that `WORKFLOW.md`,
-`python/README.md`, and `docs/specs/README.md` already carry and that the
-contract points at. Every decision rule stayed, and the headings that the
+rule, worked examples, and enforcement backstory that `workflow/WORKFLOW.md`,
+`python/README.md`, and `python/docs/specs/README.md` already carry and that
+the contract points at. Every decision rule stayed, and the headings that the
 commands and skills reference — `## Shared workflow protocols` and
 `### Semantic change set` — were held stable. `generic/project-contract.md`
 was already short and was left alone.
@@ -141,8 +142,8 @@ being re-proposed.
     engineer. Here those are one person, and "discuss the feature, then
     `/spec`" already is that capture step. Likewise a root `REVIEW.md`
     review-policy file: review policy already lives in the reviewer role
-    prompts, which render to both clients — a second home for it would be a
-    second source of truth.
+    sources, which render to every client adapter — a second home for it would
+    be a second source of truth.
   - *Stages that presuppose a deployment target.* Stage 6 in full (control
     bands, `bands.yaml` response tiers, autonomous production monitoring,
     scheduled hosted scans, Claude on call via Slack) and Stage 5's

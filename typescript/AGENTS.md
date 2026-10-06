@@ -17,8 +17,9 @@ them only when installed.
 Standing rules are included below. Put project-specific additions outside the
 marked generated block; never duplicate shared policy in a client directory.
 
-This contract writes workflows as `/name`. Claude Code uses that slash command;
-Codex uses `$name` or `/skills`. Both render from the same source.
+This contract writes workflows as `/name`. Claude Code and Pi use that project
+prompt; Codex uses `$name` or `/skills`. Pi can also use `/skill:name`. All
+surfaces render from the same source.
 
 ## Shared workflow protocols
 
@@ -155,9 +156,9 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
 ## Detailed workflow guidance
 
 Load each phase's workflow for procedure. `WORKFLOW.md` owns the walkthrough
-and hooks; `docs/project-types.md` the inventory; `docs/codex-cli.md` startup
-and trust; and installed `docs/parallel-agents.md` worktrees and unattended
-runs. Surface conflicts with this contract.
+and hooks; `docs/project-types.md` the inventory; `docs/codex-cli.md` and
+`docs/pi-agent.md` client startup and trust; and installed
+`docs/parallel-agents.md` worktrees and unattended runs. Surface conflicts with this contract.
 
 Hooks, permissions, pre-commit, and CI neither grant authorization nor prove
 correctness. The rules, complete gate, and fresh semantic review still apply.

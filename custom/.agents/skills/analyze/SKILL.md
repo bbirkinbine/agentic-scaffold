@@ -3,7 +3,7 @@ name: analyze
 description: Read-only cross-artifact consistency check — spec vs tests vs semantic change set vs standing rules. Run after /test-first or before /review. Reports findings; changes nothing.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Cross-artifact consistency check. The reviewers judge the *code*; this

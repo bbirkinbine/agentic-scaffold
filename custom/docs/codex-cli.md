@@ -1,9 +1,9 @@
 # Codex CLI
 
-This scaffold installs Claude Code and Codex support together. Both clients
-read the same project contract and produce the same durable artifacts: specs,
+This scaffold installs Claude Code, Codex, and Pi support together. All three
+clients read the same project contract and produce the same durable artifacts: specs,
 ADRs, phase handoffs, tests, review findings, and verification output. You can
-stop after a phase in one client and resume from the repository in the other.
+stop after a phase in one client and resume from the repository in another.
 Conversation history and client UI state do not transfer.
 
 Verification baseline: Codex CLI 0.146.0 and the official Codex documentation,
@@ -38,7 +38,7 @@ trusted `.codex/` layer. See the official documentation for
 
 ## Start a fresh project
 
-Bootstrap normally; dual-client support is the default:
+Bootstrap normally; multi-client support is the default:
 
 ```bash
 cd your-project
@@ -93,7 +93,7 @@ No regeneration is required. Codex reads the same `AGENTS.md`, spec, tests,
 and diff that Claude Code left behind. Switching in the other direction uses
 the same procedure; Claude Code imports `AGENTS.md` through `CLAUDE.md`.
 
-For a project created before dual-client support, run:
+For a project created before the current client adapters, run:
 
 ```bash
 bash path/to/agentic-scaffold/<stack>/bootstrap.sh --update --core
@@ -111,6 +111,10 @@ discarding either side. Later updates refresh only the marked standing-rule
 block in `AGENTS.md`, preserve project policy outside it, reuse the recorded
 profile and hook choices, and avoid overwriting customized client
 configuration.
+
+For Pi startup, trust/reload behavior, prompts, roles, and model portability,
+see [`pi-agent.md`](pi-agent.md). Pi remains a separate adapter over the same
+repository contract; this page documents Codex-specific behavior.
 
 ## Non-interactive Codex
 
@@ -132,18 +136,20 @@ format step may update files.
 ## Opt-in roles
 
 Security, performance, and product-eval reviewers remain per-project opt-ins.
-Copy both adapters so either client can invoke the role:
+Copy all three adapters so every supported client can invoke the role:
 
 ```bash
 cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
    .claude/agents/security-reviewer.md
 cp path/to/agentic-scaffold/python/.codex/agents/optional/security-reviewer.toml \
    .codex/agents/security-reviewer.toml
+cp path/to/agentic-scaffold/python/.pi/agents/optional/security-reviewer.md \
+   .pi/agents/security-reviewer.md
 ```
 
 Repeat with `performance-reviewer` or `evaluator` when its trigger applies,
-then record the enabled role in `AGENTS.md`; Claude receives the change
-through its import.
+then record the enabled role in `AGENTS.md`; every client reads that canonical
+contract (Claude through its import).
 
 ## Guardrails and client differences
 

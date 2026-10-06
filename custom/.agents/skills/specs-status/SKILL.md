@@ -3,7 +3,7 @@ name: specs-status
 description: Refresh the generated status block in docs/specs/README.md and print the same status list in chat. Driven by the specs-status.sh hook script; reads each spec's **Status:** field. Never edits a spec.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Show the status of every spec under `docs/specs/`, and refresh the

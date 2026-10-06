@@ -2,25 +2,35 @@
 
 **Status: documented, not yet adopted.** `bootstrap.sh` (copy +
 `--update` sync) remains the canonical distribution mechanism for this
-scaffolding. Claude Code and Codex have different plugin manifests and
-installation flows, so a future packaging change must publish separate
-client adapters from the shared `workflow/` sources. A plugin is not the
+scaffolding. Claude Code, Codex, and Pi have different package/configuration
+flows, so a future packaging change must publish separate client adapters
+from the shared `workflow/` sources. A plugin is not the
 portability layer; the checked-in repository files are.
 
 ## What remains portable without a plugin
 
-The repository already carries both clients' project surfaces:
+The repository already carries every client's project surfaces:
 
 - shared policy and role sources under `workflow/`;
 - canonical `AGENTS.md` plus `CLAUDE.md`'s `@AGENTS.md` import;
 - Claude adapters under `.claude/`;
 - Codex skills under `.agents/skills/` and project configuration under
   `.codex/`;
+- Pi prompts, roles, extension, and settings under `.pi/`, while Pi also
+  discovers the portable `.agents/skills/` catalog;
 - client-neutral hooks under `.agentic/hooks/`.
 
 That layout works in a fresh clone and under `codex exec` without installing
 a global plugin. It also keeps CI, pre-commit, docs, specs, and project
 configuration versioned with the code they govern.
+
+## Pi packaging path
+
+Pi can load npm packages, but this scaffold deliberately checks its prompts,
+roles, settings, and local lifecycle adapter into each project. The only
+package dependency is an exact `pi-subagents` pin loaded extension-only;
+bundled roles, skills, and prompts are disabled so they cannot create a second
+workflow authority. Keep provider/model selection out of packaging.
 
 ## Claude Code packaging path
 

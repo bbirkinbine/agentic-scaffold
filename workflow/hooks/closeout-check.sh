@@ -16,8 +16,8 @@
 # "committed before the PR is opened (or pushed to the same branch before it
 # merges)".
 #
-# Client-neutral by construction: git and CI are the layers Claude Code and
-# Codex share, so neither client can bypass this from its own hooks.
+# Client-neutral by construction: git and CI are the layers every supported
+# client shares, so no client can bypass this from its own hooks.
 #
 # Silent on anything that is not finished spec work: a `<type>/<slug>` chore
 # branch, a branch whose number has no spec, or a project that does not use

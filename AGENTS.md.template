@@ -2,15 +2,15 @@
 
 > **Purpose.** Persistent project context for coding agents working in this
 > repository. `AGENTS.md` is the canonical contract; the one-line
-> `CLAUDE.md` imports it so Codex and Claude Code load the same instructions
-> without maintaining duplicate policy. Read this before suggesting changes.
+> `CLAUDE.md` imports it so Claude Code, Codex, and Pi load the same
+> instructions without maintaining duplicate policy. Read this before suggesting changes.
 > `README.md` is for humans landing on the GitHub page; these files are for
 > the agent that opens the repo and starts working.
 >
 > Personal, machine-local preferences do not belong in this file — put
 > them in `CLAUDE.local.md` (instructions) or
-> `.claude/settings.local.json` for Claude Code, or in the user's Codex
-> configuration. Keep local overlays gitignored. The root contracts and
+> `.claude/settings.local.json` for Claude Code, the user's Codex
+> configuration, or the user's Pi configuration. Keep local overlays gitignored. The root contracts and
 > checked-in client configuration are team-shared.
 
 ---
@@ -193,18 +193,21 @@ Don't claim a change is "ready" without at least:
 ## Hooks and guardrails
 
 - Claude Code reads `.claude/settings.json`; Codex reads the trusted
-  `.codex/` project layer. Both call shared scripts under `.agentic/hooks/`.
-- Client permissions deny reads of `.env*`, `*.pem`, and `*.key` material.
+  `.codex/` project layer; Pi reads trusted `.pi/settings.json` and the local
+  extension. All call shared scripts under `.agentic/hooks/`.
+- Client permission profiles or lifecycle guards deny reads of `.env*`,
+  `*.pem`, and `*.key` material.
   The behavioral secrets rule still applies because runtime overrides can
   replace client defaults.
 - The SessionStart hook warns when a coding session opens on `main` or
   `master`.
 - The PreToolUse hook blocks a narrow set of unrecoverable shell commands.
   It is a backstop, not a substitute for the client's sandbox.
-- The PreCompact hook preserves branch, changed-file, validation, and
-  unresolved-decision state.
-- Both clients show branch, model, and context state in their configured
-  status line.
+- Claude Code and Codex PreCompact hooks preserve branch, changed-file,
+  validation, and unresolved-decision state. Pi cannot append to its default
+  compaction prompt; write a durable handoff before manual compaction.
+- All clients show branch, model, and context state in their configured
+  status line. Pi project trust and extension guards are not an OS sandbox.
 - Codex command rules prompt for commit and push and forbid a small set of
   destructive commands. Repository validation and human review remain the
   enforcement boundary.

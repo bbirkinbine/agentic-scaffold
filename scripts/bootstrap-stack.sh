@@ -14,8 +14,8 @@
 # for the project.
 #
 # Profiles:
-#   --minimal      Thin starter: shared project context, core Claude/Codex
-#                  workflows and agents, specs convention, and CI.
+#   --minimal      Thin starter: shared project context, core Claude/Codex/Pi
+#                  workflows and roles, specs convention, and CI.
 #   --core         Default. The normal attended agentic workflow, without
 #                  advanced/experimental doctrine docs. (--python-core is
 #                  accepted as an alias for projects bootstrapped before the
@@ -26,9 +26,9 @@
 #                  agents are still not copied; enable them per project.
 #
 # Options:
-#   --strict-hooks  Make both clients enforce lint + typecheck after edits.
-#                   Without this, edit hooks format only; /review-check and
-#                   CI remain the hard gates.
+#   --strict-hooks  Make Claude/Codex hook wiring and Pi's shared mode enforce
+#                   lint + typecheck after edits. Without this, edit hooks
+#                   format only; /review-check and CI remain the hard gates.
 #   --no-stop-gate  Remove the Stop gate (on by default in every profile:
 #                   the Stop hook blocks ending a turn while src/ is dirty
 #                   and `.agentic/toolchain.sh gate` is red). Incompatible
@@ -59,7 +59,7 @@
 #     STACK_PROJECT_FILES: the custom stack owns .agentic/toolchain.sh and
 #     .github/workflows/ci.yml, because the project writes both.
 #   - MANAGED  (everything else — .agentic/, .agents/, .claude/, .codex/,
-#     WORKFLOW.md, .pre-commit-config.yaml, docs/specs/README.md, the
+#     .pi/, WORKFLOW.md, .pre-commit-config.yaml, docs/specs/README.md, the
 #     .github/ tree) — the agentic scaffolding itself. Bootstrap choices
 #     and checksums are recorded under .agentic/ so a flagless --update
 #     reuses the installed profile and hook mode, profile transitions can
@@ -72,13 +72,13 @@
 #   - All profiles: canonical AGENTS.md + a CLAUDE.md @AGENTS.md import,
 #     README.md (from README.md.template),
 #     WORKFLOW.md, the stack's project-owned files (manifest, .gitignore),
-#     .pre-commit-config.yaml, the toolchain runner, both client settings/hooks (format-only edit
-#     hook, branch warning, destructive-command block, secrets read-deny,
-#     status line, specs dashboard, Stop gate,
-#     commit-message attribution strip), standing rules, docs/specs/README.md,
-#     docs/project-types.md (the orientation map), CI, Claude slash commands,
-#     Codex skills (spec / plan / test-first / review-check / review), and
-#     both clients' core agents.
+#     .pre-commit-config.yaml, the toolchain runner, all client settings and
+#     lifecycle adapters (format-only edit hook, branch warning,
+#     destructive-command block, secrets read-deny, status line, specs
+#     dashboard, Stop gate, commit-message attribution strip), standing rules,
+#     docs/specs/README.md, docs/project-types.md (the orientation map), CI,
+#     Claude slash commands, Codex skills, Pi prompts, and every client's core
+#     roles (spec / plan / test-first / review-check / review).
 #   - core and full: extra hooks, the stack's skills,
 #     specs-status, product-spec, scope-check, clarify, adr, analyze,
 #     review-adversarial, docs/adr/README.md, docs/workflow-diagram.md,
@@ -101,7 +101,7 @@
 #     subdir-AGENTS.md.example and subdir-CLAUDE.md.example (copied
 #     manually as canonical AGENTS.md + an @AGENTS.md Claude import in
 #     each src/<area>/)
-#   - anything under either client's agents/optional/ directory (opt-in
+#   - anything under any client's agents/optional/ directory (opt-in
 #     subagents that each project enables per-need)
 #
 # After a first run, read WORKFLOW.md (copied into the project root) —
@@ -244,6 +244,7 @@ PREVIOUS_ADVANCED_DOCS=0
 CLAUDE_SETTINGS_HASH=""
 CODEX_CONFIG_HASH=""
 CODEX_HOOKS_HASH=""
+PI_SETTINGS_HASH=""
 GENERIC_MIGRATION=0
 MIGRATION_PENDING=0
 # Generic used a directory of hashes at the path stack bootstraps use for
@@ -291,6 +292,7 @@ read_bootstrap_state() {
       CLAUDE_SETTINGS_HASH) CLAUDE_SETTINGS_HASH="$value" ;;
       CODEX_CONFIG_HASH) CODEX_CONFIG_HASH="$value" ;;
       CODEX_HOOKS_HASH) CODEX_HOOKS_HASH="$value" ;;
+      PI_SETTINGS_HASH) PI_SETTINGS_HASH="$value" ;;
     esac
   done < "$STATE_FILE"
   [[ -n "$PREVIOUS_PROFILE" ]]
@@ -301,16 +303,19 @@ infer_existing_state() {
 
   if [[ -e "$DST_DIR/WORKFLOW.md" || -e "$DST_DIR/.agentic/hooks" ||
     -e "$DST_DIR/.claude/commands/spec.md" ||
-    -e "$DST_DIR/.agents/skills/spec/SKILL.md" ]]; then
+    -e "$DST_DIR/.agents/skills/spec/SKILL.md" ||
+    -e "$DST_DIR/.pi/prompts/spec.md" ]]; then
     scaffold_seen=1
   fi
 
   if [[ -e "$DST_DIR/.claude/commands/security.md" ||
     -e "$DST_DIR/.agents/skills/security/SKILL.md" ||
+    -e "$DST_DIR/.pi/prompts/security.md" ||
     -e "$DST_DIR/.github/workflows/claude-review.yml.example" ]]; then
     PREVIOUS_PROFILE=full
   elif [[ -e "$DST_DIR/.claude/commands/analyze.md" ||
     -e "$DST_DIR/.agents/skills/analyze/SKILL.md" ||
+    -e "$DST_DIR/.pi/prompts/analyze.md" ||
     -e "$DST_DIR/.github/dependabot.yml" ]]; then
     PREVIOUS_PROFILE=core
   elif [[ "$scaffold_seen" == 1 ]]; then
@@ -520,6 +525,10 @@ matches_known_scaffold_config() {
         cmp -s "$path" "$SRC_DIR/.codex/hooks.strict.json" ||
         cmp -s "$path" "$SRC_DIR/.codex/hooks.no-stop.json"
       ;;
+    .pi/settings.json)
+      cmp -s "$path" "$SRC_DIR/.pi/settings.json" ||
+        cmp -s "$path" "$REPO_DIR/generic/.pi/settings.json"
+      ;;
     *) return 1 ;;
   esac
 }
@@ -595,11 +604,12 @@ sync_protected_config() {
 migrate_generic_state() {
   local rel hash_var recorded generic_source
   [[ "$GENERIC_MIGRATION" == 1 ]] || return 0
-  for rel in .claude/settings.json .codex/hooks.json .codex/config.toml; do
+  for rel in .claude/settings.json .codex/hooks.json .codex/config.toml .pi/settings.json; do
     case "$rel" in
       .claude/settings.json) hash_var=CLAUDE_SETTINGS_HASH; generic_source="$REPO_DIR/generic/$rel" ;;
       .codex/hooks.json) hash_var=CODEX_HOOKS_HASH; generic_source="$REPO_DIR/generic/$rel" ;;
       .codex/config.toml) hash_var=CODEX_CONFIG_HASH; generic_source="$REPO_DIR/shared/codex/config.toml" ;;
+      .pi/settings.json) hash_var=PI_SETTINGS_HASH; generic_source="$REPO_DIR/generic/$rel" ;;
     esac
     recorded=""
     [[ ! -f "$STATE_FILE/${rel//\//__}.sha256" ]] || recorded="$(cat "$STATE_FILE/${rel//\//__}.sha256")"
@@ -1068,6 +1078,13 @@ sync_protected_config \
 sync_protected_config \
   .codex/hooks.json "$CODEX_HOOKS_SOURCE" CODEX_HOOKS_HASH
 CODEX_HOOKS_APPLIED="$LAST_PROTECTED_APPLIED"
+sync_protected_config \
+  .pi/settings.json "$SRC_DIR/.pi/settings.json" PI_SETTINGS_HASH
+PI_SETTINGS_APPLIED="$LAST_PROTECTED_APPLIED"
+if [[ "$PI_SETTINGS_APPLIED" == 0 ]]; then
+  echo "  WARNING: verify customized .pi/settings.json loads the agentic-hooks extension,"
+  echo "           extension-only pi-subagents, and limits project agents to .pi/agents."
+fi
 if [[ "$STRICT_HOOKS" == 1 && "$CLAUDE_SETTINGS_APPLIED" == 1 &&
   "$CODEX_HOOKS_APPLIED" == 1 ]]; then
   STRICT_HOOKS_APPLIED=1
@@ -1077,6 +1094,8 @@ elif [[ "$NO_STOP_GATE" == 1 && "$CLAUDE_SETTINGS_APPLIED" == 1 &&
 fi
 
 sync .codex/rules/safety.rules
+sync .pi/extensions/agentic-hooks.ts
+sync .pi/extensions/agentic-child-hooks.ts
 sync .agentic/toolchain.sh
 sync .agentic/hooks/branch-check.sh
 sync .agentic/hooks/block-destructive.sh
@@ -1101,23 +1120,32 @@ fi
 # through CLAUDE.md; there is no duplicate .claude/rules adapter layer.
 sync .claude/agents/planner.md
 sync .codex/agents/planner.toml
+sync .pi/agents/planner.md
 sync .claude/agents/test-first.md
 sync .codex/agents/test-first.toml
+sync .pi/agents/test-first.md
 sync .claude/agents/reviewer.md
 sync .codex/agents/reviewer.toml
+sync .pi/agents/reviewer.md
 sync .claude/commands/spec.md
 sync .agents/skills/spec/SKILL.md
+sync .pi/prompts/spec.md
 sync .claude/commands/plan.md
 sync .agents/skills/plan/SKILL.md
+sync .pi/prompts/plan.md
 sync .claude/commands/test-first.md
 sync .agents/skills/test-first/SKILL.md
+sync .pi/prompts/test-first.md
 sync .claude/commands/review-check.md
 sync .agents/skills/review-check/SKILL.md
+sync .pi/prompts/review-check.md
 sync .claude/commands/review.md
 sync .agents/skills/review/SKILL.md
+sync .pi/prompts/review.md
 sync docs/specs/README.md
 sync docs/project-types.md
 sync docs/codex-cli.md
+sync docs/pi-agent.md
 sync .github/workflows/ci.yml
 sync .github/pull_request_template.md
 sync .github/ISSUE_TEMPLATE/feature.yml
@@ -1127,22 +1155,31 @@ sync .github/ISSUE_TEMPLATE/bug.yml
 if [[ "$PROFILE" != minimal ]]; then
   sync .claude/agents/analyzer.md
   sync .codex/agents/analyzer.toml
+  sync .pi/agents/analyzer.md
   sync .claude/agents/reviewer-adversarial.md
   sync .codex/agents/reviewer-adversarial.toml
+  sync .pi/agents/reviewer-adversarial.md
   sync .claude/commands/product-spec.md
   sync .agents/skills/product-spec/SKILL.md
+  sync .pi/prompts/product-spec.md
   sync .claude/commands/specs-status.md
   sync .agents/skills/specs-status/SKILL.md
+  sync .pi/prompts/specs-status.md
   sync .claude/commands/scope-check.md
   sync .agents/skills/scope-check/SKILL.md
+  sync .pi/prompts/scope-check.md
   sync .claude/commands/clarify.md
   sync .agents/skills/clarify/SKILL.md
+  sync .pi/prompts/clarify.md
   sync .claude/commands/adr.md
   sync .agents/skills/adr/SKILL.md
+  sync .pi/prompts/adr.md
   sync .claude/commands/analyze.md
   sync .agents/skills/analyze/SKILL.md
+  sync .pi/prompts/analyze.md
   sync .claude/commands/review-adversarial.md
   sync .agents/skills/review-adversarial/SKILL.md
+  sync .pi/prompts/review-adversarial.md
   for skill_dir in "$SRC_DIR"/.claude/skills/*/; do
     [[ -d "$skill_dir" ]] || continue
     skill_name="$(basename "$skill_dir")"
@@ -1167,12 +1204,16 @@ fi
 if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/security.md
   sync .agents/skills/security/SKILL.md
+  sync .pi/prompts/security.md
   sync .claude/commands/performance.md
   sync .agents/skills/performance/SKILL.md
+  sync .pi/prompts/performance.md
   sync .claude/commands/eval.md
   sync .agents/skills/eval/SKILL.md
+  sync .pi/prompts/eval.md
   sync .claude/commands/delegate.md
   sync .agents/skills/delegate/SKILL.md
+  sync .pi/prompts/delegate.md
   sync .github/workflows/claude-review.yml.example
 fi
 
@@ -1183,22 +1224,31 @@ prune_profile_transition() {
   local core_files=(
     .claude/agents/analyzer.md
     .codex/agents/analyzer.toml
+    .pi/agents/analyzer.md
     .claude/agents/reviewer-adversarial.md
     .codex/agents/reviewer-adversarial.toml
+    .pi/agents/reviewer-adversarial.md
     .claude/commands/product-spec.md
     .agents/skills/product-spec/SKILL.md
+    .pi/prompts/product-spec.md
     .claude/commands/specs-status.md
     .agents/skills/specs-status/SKILL.md
+    .pi/prompts/specs-status.md
     .claude/commands/scope-check.md
     .agents/skills/scope-check/SKILL.md
+    .pi/prompts/scope-check.md
     .claude/commands/clarify.md
     .agents/skills/clarify/SKILL.md
+    .pi/prompts/clarify.md
     .claude/commands/adr.md
     .agents/skills/adr/SKILL.md
+    .pi/prompts/adr.md
     .claude/commands/analyze.md
     .agents/skills/analyze/SKILL.md
+    .pi/prompts/analyze.md
     .claude/commands/review-adversarial.md
     .agents/skills/review-adversarial/SKILL.md
+    .pi/prompts/review-adversarial.md
     docs/adr/README.md
     docs/workflow-diagram.md
     .github/dependabot.yml
@@ -1206,12 +1256,16 @@ prune_profile_transition() {
   local full_files=(
     .claude/commands/security.md
     .agents/skills/security/SKILL.md
+    .pi/prompts/security.md
     .claude/commands/performance.md
     .agents/skills/performance/SKILL.md
+    .pi/prompts/performance.md
     .claude/commands/eval.md
     .agents/skills/eval/SKILL.md
+    .pi/prompts/eval.md
     .claude/commands/delegate.md
     .agents/skills/delegate/SKILL.md
+    .pi/prompts/delegate.md
     .github/workflows/claude-review.yml.example
   )
   local advanced_files=(
@@ -1274,6 +1328,7 @@ write_bootstrap_state() {
     printf 'CLAUDE_SETTINGS_HASH=%s\n' "$CLAUDE_SETTINGS_HASH"
     printf 'CODEX_CONFIG_HASH=%s\n' "$CODEX_CONFIG_HASH"
     printf 'CODEX_HOOKS_HASH=%s\n' "$CODEX_HOOKS_HASH"
+    printf 'PI_SETTINGS_HASH=%s\n' "$PI_SETTINGS_HASH"
   } > "$state_tmp"
   cp "$state_tmp" "$STATE_FILE"
 
@@ -1291,13 +1346,16 @@ fi
 # Intentionally NOT copied (opt-in per project):
 #   .claude/agents/optional/security-reviewer.md     — for projects with a network
 #   .codex/agents/optional/security-reviewer.toml    — matching Codex adapter
+#   .pi/agents/optional/security-reviewer.md         — matching Pi adapter
 #     surface, auth, untrusted input, secrets, or external deserialization.
 #   .claude/agents/optional/performance-reviewer.md  — for projects with a hot path,
 #   .codex/agents/optional/performance-reviewer.toml — matching Codex adapter
+#   .pi/agents/optional/performance-reviewer.md      — matching Pi adapter
 #     DB queries on user-sized data, async code, migrations on large tables, or any
 #     latency SLO.
 #   .claude/agents/optional/evaluator.md             — for projects whose product
 #   .codex/agents/optional/evaluator.toml            — matching Codex adapter
+#   .pi/agents/optional/evaluator.md                 — matching Pi adapter
 #     contains an LLM/AI surface (summarizer, RAG answer, chatbot, agent trajectory);
 #     authors and runs evals that judge output quality. See docs/evals.md.
 #   See $SRC_DIR/.claude/agents/optional/ for what's available.
@@ -1316,7 +1374,7 @@ fi
 if [[ "$MIGRATION_PENDING" == 1 ]]; then
   echo "WARNING: client configuration needs manual reconciliation; migration is not fully active."
   echo "Merge the candidates under .agentic/generic-migration into the preserved client configs."
-  echo "Then restart both clients and verify the workflow hooks loaded."
+  echo "Then restart each client and verify the workflow hooks loaded."
   exit 0
 fi
 
@@ -1346,7 +1404,7 @@ case "$PROFILE" in
     ;;
   full)
     echo "Profile: full. Advanced docs were installed. Optional reviewer agents"
-    echo "still require explicit copies from both clients' agents/optional/."
+    echo "still require explicit copies from each client's agents/optional/."
     ;;
 esac
 echo
@@ -1354,14 +1412,14 @@ if [[ "$STRICT_HOOKS_APPLIED" == 1 ]]; then
   echo "Strict hooks are enabled. Edit hooks run format + lint + typecheck, and"
   echo "the Stop hook blocks ending a turn while the local gate is red."
 elif [[ "$STRICT_HOOKS" == 1 ]]; then
-  echo "Strict hooks were selected, but customized client hook configuration was"
-  echo "preserved. Merge the strict hook entries by hand where the warning named it."
+  echo "Strict hooks were selected, but customized Claude or Codex hook configuration was"
+  echo "preserved. Merge those clients' strict hook entries where the warning named them."
 elif [[ "$NO_STOP_GATE_APPLIED" == 1 ]]; then
   echo "Stop gate removed (--no-stop-gate). Edit hooks format only; /review-check"
   echo "and CI are the hard quality gates."
 elif [[ "$NO_STOP_GATE" == 1 ]]; then
-  echo "--no-stop-gate was selected, but customized client hook configuration was"
-  echo "preserved. Remove the Stop entry by hand where the warning named it."
+  echo "--no-stop-gate was selected, but customized Claude or Codex hook configuration was"
+  echo "preserved. Remove those clients' Stop entries where the warning named them."
 else
   echo "Stop gate is on (default): the Stop hook blocks ending a turn while the"
   echo "source tree has pending changes and .agentic/toolchain.sh gate is red"
@@ -1378,4 +1436,7 @@ echo "Read WORKFLOW.md next — it's in your project root and is the source"
 echo "of truth for what to do: day-zero setup and the per-feature loop."
 echo "For Codex, review and trust the project .codex layer and hooks, then use"
 echo "the workflow skills as \$spec, \$plan, \$test-first, and \$review-check."
+echo "For Pi, approve project trust, restart or /reload, and verify prompts,"
+echo "the agentic-hooks extension, and project roles; see docs/pi-agent.md."
+echo "Pi inherits the selected hosted or local model; the scaffold pins none."
 echo "Pull future template improvements:  bash $SRC_DIR/bootstrap.sh --update"

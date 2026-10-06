@@ -1,11 +1,10 @@
 # Codex CLI portability plan
 
-Status: implementation in progress on `feat/codex-cli-parity` (2026-07-30).
-The shared source layer, complete contract, Codex project surface, dual-client
-bootstraps for both repository flavors, adapter validation, and flavor/profile
-smoke coverage are implemented. Fresh-project authenticated workflow
-acceptance in both Claude Code and Codex remains before this plan can be
-marked complete.
+Status: adapter implementation merged on 2026-08-11. The shared source layer,
+complete contract, Codex project surface, bootstraps, adapter validation, and
+flavor/profile smoke coverage are implemented. Hook and execpolicy enforcement
+were verified live against Codex CLI 0.146.0; the authenticated Medium workflow,
+normal trust/reload flow, and remaining negative fixtures are still open.
 
 Verification baseline: 2026-07-30, official Codex documentation and
 `codex-cli 0.146.0`. Recheck paths, schemas, trust behavior, and CLI flags

@@ -45,6 +45,10 @@ for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md .gitignore \
   .claude/commands/review-check.md .claude/commands/review.md \
   .claude/commands/product-spec.md \
   .codex/config.toml .codex/hooks.json .codex/rules/safety.rules \
+  .pi/settings.json .pi/extensions/agentic-hooks.ts \
+  .pi/extensions/agentic-child-hooks.ts \
+  .pi/agents/reviewer.md .pi/agents/test-first.md \
+  .pi/prompts/spec.md .pi/prompts/review-check.md docs/pi-agent.md \
   .agents/skills/spec/SKILL.md .agents/skills/review-check/SKILL.md \
   .github/workflows/ci.yml .github/dependabot.yml \
   docs/specs/README.md docs/project-types.md docs/agent-handoff.md; do
@@ -238,11 +242,16 @@ CLOSEOUT_BRANCH=chore/bump-tools bash .agentic/hooks/closeout-check.sh >/dev/nul
 
 # Upgrade generic with both stock and customized client settings. Project
 # contracts remain owned by the project; candidates make reconciliation explicit.
-for variant in stock customized update; do
+for variant in stock customized update legacy3; do
   mkdir "$WORK/$variant"
   cd "$WORK/$variant"
   git init -q -b main
   bash "$REPO_DIR/generic/bootstrap.sh" >/dev/null
+  if [[ "$variant" == legacy3 ]]; then
+    rm -f .agentic/scaffold-state/.pi__settings.json.sha256 .pi/settings.json
+    rm -rf .pi/extensions
+    rm -f docs/pi-agent.md
+  fi
   printf '\nProject contract survives migration.\n' >>AGENTS.md
   cp AGENTS.md "$WORK/contract-$variant.md"
   printf 'Project workflow survives migration.\n' >WORKFLOW.md
@@ -258,6 +267,8 @@ for name in ('.claude/settings.json', '.codex/hooks.json'):
 PY
     cp .claude/settings.json "$WORK/local-claude.json"
     cp .codex/hooks.json "$WORK/local-codex.json"
+    printf '\n' >>.pi/settings.json
+    cp .pi/settings.json "$WORK/local-pi.json"
     printf '\n# Local preference survives migration.\n' >>.codex/config.toml
     cp .codex/config.toml "$WORK/local-config.toml"
   fi
@@ -274,11 +285,14 @@ PY
     for config in .claude/settings.json .codex/hooks.json; do
       grep -q 'gate-on-stop.sh' "$config" || fail "migration left generic hooks in $config"
     done
+    grep -q 'pi-subagents@0.76.1' .pi/settings.json || fail "migration left generic Pi settings"
   else
     cmp -s .claude/settings.json "$WORK/local-claude.json" || fail "migration lost Claude customization"
     cmp -s .codex/hooks.json "$WORK/local-codex.json" || fail "migration lost Codex customization"
     cmp -s .codex/config.toml "$WORK/local-config.toml" || fail "migration lost Codex preferences"
+    cmp -s .pi/settings.json "$WORK/local-pi.json" || fail "migration lost Pi customization"
     must .agentic/generic-migration/.codex/config.toml
+    must .agentic/generic-migration/.pi/settings.json
     for config in .claude/settings.json .codex/hooks.json; do
       grep -q 'gate-on-stop.sh' ".agentic/generic-migration/$config" || fail "missing hook merge candidate"
     done
@@ -290,6 +304,7 @@ PY
   grep -Fxq 'NO_STOP_GATE=0' .agentic/scaffold-state || fail "migration inherited generic no-Stop behavior"
   if [[ "$variant" == customized ]]; then
     cmp -s .claude/settings.json "$WORK/local-claude.json" || fail "update lost migrated customization"
+    cmp -s .pi/settings.json "$WORK/local-pi.json" || fail "update lost migrated Pi customization"
   fi
   bash "$REPO_DIR/generic/bootstrap.sh" --update >"$WORK/reverse.out" 2>&1 \
     && fail "generic bootstrap accepted a migrated stack state"
