@@ -3,7 +3,7 @@ name: adr
 description: Create an Architecture Decision Record at docs/adr/NNNN-<slug>.md. Drafts context / decision / consequences / alternatives from the current discussion when one exists; otherwise lays down a skeleton to fill in. Stops for human review either way.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Create a new ADR under `docs/adr/`.

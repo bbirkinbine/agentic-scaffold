@@ -15,8 +15,12 @@ bash path/to/agentic-scaffold/custom/bootstrap.sh --update
 
 The workflow (spec, plan, test-first, review trio, Stop gate, close-out
 check, hooks, standing rules) is the same one the Python and TypeScript
-flavors ship; see `WORKFLOW.md` after bootstrapping. The difference is the
-gate behind `.agentic/toolchain.sh`: the other stacks name their tools,
+flavors ship; see `WORKFLOW.md` after bootstrapping. Bootstrap installs the
+three client adapters additively: `.claude/`, `.codex/`, and `.pi/`. Pi
+receives project prompts, named roles, a local lifecycle extension, and
+exact-pinned `pi-subagents`; it inherits whichever hosted or local model the
+operator selected. See `docs/pi-agent.md` after bootstrap for trust/reload
+steps and limits. The difference is the gate behind `.agentic/toolchain.sh`: the other stacks name their tools,
 this one ships a template the project fills.
 
 | Runner subcommand | In the template | You write |

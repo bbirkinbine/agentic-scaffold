@@ -3,7 +3,7 @@ name: review-adversarial
 description: Invoke the reviewer-adversarial subagent on the complete current semantic change set. Argues against the change rather than for it. Pair with /review for A/B comparison.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Invoke the `reviewer-adversarial` subagent.

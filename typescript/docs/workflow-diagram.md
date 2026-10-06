@@ -277,7 +277,7 @@ Section shapes are in [`specs/README.md`](specs/README.md).
   and the matrix of which agents, skills, and commands each one installs.
 - [`../WORKFLOW.md`](../WORKFLOW.md) — the step-by-step walkthrough:
   day-zero setup and the per-feature loop, one line of why per step.
-- `../AGENTS.md` — the canonical rules both clients read (Claude through
+- `../AGENTS.md` — the canonical rules every client reads (Claude through
   `../CLAUDE.md`): delegation, git workflow, hooks, public-repo hygiene.
 - [`codex-cli.md`](codex-cli.md) — Codex trust, invocation, switching,
   and non-interactive use.

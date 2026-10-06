@@ -1,15 +1,15 @@
 # Codex CLI for a generic repository
 
-The generic scaffold installs Claude Code and Codex support together.
+The generic scaffold installs Claude Code, Codex, and Pi support together.
 `AGENTS.md` is the complete canonical contract and `CLAUDE.md` imports it
-with `@AGENTS.md`. Both clients call the same safety hooks under
+with `@AGENTS.md`. All clients call the same safety hooks under
 `.agentic/hooks/`. Claude Code may ask for one-time approval when it first
 encounters the checked-in import.
 
 Unlike the Python flavor, this scaffold does not prescribe a
 Spec → Plan → Test-first workflow or language-specific quality gate. Fill
 the contract's validation section with the real commands for this repository.
-Capability parity here means both clients receive the same project policy,
+Capability parity here means every client receives the same project policy,
 secret-read boundary, branch warning, destructive-command backstop, and
 compaction state reminder.
 
@@ -40,7 +40,8 @@ human review.
 
 Before switching, write durable state into the repository: current branch,
 changed files, validation status, and unresolved decisions. The PreCompact
-hook reminds both clients to preserve that state. The next client reads the
+hook reminds Claude Code and Codex to preserve that state. Pi cannot append to
+its default compaction prompt; write the handoff before manual compaction. The next client reads the
 same root contract and working tree; conversation history and client UI state
 do not transfer.
 
@@ -65,6 +66,9 @@ contract. If the two files contain different project-owned policy, the
 bootstrap preserves both and prints manual reconciliation instructions.
 Then merge any useful client-neutral wording from the current template by
 hand.
+
+For Pi trust/reload behavior and its stack-neutral extension, see
+[`pi-agent.md`](pi-agent.md).
 
 ## Client differences
 

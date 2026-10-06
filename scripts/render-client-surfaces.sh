@@ -51,6 +51,9 @@ toml_escape() {
 render_generic_contract() {
   cp "$GENERIC_DIR/project-contract.md" "$REPO_DIR/AGENTS.md.template"
   printf '%s\n' '@AGENTS.md' > "$REPO_DIR/CLAUDE.md.template"
+  mkdir -p "$GENERIC_DIR/.pi/extensions"
+  cp "$SHARED_DIR/pi/agentic-hooks.ts" \
+    "$GENERIC_DIR/.pi/extensions/agentic-hooks.ts"
 }
 
 # --- per-stack rendering; every function takes the stack source dir and the
@@ -111,20 +114,23 @@ render_project_contract() {
 render_command() {
   local source="$1"
   local build="$2"
-  local name description claude_target codex_target
+  local name description claude_target codex_target pi_target
   name="$(basename "$source" .md)"
   description="$(frontmatter_value description "$source")"
   claude_target="$build/.claude/commands/$name.md"
   codex_target="$build/.agents/skills/$name/SKILL.md"
+  pi_target="$build/.pi/prompts/$name.md"
 
-  mkdir -p "$(dirname "$claude_target")" "$(dirname "$codex_target")"
+  mkdir -p "$(dirname "$claude_target")" "$(dirname "$codex_target")" \
+    "$(dirname "$pi_target")"
   cp "$source" "$claude_target"
+  cp "$source" "$pi_target"
   {
     printf '%s\n' '---'
     printf 'name: %s\n' "$name"
     printf 'description: %s\n' "$description"
     printf '%s\n\n' '---'
-    printf 'In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.\n\n'
+    printf 'In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.\n\n'
     markdown_body "$source"
   } > "$codex_target"
 }
@@ -143,7 +149,7 @@ render_role() {
   local source="$1"
   local optional="$2"
   local build="$3"
-  local name description sandbox claude_dir codex_dir
+  local name description sandbox claude_dir codex_dir pi_dir pi_tools pi_acceptance
   local escaped_description body
   name="$(frontmatter_value name "$source")"
   description="$(frontmatter_value description "$source")"
@@ -155,11 +161,13 @@ render_role() {
 
   claude_dir="$build/.claude/agents"
   codex_dir="$build/.codex/agents"
+  pi_dir="$build/.pi/agents"
   if [[ "$optional" == 1 ]]; then
     claude_dir="$claude_dir/optional"
     codex_dir="$codex_dir/optional"
+    pi_dir="$pi_dir/optional"
   fi
-  mkdir -p "$claude_dir" "$codex_dir"
+  mkdir -p "$claude_dir" "$codex_dir" "$pi_dir"
   cp "$source" "$claude_dir/$name.md"
   escaped_description="$(printf '%s' "$description" | toml_escape)"
   body="$(markdown_body "$source")"
@@ -172,6 +180,38 @@ render_role() {
       'Any /<name> workflow cross-reference in this shared role means the matching $<name> repository skill in Codex.'
     printf "%s\n'''\n" "$body"
   } > "$codex_dir/$name.toml"
+
+  case "$name" in
+    test-first | evaluator)
+      pi_tools='read, grep, find, ls, bash, edit, write'
+      pi_acceptance='writer'
+      ;;
+    *)
+      pi_tools='read, grep, find, ls'
+      pi_acceptance='read-only'
+      ;;
+  esac
+  {
+    printf '%s\n' '---'
+    printf 'name: %s\n' "$name"
+    printf 'description: %s\n' "$description"
+    printf '%s\n' 'advertise: true'
+    printf '%s\n' 'model: inherit'
+    printf 'tools: %s\n' "$pi_tools"
+    printf '%s\n' 'defaultContext: fresh'
+    printf '%s\n' 'systemPromptMode: replace'
+    printf '%s\n' 'inheritProjectContext: true'
+    printf '%s\n' 'inheritGlobalContext: false'
+    printf '%s\n' 'inheritSkills: false'
+    # Optional role files are copy templates: their documented destination is
+    # .pi/agents/<name>.md, so this path is intentionally relative to that
+    # promoted location rather than .pi/agents/optional/.
+    printf '%s\n' 'subagentOnlyExtensions: ../extensions/agentic-child-hooks.ts'
+    printf 'acceptanceRole: %s\n' "$pi_acceptance"
+    printf '%s\n\n' '---'
+    printf '%s\n\n' 'Any `/<name>` workflow cross-reference means the matching project prompt in Pi; `/skill:<name>` is the explicit skill fallback.'
+    printf '%s\n' "$body"
+  } > "$pi_dir/$name.md"
 }
 
 # Hooks: byte-identical copies of shared/hooks/ and workflow/hooks/, plus the
@@ -192,11 +232,16 @@ render_hooks() {
 
 render_client_config() {
   local build="$1"
-  mkdir -p "$build/.claude" "$build/.codex/rules"
+  mkdir -p "$build/.claude" "$build/.codex/rules" "$build/.pi/extensions"
   cp "$WORKFLOW_DIR/client/claude/settings.json" "$build/.claude/settings.json"
   cp "$WORKFLOW_DIR"/client/codex/hooks*.json "$build/.codex/"
   cp "$SHARED_DIR/codex/config.toml" "$build/.codex/config.toml"
   cp "$SHARED_DIR/codex/safety.rules" "$build/.codex/rules/safety.rules"
+  cp "$WORKFLOW_DIR/client/pi/settings.json" "$build/.pi/settings.json"
+  cp "$SHARED_DIR/pi/agentic-hooks.ts" \
+    "$build/.pi/extensions/agentic-hooks.ts"
+  cp "$SHARED_DIR/pi/agentic-child-hooks.ts" \
+    "$build/.pi/extensions/agentic-child-hooks.ts"
 }
 
 # Workflow files that ship into a project as-is, and the stack's own

@@ -3,14 +3,15 @@ name: security
 description: Invoke the security-reviewer subagent on the complete current semantic change set. Requires the opt-in subagent to be installed in this project.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 Invoke the `security-reviewer` subagent.
 
 Preflight: confirm the active client's `security-reviewer` adapter exists
-(`.claude/agents/security-reviewer.md` for Claude Code or
-`.codex/agents/security-reviewer.toml` for Codex). If not, this project
+(`.claude/agents/security-reviewer.md` for Claude Code,
+`.codex/agents/security-reviewer.toml` for Codex, or
+`.pi/agents/security-reviewer.md` for Pi). If not, this project
 hasn't opted into security review. Tell the user:
 
 ```
@@ -20,6 +21,8 @@ Security-reviewer is not installed in this project. To enable:
      .claude/agents/security-reviewer.md
   cp path/to/agentic-scaffold/python/.codex/agents/optional/security-reviewer.toml \
      .codex/agents/security-reviewer.toml
+  cp path/to/agentic-scaffold/python/.pi/agents/optional/security-reviewer.md \
+     .pi/agents/security-reviewer.md
 
 Then add a one-line mention under "Subagents" in AGENTS.md. CLAUDE.md
 continues to import that contract with @AGENTS.md.

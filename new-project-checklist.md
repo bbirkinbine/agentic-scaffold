@@ -17,14 +17,15 @@ carries the latest conventions and is updated first.
       either the global got overridden or a per-repo `.git/config` is
       shadowing it.
 
-- [ ] **Start the founding conversation.** Open Claude Code or Codex in
+- [ ] **Start the founding conversation.** Open Claude Code, Codex, or Pi in
       the empty repo and describe the project, however roughly; the agent
       interviews you with the product-spec questions when the description
       is thin, applies the rubric in the scaffold's
       `workflow/docs/project-types.md` → "Choosing the stack from a project
       description", states the deciding question, runs the matching
-      bootstrap, writes the interview answers as `docs/specs/0000-product.md`,
-      and pre-fills the templates. Everything below
+      bootstrap, writes the interview answers to `docs/specs/0000-product.md`
+      for a loop-enabled flavor or into `README.md` and `AGENTS.md` for
+      generic, and pre-fills the templates. Everything below
       is what that session does, kept here so you can check its work or do
       it by hand. The prompt:
       ```
@@ -35,9 +36,11 @@ carries the latest conventions and is updated first.
       a time. Then apply the stack rubric in workflow/docs/project-types.md,
       section 1, asking me rather than guessing where my answers do not decide
       it; tell me the deciding question; run that flavor's bootstrap.sh here;
-      write the interview answers to docs/specs/0000-product.md; fill the
-      placeholders from what I told you, writing "not decided yet" where that
-      is the truth instead of guessing; and walk me through day zero
+      if that flavor runs the workflow loop, write the interview answers to
+      docs/specs/0000-product.md; otherwise use them to fill README.md and
+      AGENTS.md; fill the remaining placeholders from what I told you, using
+      "not decided yet" where that is the truth instead of guessing; and walk me
+      through day zero
       (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
       generic flavor).
       ```
@@ -57,7 +60,8 @@ carries the latest conventions and is updated first.
       `WORKFLOW.md`, the stack's tool configs and the `.agentic/toolchain.sh`
       gate runner, shared hooks under `.agentic/`, Claude commands/agents
       under `.claude/`, Codex skills under `.agents/`, Codex project
-      configuration/agents/rules under `.codex/`, and the specs/CI surface.
+      configuration/agents/rules under `.codex/`, Pi settings/prompts/roles
+      and lifecycle extensions under `.pi/`, and the specs/CI surface.
       Optional specialist agents remain opt-in; see the flavor's
       `README.md`. Existing project-owned files are preserved.
 - [ ] Read [`python/WORKFLOW.md`](python/WORKFLOW.md) (copied
@@ -111,9 +115,9 @@ carries the latest conventions and is updated first.
       ```
       bash path/to/agentic-scaffold/generic/bootstrap.sh
       ```
-      It installs canonical `AGENTS.md` plus a Claude import, Claude and Codex
-      project configuration, stack-neutral safety hooks, Codex command
-      rules, and `docs/codex-cli.md`.
+      It installs canonical `AGENTS.md` plus a Claude import, Claude, Codex,
+      and Pi project configuration, stack-neutral safety hooks, Codex command
+      rules, and the Codex/Pi startup guides.
 - [ ] Replace every `{{PLACEHOLDER}}` in `AGENTS.md` and `README.md`;
       leave `CLAUDE.md` as `@AGENTS.md`. Replace the sample validation block with
       this repository's real commands; do not leave checks for a stack the
@@ -121,6 +125,8 @@ carries the latest conventions and is updated first.
       full day-zero list is `generic/README.md` → "After bootstrap".
 - [ ] If using Codex, trust the project `.codex/` layer and review hooks
       with `/hooks`.
+- [ ] If using Pi, approve project trust, restart or `/reload`, and verify the
+      local lifecycle extension loaded.
 
 ### Every flavor
 

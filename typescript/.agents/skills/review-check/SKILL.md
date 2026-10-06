@@ -3,7 +3,7 @@ name: review-check
 description: Run the full local quality gate (lint, format, typecheck, tests) through .agentic/toolchain.sh before invoking /review. Refuses to declare pass on any failure.
 ---
 
-In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow; invoke the matching `$<name>` repository skill in Codex.
+In these shared instructions, `$ARGUMENTS` means the arguments supplied with this skill invocation. Any `/<name>` cross-reference names another workflow: invoke `$<name>` in Codex or the matching `/<name>` prompt (or `/skill:<name>`) in Pi.
 
 
 This is the pre-`/review` quality gate. It does not declare a feature

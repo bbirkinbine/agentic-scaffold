@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the lightweight, stack-neutral dual-client scaffold.
+# Install the lightweight, stack-neutral Claude/Codex/Pi scaffold.
 #
 # Usage:
 #   bash path/to/agentic-scaffold/generic/bootstrap.sh
@@ -8,7 +8,7 @@
 # Project-owned AGENTS.md and README.md are created once and never
 # overwritten. CLAUDE.md is a one-line compatibility import of AGENTS.md
 # when it is safe to create or migrate. Managed client config, hooks, rules,
-# and the Codex guide are refreshed by --update.
+# and client guides are refreshed by --update.
 
 set -euo pipefail
 
@@ -171,8 +171,8 @@ migrate_legacy_pointer() {
 
 # The no-AI-attribution rule is stack-neutral, so it cannot ride on the
 # Python flavor's pre-commit config. Wire the strip directly as a git
-# commit-msg hook instead: it is the only enforcement point both clients
-# share, since neither client's own hooks can see a commit message.
+# commit-msg hook instead: it is the only enforcement point every client
+# shares, since no client's own hooks can see a commit message.
 # A project that already manages commit-msg is left alone.
 install_commit_msg_hook() {
   local git_dir hook
@@ -206,9 +206,9 @@ HOOK
 }
 
 if [[ "$MODE" == "update" ]]; then
-  echo "Updating generic dual-client scaffolding"
+  echo "Updating generic Claude/Codex/Pi scaffolding"
 else
-  echo "Bootstrapping generic dual-client scaffolding"
+  echo "Bootstrapping generic Claude/Codex/Pi scaffolding"
 fi
 echo "  into: $DST_DIR"
 echo
@@ -219,7 +219,9 @@ copy_readme
 sync_config_from "$GENERIC_DIR/.claude/settings.json" ".claude/settings.json"
 sync_config_from "$GENERIC_DIR/.codex/hooks.json" ".codex/hooks.json"
 sync_config_from "$SHARED_DIR/codex/config.toml" ".codex/config.toml"
+sync_config_from "$GENERIC_DIR/.pi/settings.json" ".pi/settings.json"
 sync_from "$SHARED_DIR/codex/safety.rules" ".codex/rules/safety.rules"
+sync_from "$SHARED_DIR/pi/agentic-hooks.ts" ".pi/extensions/agentic-hooks.ts"
 sync_from "$SHARED_DIR/hooks/branch-check.sh" \
   ".agentic/hooks/branch-check.sh"
 sync_from "$SHARED_DIR/hooks/block-destructive.sh" \
@@ -232,6 +234,7 @@ sync_from "$SHARED_DIR/hooks/strip-ai-attribution.sh" \
   ".agentic/hooks/strip-ai-attribution.sh"
 chmod +x "$DST_DIR"/.agentic/hooks/*.sh
 sync_from "$GENERIC_DIR/docs/codex-cli.md" "docs/codex-cli.md"
+sync_from "$GENERIC_DIR/docs/pi-agent.md" "docs/pi-agent.md"
 
 install_commit_msg_hook
 
@@ -244,6 +247,7 @@ else
   echo "Done. Fill every {{PLACEHOLDER}} in AGENTS.md and README.md."
   echo "CLAUDE.md imports AGENTS.md; keep shared policy in AGENTS.md."
   echo "For Codex, trust the project .codex layer and review hooks with /hooks."
+  echo "For Pi, approve project trust, restart or /reload, and verify the local extension."
   echo "Day-zero steps: $GENERIC_DIR/README.md -> After bootstrap."
   echo "This flavor installs no spec/plan/review loop; for that, run"
   echo "  bash $(dirname "$GENERIC_DIR")/custom/bootstrap.sh"

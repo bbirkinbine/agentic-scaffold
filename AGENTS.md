@@ -11,7 +11,7 @@
 ## What this repo is
 
 Project-bootstrap templates and agentic-workflow scaffolding for new
-repos — a stack-neutral dual-client bootstrap under `generic/`, generic
+repos — a stack-neutral multi-client bootstrap under `generic/`, generic
 contract/README templates, the new-project checklist, the GitHub About
 checklist, and the full agentic-workflow scaffolding (subagents, workflows,
 skills, hooks, bootstrap) authored once under `workflow/` and rendered per
@@ -36,9 +36,11 @@ engines. No secrets, no internal hostnames, no work-related context.
 
 ## Stack / scope
 
-Markdown templates plus bash (the generic bootstrap, the shared stack
-bootstrap body `scripts/bootstrap-stack.sh`, client-neutral hook sources
-under `shared/hooks/` and `workflow/hooks/`, one gate runner per stack under
+Markdown templates plus bash and one project-local Pi TypeScript adapter
+(the generic bootstrap, the shared stack bootstrap body
+`scripts/bootstrap-stack.sh`, client-neutral hook sources under
+`shared/hooks/` and `workflow/hooks/`, the Pi adapter under `shared/pi/`,
+one gate runner per stack under
 `stacks/<name>/toolchain.sh`, and validation under `scripts/`). No build or
 deploy target — files here are consumed by copy into new repos, and smoke
 tests validate those generated projects.
@@ -129,6 +131,7 @@ bash scripts/render-client-surfaces.sh   # after any change under workflow/, sha
 bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
 shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 bash scripts/validate-codex-adapters.sh
+bash scripts/validate-pi-adapters.sh
 bash scripts/smoke-test-generic.sh
 bash scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-typescript.sh [--strict-hooks|--no-stop-gate]
@@ -176,7 +179,8 @@ Don't claim a change is "ready" without at least:
 ## Generated surfaces: edit the source, then re-render
 
 `workflow/` (the loop: contract, commands, roles, rules, workflow hooks,
-client config, docs), `shared/` (safety hooks, Codex policy), and
+client config, docs), `shared/` (safety hooks, Codex policy, Pi lifecycle
+adapter), and
 `stacks/<name>/` (one toolchain: runner, manifest, tool configs, starter,
 conventions rule, skills) are the sources of truth. `python/`,
 `typescript/`, and `custom/` are generated whole by `scripts/render-client-surfaces.sh`,
@@ -190,7 +194,7 @@ directly and is not rendered.
 
 ## How consumers use this repo
 
-A Claude Code or Codex session is pointed at the latest checkout, chooses
+A Claude Code, Codex, or Pi session is pointed at the latest checkout, chooses
 the stack from the project description using the rubric in
 `workflow/docs/project-types.md` (section 1), installs the scaffold into
 the new repo, and pre-fills the templates from the founding conversation.
@@ -202,10 +206,12 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-09-30)
+## Current state (updated 2026-10-06)
 
-The scaffold is dual-client (Claude Code and Codex CLI) since 2026-08-11 and
-validated in day-to-day use across multiple real projects, both flavors.
+The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
+added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
+validated in day-to-day use across multiple real projects; Pi's authenticated
+full-loop field evidence remains open.
 Corrections feed back here as they surface. History lives in `git log`;
 each squash-merge body explains its change. Borrowed ideas, the sources
 behind specific rules, and decisions already considered and rejected are in
@@ -224,10 +230,19 @@ Open:
   (2026-09-29, FPGA feasibility) took the generic flavor, and its feedback
   produced the custom stack. Still open, to be closed as projects adopt the
   flavors rather than as merge blockers: live hook trials of the TypeScript
-  and custom flavors in both clients (the Codex acceptance scripts still
-  target the Python flavor), a real TypeScript consumer project, and a real
-  project that fills the custom runner. Go and Rust are designed for in the
+  and custom flavors in Claude Code and Codex (the Codex acceptance scripts
+  still target the Python flavor), a real TypeScript consumer project, and a
+  real project that fills the custom runner. Go and Rust are designed for in the
   runner seam, not built.
+- Pi support is implemented as an additive third adapter: project prompts,
+  inherited-model `pi-subagents` roles, a local lifecycle extension, profile
+  transitions, generic-to-custom migration, static validation, and smoke
+  coverage. It does not replace or rewrite Claude/Codex configuration. Still
+  open before parity can be claimed: the opt-in authenticated Medium-workflow
+  run, normal trust/reload evidence, and a capable local-model field trial.
+  Pi cannot append the existing reminder to default compaction, and neither
+  project trust nor role allowlists are OS containment; see
+  `docs/pi-portability.md`.
 - Revisit local execution with Codex CLI as orchestrator and a pinned local
   model as bounded coder. Keep one canonical scaffold: send the local model a
   self-contained `/delegate` packet, deny direct worktree/tool access, and add

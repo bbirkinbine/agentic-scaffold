@@ -30,7 +30,7 @@ python/
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .agentic/
 │   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/test/gate; the one file naming the tools
-│   └── hooks/                             # shared hook implementations used by both clients
+│   └── hooks/                             # shared hook implementations used by all clients
 ├── .agents/
 │   └── skills/                            # Codex workflow + reusable repository skills
 ├── .claude/
@@ -74,6 +74,12 @@ python/
 │   ├── hooks.json                         # Codex lifecycle wiring to .agentic/hooks/
 │   ├── rules/safety.rules                 # commit/push approval + destructive-command policy
 │   └── agents/                            # Codex custom-agent TOML (optional roles stay opt-in)
+├── .pi/
+│   ├── settings.json                      # trusted package/discovery config; model must inherit
+│   ├── extensions/agentic-hooks.ts        # Pi-to-.agentic parent lifecycle adapter
+│   ├── extensions/agentic-child-hooks.ts  # Child safety/post-edit entry point; no settlement gate
+│   ├── prompts/                           # Pi prompt templates rendered from workflow/commands
+│   └── agents/                            # pi-subagents roles (optional roles stay opt-in)
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                         # CI gate: the four toolchain.sh steps + pip-audit (supply-chain gate) on every PR
@@ -86,6 +92,7 @@ python/
 ├── docs/
 │   ├── project-types.md                   # Orientation: flavors, profiles, capability matrix, when to use each agent/skill (managed; all profiles)
 │   ├── codex-cli.md                       # Codex startup, trust, workflow mapping, switching, and exec usage
+│   ├── pi-agent.md                        # Pi trust/reload, prompts, roles, model portability, and limits
 │   ├── agent-handoff.md                   # Operational runbook (project-owned; current state, risks, rollback)
 │   ├── workflow-diagram.md                # Visual map of the agentic loop (Mermaid; managed)
 │   ├── parallel-agents.md                 # Degrees of autonomy, worktree parallelism, agent teams, completion ladder, unattended runs (managed)
@@ -141,7 +148,7 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 
 | Profile | What it is for | Copies by default |
 | --- | --- | --- |
-| `--minimal` | Small repos that want the core loop without the full doctrine surface | `AGENTS.md` + `CLAUDE.md`, `WORKFLOW.md`, pyproject, pre-commit, CI, shared format/safety hooks, Codex config/rules, specs convention, core Claude commands + Codex skills, and both clients' agents |
+| `--minimal` | Small repos that want the core loop without the full doctrine surface | `AGENTS.md` + `CLAUDE.md`, `WORKFLOW.md`, pyproject, pre-commit, CI, shared format/safety hooks, Claude/Codex/Pi configuration, specs convention, core commands/skills/prompts, and all clients' roles |
 | `--core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
 | `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product, local-executor), opt-in reviewer command stubs, `/delegate`, and the inert Claude PR-review workflow example |
 
@@ -150,7 +157,8 @@ Options compose with profiles:
 - The Stop hook (`gate-on-stop.sh`), which blocks turn-end while the
   local gate is red, is wired **by default** in every profile;
   `--no-stop-gate` removes it.
-- `--strict-hooks` rewrites Claude and Codex hook wiring so edits run
+- `--strict-hooks` rewrites Claude and Codex hook wiring and updates the shared
+  state Pi reads so edits run
   `ruff format`, `ruff check`, and `mypy`. Without it,
   Edit/Write formats only; `/review-check` and CI remain the hard gates.
 - `--advanced-docs` copies the advanced docs without using the full
@@ -176,7 +184,11 @@ After bootstrap:
    run `/hooks` to review and trust the checked-in hook definitions.
    Run `/skills` to inspect workflows. See
    [`docs/codex-cli.md`](docs/codex-cli.md).
-5. Issue mode only (opt-in — see `docs/specs/README.md`): create the
+5. **Pi:** start `pi`, approve project trust, then restart or `/reload`.
+   Confirm the project prompts, local extension, and named roles loaded. Pi
+   inherits the selected model, including supported local models; see
+   [`docs/pi-agent.md`](docs/pi-agent.md).
+6. Issue mode only (opt-in — see `docs/specs/README.md`): create the
    labels the issue forms reference (`feature`, `bug`, `spec-needed`,
    `triage`) so `.github/ISSUE_TEMPLATE/` resolves them — e.g.
    `gh label create spec-needed`. The default local mode needs no
@@ -199,6 +211,8 @@ After bootstrap:
       .claude/agents/security-reviewer.md
    cp path/to/agentic-scaffold/python/.codex/agents/optional/security-reviewer.toml \
       .codex/agents/security-reviewer.toml
+   cp path/to/agentic-scaffold/python/.pi/agents/optional/security-reviewer.md \
+      .pi/agents/security-reviewer.md
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for what
    triggers a "yes" on this question.
@@ -209,6 +223,8 @@ After bootstrap:
       .claude/agents/performance-reviewer.md
    cp path/to/agentic-scaffold/python/.codex/agents/optional/performance-reviewer.toml \
       .codex/agents/performance-reviewer.toml
+   cp path/to/agentic-scaffold/python/.pi/agents/optional/performance-reviewer.md \
+      .pi/agents/performance-reviewer.md
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for the
    trigger list.
@@ -220,6 +236,8 @@ After bootstrap:
       .claude/agents/evaluator.md
    cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
       .codex/agents/evaluator.toml
+   cp path/to/agentic-scaffold/python/.pi/agents/optional/evaluator.md \
+      .pi/agents/evaluator.md
    ```
    Most projects ship no LLM surface and skip this. `docs/evals.md` is the
    decision rule and the discipline that keeps evals from grading
@@ -277,12 +295,13 @@ the diff):
   before the dep lands.
 
 The complete `AGENTS.md` contract is the glue. `CLAUDE.md` imports it, so
-both clients receive the same orchestration rules without duplicate policy.
-Shared sources under `workflow/` render Claude commands/agents/skills and
-Codex skills/custom agents; `scripts/validate-codex-adapters.sh` rejects
-drift and stale adapters.
-See [`docs/codex-cli.md`](docs/codex-cli.md) for startup, trust, switching,
-and `codex exec`.
+every client receives the same orchestration rules without duplicate policy.
+Shared sources under `workflow/` render Claude commands/agents/skills, Codex
+skills/custom agents, and Pi prompts/roles. The Codex and Pi adapter validators
+reject drift and stale adapters. See [`docs/codex-cli.md`](docs/codex-cli.md)
+for Codex startup, trust, switching, and `codex exec`; see
+[`docs/pi-agent.md`](docs/pi-agent.md) for Pi trust/reload, model portability,
+and limits.
 
 ## Issue mode (opt-in)
 
@@ -298,9 +317,9 @@ the next local number.
 
 ## Opt-in subagents
 
-Both `.claude/agents/optional/` and `.codex/agents/optional/` hold adapters
-that are **not** copied by the default bootstrap. Enable both client files
-when the role applies.
+The `.claude/agents/optional/`, `.codex/agents/optional/`, and
+`.pi/agents/optional/` directories hold adapters that are **not** copied by
+the default bootstrap. Enable all three client files when the role applies.
 
 ### `security-reviewer.md`
 
@@ -333,10 +352,12 @@ cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md 
    .claude/agents/security-reviewer.md
 cp path/to/agentic-scaffold/python/.codex/agents/optional/security-reviewer.toml \
    .codex/agents/security-reviewer.toml
+cp path/to/agentic-scaffold/python/.pi/agents/optional/security-reviewer.md \
+   .pi/agents/security-reviewer.md
 ```
 
-Then add a one-line mention in `AGENTS.md`; Claude receives it through the
-existing import.
+Then add a one-line mention in `AGENTS.md`; every client reads that canonical
+contract (Claude through the existing import).
 
 ### `performance-reviewer.md`
 
@@ -364,10 +385,12 @@ cp path/to/agentic-scaffold/python/.claude/agents/optional/performance-reviewer.
    .claude/agents/performance-reviewer.md
 cp path/to/agentic-scaffold/python/.codex/agents/optional/performance-reviewer.toml \
    .codex/agents/performance-reviewer.toml
+cp path/to/agentic-scaffold/python/.pi/agents/optional/performance-reviewer.md \
+   .pi/agents/performance-reviewer.md
 ```
 
-Then add a one-line mention in `AGENTS.md`; Claude receives it through the
-existing import.
+Then add a one-line mention in `AGENTS.md`; every client reads that canonical
+contract (Claude through the existing import).
 
 ### `evaluator.md`
 
@@ -413,10 +436,12 @@ cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
    .claude/agents/evaluator.md
 cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
    .codex/agents/evaluator.toml
+cp path/to/agentic-scaffold/python/.pi/agents/optional/evaluator.md \
+   .pi/agents/evaluator.md
 ```
 
-Then add a one-line mention in `AGENTS.md`; Claude receives it through the
-existing import.
+Then add a one-line mention in `AGENTS.md`; every client reads that canonical
+contract (Claude through the existing import).
 
 ## Don't
 

@@ -65,6 +65,15 @@ must .codex/config.toml
 must .codex/hooks.json
 must .codex/rules/safety.rules
 must .codex/agents/reviewer.toml
+must .pi/settings.json
+must .pi/extensions/agentic-hooks.ts
+must .pi/extensions/agentic-child-hooks.ts
+must .pi/agents/reviewer.md
+must .pi/agents/planner.md
+must .pi/agents/test-first.md
+must .pi/prompts/spec.md
+must .pi/prompts/review-check.md
+must docs/pi-agent.md
 must .agents/skills/spec/SKILL.md
 must .agents/skills/review-check/SKILL.md
 must .claude/commands/review-check.md
@@ -79,6 +88,8 @@ case "$PROFILE" in
   minimal)
     must_not .claude/agents/analyzer.md
     must_not .codex/agents/analyzer.toml
+    must_not .pi/agents/analyzer.md
+    must_not .pi/prompts/adr.md
     must_not .claude/skills/python-module-split/SKILL.md
     must_not .agents/skills/python-module-split/SKILL.md
     must_not .claude/commands/adr.md
@@ -91,6 +102,8 @@ case "$PROFILE" in
   core)
     must .claude/agents/analyzer.md
     must .codex/agents/analyzer.toml
+    must .pi/agents/analyzer.md
+    must .pi/prompts/adr.md
     must .claude/skills/python-module-split/SKILL.md
     must .agents/skills/python-module-split/SKILL.md
     must .claude/commands/adr.md
@@ -103,18 +116,23 @@ case "$PROFILE" in
     must_not docs/local-executor.md
     must_not .claude/commands/security.md
     must_not .claude/commands/delegate.md
+    must_not .pi/prompts/security.md
+    must_not .pi/prompts/delegate.md
     ;;
   full)
     must .claude/agents/analyzer.md
     must .codex/agents/analyzer.toml
+    must .pi/agents/analyzer.md
     must docs/parallel-agents.md
     must docs/evals.md
     must docs/llm-product.md
     must docs/local-executor.md
     must .claude/commands/security.md
     must .agents/skills/security/SKILL.md
+    must .pi/prompts/security.md
     must .claude/commands/delegate.md
     must .agents/skills/delegate/SKILL.md
+    must .pi/prompts/delegate.md
     must .github/workflows/claude-review.yml.example
     ;;
   *)
@@ -128,6 +146,8 @@ must_not .claude/agents/security-reviewer.md
 must_not .claude/agents/optional
 must_not .codex/agents/security-reviewer.toml
 must_not .codex/agents/optional
+must_not .pi/agents/security-reviewer.md
+must_not .pi/agents/optional
 
 # Stop gate: on by default (and under --strict-hooks); absent if and only
 # if --no-stop-gate was passed.
@@ -259,6 +279,7 @@ run_profile_transition_matrix() {
   )
   state_must_equal "$root" PROFILE minimal
   transition_must_not "$root" .agents/skills/analyze/SKILL.md
+  transition_must_not "$root" .pi/prompts/analyze.md
 
   (
     cd "$root"
@@ -266,7 +287,9 @@ run_profile_transition_matrix() {
   )
   state_must_equal "$root" PROFILE core
   transition_must "$root" .agents/skills/analyze/SKILL.md
+  transition_must "$root" .pi/prompts/analyze.md
   transition_must_not "$root" .agents/skills/security/SKILL.md
+  transition_must_not "$root" .pi/prompts/security.md
 
   (
     cd "$root"
@@ -274,6 +297,7 @@ run_profile_transition_matrix() {
   )
   state_must_equal "$root" PROFILE full
   transition_must "$root" .agents/skills/security/SKILL.md
+  transition_must "$root" .pi/prompts/security.md
   transition_must "$root" docs/parallel-agents.md
 
   # A profile shrink removes unchanged scaffold-owned files but must preserve
@@ -287,7 +311,9 @@ run_profile_transition_matrix() {
   )
   state_must_equal "$root" PROFILE minimal
   transition_must_not "$root" .agents/skills/analyze/SKILL.md
+  transition_must_not "$root" .pi/prompts/analyze.md
   transition_must_not "$root" .agents/skills/security/SKILL.md
+  transition_must_not "$root" .pi/prompts/security.md
   transition_must_not "$root" docs/parallel-agents.md
   transition_must "$root" docs/agent-handoff.md
   if ! cmp -s "$root/.claude/commands/security.md" "$custom_copy"; then
@@ -307,6 +333,7 @@ run_strict_flagless_update() {
   local claude_settings_copy="$WORK/strict-claude-settings.json"
   local codex_config_copy="$WORK/strict-codex-config.toml"
   local codex_hooks_copy="$WORK/strict-codex-hooks.json"
+  local pi_settings_copy="$WORK/strict-pi-settings.json"
 
   mkdir -p "$root"
   (
@@ -319,13 +346,15 @@ run_strict_flagless_update() {
   cp "$root/AGENTS.md" "$root/CLAUDE.md"
 
   # Trailing JSON/TOML whitespace is a valid, minimal project customization.
-  # The checksum boundary must preserve all three files on update.
+  # The checksum boundary must preserve all four files on update.
   printf '\n' >> "$root/.claude/settings.json"
   printf '\n' >> "$root/.codex/config.toml"
   printf '\n' >> "$root/.codex/hooks.json"
+  printf '\n' >> "$root/.pi/settings.json"
   cp "$root/.claude/settings.json" "$claude_settings_copy"
   cp "$root/.codex/config.toml" "$codex_config_copy"
   cp "$root/.codex/hooks.json" "$codex_hooks_copy"
+  cp "$root/.pi/settings.json" "$pi_settings_copy"
 
   (
     cd "$root"
@@ -345,14 +374,17 @@ run_strict_flagless_update() {
   fi
   if ! cmp -s "$root/.claude/settings.json" "$claude_settings_copy" ||
     ! cmp -s "$root/.codex/config.toml" "$codex_config_copy" ||
-    ! cmp -s "$root/.codex/hooks.json" "$codex_hooks_copy"; then
+    ! cmp -s "$root/.codex/hooks.json" "$codex_hooks_copy" ||
+    ! cmp -s "$root/.pi/settings.json" "$pi_settings_copy"; then
     echo "SMOKE FAIL (update): customized client configuration was overwritten" >&2
     exit 1
   fi
-  if [[ "$(grep -c 'preserving customized client config' "$log")" -ne 3 ]]; then
+  if [[ "$(grep -c 'preserving customized client config' "$log")" -ne 4 ]]; then
     echo "SMOKE FAIL (update): expected one preservation warning per client config" >&2
     exit 1
   fi
+  grep -q 'verify customized .pi/settings.json loads the agentic-hooks extension' "$log" \
+    || { echo "SMOKE FAIL (update): customized Pi settings warning omitted extension activation" >&2; exit 1; }
   if ! cmp -s "$root/AGENTS.md" "$agents_copy"; then
     echo "SMOKE FAIL (update): canonical project-owned AGENTS.md changed wholesale" >&2
     exit 1
@@ -441,6 +473,27 @@ run_claude_only_contract_migration() {
   fi
 }
 
+run_custom_pi_install_reporting() {
+  local root="$WORK/custom-pi-install"
+  local log="$WORK/custom-pi-install.log"
+  local expected="$WORK/custom-pi-settings.json"
+
+  mkdir -p "$root/.pi"
+  printf '%s\n' '{"extensions": []}' >"$root/.pi/settings.json"
+  cp "$root/.pi/settings.json" "$expected"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --minimal --strict-hooks >"$log"
+  )
+  cmp -s "$root/.pi/settings.json" "$expected" \
+    || { echo "SMOKE FAIL (install): customized Pi settings were overwritten" >&2; exit 1; }
+  grep -q 'verify customized .pi/settings.json loads the agentic-hooks extension' "$log" \
+    || { echo "SMOKE FAIL (install): customized Pi activation warning missing" >&2; exit 1; }
+  grep -q 'Strict hooks are enabled' "$log" \
+    || { echo "SMOKE FAIL (install): persisted strict mode was not reported with customized Pi settings" >&2; exit 1; }
+  state_must_equal "$root" STRICT_HOOKS 1
+}
+
 run_profile_alias() {
   local root="$WORK/profile-alias"
   mkdir -p "$root"
@@ -466,6 +519,7 @@ if [[ "$PROFILE" == full && -z "$STRICT" ]]; then
   run_profile_transition_matrix
 elif [[ "$PROFILE" == core && "$STRICT" == --strict-hooks ]]; then
   run_strict_flagless_update
+  run_custom_pi_install_reporting
 elif [[ "$PROFILE" == minimal && -z "$STRICT" ]]; then
   run_preserved_stop_gate_update
   run_claude_only_contract_migration
