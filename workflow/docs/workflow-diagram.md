@@ -217,10 +217,11 @@ flowchart TD
     LARGE --> PAR["independent pieces:<br/>one worktree + agent per spec<br/>file ownership partitioned in non-goals"]
 ```
 
-Implementation that needs **files outside the approved plan** is a
-stop-and-ask, not a proceed-anyway — see `../AGENTS.md` "Your role:
-orchestrator." A complex program is not a bigger loop — it is the same medium-sized loop run *N*
-times over a split backlog, sequentially when the pieces depend on each
+Implementation that needs **files outside the approved plan**, or
+Trivial/Small work that outgrows its size, is a stop-and-ask and a re-size,
+not a proceed-anyway — see `../AGENTS.md` "Your role: orchestrator." A
+complex program is not a bigger loop — it is the same medium-sized loop run
+*N* times over a split backlog, sequentially when the pieces depend on each
 other, in parallel worktrees when they don't
 ([`parallel-agents.md`](parallel-agents.md)).
 

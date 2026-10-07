@@ -324,6 +324,8 @@ Don't run the full loop on tiny work.
 | Large — new subsystem | Capture the cross-cutting technical decision in an ADR (`/adr`) first, then split into medium pieces, one spec each. |
 | Research, measurement, or docs — no code to test | Spec whose success criteria name the evidence each will be checked against; `/plan` if it is more than one sitting; skip `/test-first` and the gate; `/review` checks the evidence against the spec. |
 
+A task between rows takes the larger one.
+
 A throwaway script needs none of this — just write the code.
 
 ## Phase handoff (multi-day features)

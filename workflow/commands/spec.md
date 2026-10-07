@@ -79,7 +79,7 @@ mode list any `<!-- assumption: ... -->` markers you left so they are easy
 to resolve. The human owns the spec before any other phase begins.
 
 The file remains `draft` through spec review. After the human approves it,
-create/select its numbered feature branch. For work that requires `/plan`,
+create/select its numbered feature branch. For work that runs `/plan`,
 the approved file-by-file plan is then persisted under
 `## Approved implementation plan`; that approval changes the spec to
 `shipping`. For Small work where plan is explicitly skipped, the orchestrator

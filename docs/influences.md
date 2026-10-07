@@ -264,12 +264,16 @@ being re-proposed.
   approval existed, the rule duplicated that gate for any Medium task over
   five files, contradicted the "Medium: 3–10 files, full loop" row, and
   never said whether it fired before or after an approved plan. It became
-  "if implementation needs files outside the approved plan, stop and ask,"
-  which keeps the one thing it caught (scope drift during autodrive) and
-  drops the file count. The "> 3 files → `/plan`" trigger had the same
-  unsourced origin and disagreed with the size table at its boundary (a
-  3-file task was Medium, so planned, but not "> 3"). It became "Medium or
-  larger, or the approach is unclear": a plan earns its cost when the
-  approach is uncertain, not when a count is crossed, and a well-understood
-  small change gets nothing from a plan that restates the spec. The size
-  table keeps its rough file counts as a sizing guide.
+  "if implementation needs files outside the approved plan, or Trivial/Small
+  work outgrows its size row, stop, ask, and re-size." The plan clause
+  catches drift during autodrive; the re-size clause, added after both
+  reviewers flagged it, keeps the tripwire the old count gave unplanned
+  work that grows mid-implementation. The "> 3 files → `/plan`" trigger had
+  the same unsourced origin and disagreed with the size table at its
+  boundary (a 3-file task was Medium, so planned, but not "> 3"). It became
+  "Medium or larger, or the approach is unclear": a plan earns its cost when
+  the approach is uncertain, not when a count is crossed, and a
+  well-understood small change gets nothing from a plan that restates the
+  spec. The size table keeps its rough file counts as a sizing guide, and a
+  task between rows takes the larger one, since sizing now decides whether
+  `/plan` runs.

@@ -14,9 +14,9 @@ Spec selection:
   **Active-spec resolution**: explicit spec path, then branch-number match,
   then the unique `shipping` spec. Ambiguity stops; never guess from the
   highest spec number.
-- Require `**Status:** shipping`. For work whose scale requires `/plan`, also
-  require the human-approved `## Approved implementation plan`. If either
-  approval record is missing, stop before spawning the subagent. For a Small
+- Require `**Status:** shipping`. For work that ran `/plan`, also require
+  the human-approved `## Approved implementation plan`. If either approval
+  record is missing, stop before spawning the subagent. For a Small
   task where plan was explicitly skipped, the orchestrator still marks the
   approved spec `shipping` before this phase.
 

@@ -121,7 +121,7 @@ to keep wide searches or noisy output out of the main context.
 | About to implement anything past trivial | `/test-first` before any implementation code |
 | Implementation done and `/review-check` is green | `/review` (and `/review-adversarial` on meaningful features) |
 | Need full test output, a wide survey, or doc fetches | A focused subagent |
-| Implementation needs files outside the approved plan | Stop and ask the human first |
+| Implementation needs files outside the approved plan, or Trivial/Small work outgrows its size row | Stop and ask the human first; re-size (Medium runs `/plan`) |
 
 Re-read the spec at phase boundaries and after context drift. Write a phase
 handoff before changing sessions. Verify claims outside the gate (for example,
@@ -134,14 +134,16 @@ migrations or file comparisons) with a concrete check.
 | Medium: 3–10 files | Full loop. |
 | Large: refactor/new subsystem | `/adr` first; full loop; split into medium tasks and sessions. |
 
+A task between rows takes the larger one.
+
 ## Workflow expectations (Spec → Plan → Test-first → Implement → Verify)
 
 `WORKFLOW.md` owns the walkthrough and `docs/workflow-diagram.md` the diagram.
-For Medium/Large work, stop after drafting the spec for ownership, after
-`/plan` for approval, and after Verify for commit authorization. Once the
-plan is approved and persisted, autodrive test-first → implement → docs →
-gate → review → fixes/re-review. Stop if tests, gates, or review invalidate
-the spec. Never commit without approval.
+For Medium/Large work, stop after drafting the spec for ownership and after
+Verify for commit authorization. Whenever `/plan` runs, stop after it for
+approval. Once the plan is approved and persisted, autodrive test-first →
+implement → docs → gate → review → fixes/re-review. Stop if tests, gates, or
+review invalidate the spec. Never commit without approval.
 
 Review findings are `[auto-fix]`, `[no-op]`, or `[ask-user]`. Apply
 `[auto-fix]`, sync docs, rerun the complete gate, and obtain a fresh focused
@@ -155,8 +157,9 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
 - **Plan:** For Medium/Large work, or when the approach is unclear, run
   `/plan` before tests or implementation. After approval, the orchestrator
   copies its file-by-file plan verbatim into `## Approved implementation
-  plan`, updates the date, and marks the spec `shipping` before `/test-first`, compaction, client switch, or handoff.
-  For Small work, mark the approved spec `shipping` before `/test-first`.
+  plan`, updates the date, and marks the spec `shipping` before
+  `/test-first`, compaction, client switch, or handoff. For Small work that
+  skips `/plan`, mark the approved spec `shipping` before `/test-first`.
 - **Test-first:** `/test-first` writes failing tests from the spec. Audit
   its file fingerprints, reject implementation edits, and rerun the focused
   test to confirm the expected failure. If installed, run `/analyze` before
@@ -175,8 +178,8 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
   implementation and pass afterward.
 - **Multi-day work:** Append `## Phase handoff` at each phase boundary and
   resume in a fresh session.
-- If implementation needs files outside the approved plan, stop and ask
-  first.
+- If implementation needs files outside the approved plan, or Trivial/Small
+  work outgrows its size row, stop and ask first, then re-size.
 
 ## Detailed workflow guidance
 
