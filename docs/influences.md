@@ -255,3 +255,21 @@ being re-proposed.
   version you cite. That is the failure the
   `## External references` rule exists to prevent, and it had taken root
   here.
+
+- **The "> 5 files, stop and ask" rule** (resolved 2026-10-06). It shipped
+  in the first commit with no source. It traces to a personal research note
+  of example `CLAUDE.md` templates, where it was a style line in a file with
+  no orchestration loop and, in one template, read "propose a plan first."
+  In that setting it stood in for a plan gate. Once `/plan` with human
+  approval existed, the rule duplicated that gate for any Medium task over
+  five files, contradicted the "Medium: 3–10 files, full loop" row, and
+  never said whether it fired before or after an approved plan. It became
+  "if implementation needs files outside the approved plan, stop and ask,"
+  which keeps the one thing it caught (scope drift during autodrive) and
+  drops the file count. The "> 3 files → `/plan`" trigger had the same
+  unsourced origin and disagreed with the size table at its boundary (a
+  3-file task was Medium, so planned, but not "> 3"). It became "Medium or
+  larger, or the approach is unclear": a plan earns its cost when the
+  approach is uncertain, not when a count is crossed, and a well-understood
+  small change gets nothing from a plan that restates the spec. The size
+  table keeps its rough file counts as a sizing guide.

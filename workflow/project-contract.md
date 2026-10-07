@@ -74,11 +74,11 @@ to keep wide searches or noisy output out of the main context.
 
 | Situation | Route to |
 | --- | --- |
-| Task touches > 3 files, or needs an exploratory report | `/plan` (`planner`) |
+| Medium or larger, the approach is unclear, or it needs an exploratory report | `/plan` (`planner`) |
 | About to implement anything past trivial | `/test-first` before any implementation code |
 | Implementation done and `/review-check` is green | `/review` (and `/review-adversarial` on meaningful features) |
 | Need full test output, a wide survey, or doc fetches | A focused subagent |
-| A change would touch > 5 files | Stop and ask the human first |
+| Implementation needs files outside the approved plan | Stop and ask the human first |
 
 Re-read the spec at phase boundaries and after context drift. Write a phase
 handoff before changing sessions. Verify claims outside the gate (for example,
@@ -87,7 +87,7 @@ migrations or file comparisons) with a concrete check.
 | Task size | The loop |
 | --- | --- |
 | Trivial: rename, typo, ≤ ~10 lines | Branch optional; skip spec and plan. |
-| Small: one function/file | Branch; one-sentence spec; skip `/plan`; use `/test-first`. |
+| Small: one function/file | Branch; one-sentence spec; skip `/plan` unless the approach is unclear; use `/test-first`. |
 | Medium: 3–10 files | Full loop. |
 | Large: refactor/new subsystem | `/adr` first; full loop; split into medium tasks and sessions. |
 
@@ -109,10 +109,10 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
   with goal, criteria, non-goals, and external references. Use `/scope-check`
   or `/clarify`; put product direction in `0000-product.md` and costly
   cross-cutting decisions in ADRs.
-- **Plan:** For >3 files, run `/plan` before tests or implementation. After
-  approval, the orchestrator copies its file-by-file plan verbatim into
-  `## Approved implementation plan`, updates the date, and marks the spec
-  `shipping` before `/test-first`, compaction, client switch, or handoff.
+- **Plan:** For Medium/Large work, or when the approach is unclear, run
+  `/plan` before tests or implementation. After approval, the orchestrator
+  copies its file-by-file plan verbatim into `## Approved implementation
+  plan`, updates the date, and marks the spec `shipping` before `/test-first`, compaction, client switch, or handoff.
   For Small work, mark the approved spec `shipping` before `/test-first`.
 - **Test-first:** `/test-first` writes failing tests from the spec. Audit
   its file fingerprints, reject implementation edits, and rerun the focused
@@ -132,7 +132,8 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
   implementation and pass afterward.
 - **Multi-day work:** Append `## Phase handoff` at each phase boundary and
   resume in a fresh session.
-- If a change would touch > 5 files, stop and ask first.
+- If implementation needs files outside the approved plan, stop and ask
+  first.
 
 ## Detailed workflow guidance
 

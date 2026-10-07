@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Reads a spec and the relevant codebase, produces a step-by-step implementation plan. Read-only — never writes code. Use for any task that touches > 3 files.
+description: Reads a spec and the relevant codebase, produces a step-by-step implementation plan. Read-only — never writes code. Use for Medium or larger work, or when the approach is unclear.
 tools: Read, Grep, Glob, WebSearch
 permissionMode: plan
 ---

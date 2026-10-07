@@ -256,7 +256,7 @@ and Pi; Codex uses the same name as `$<name>`.
 | Run this | It does | Reach for it when | Profile |
 | --- | --- | --- | --- |
 | `/spec` | Writes `docs/specs/NNNN-*.md` — drafts goal/success/non-goals from the current discussion, or a skeleton to fill; stops for your review | Any non-trivial feature — the source of truth | minimal |
-| `/plan` (`planner`) | Read-only file-by-file plan | The task touches > 3 files | minimal |
+| `/plan` (`planner`) | Read-only file-by-file plan | Medium or larger work, or the approach is unclear | minimal |
 | `/test-first` (`test-first`) | Writes failing tests from the spec, in the stack's test runner | Before writing any implementation code | minimal |
 | `/review-check` | Local gate through `.agentic/toolchain.sh`: lint · format · typecheck · test | Before `/review` and before commit | minimal |
 | `/review` (`reviewer`) | Fresh-context diff review vs the spec | After the gate is green, before commit | minimal |

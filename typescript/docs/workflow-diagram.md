@@ -210,16 +210,16 @@ by size:
 flowchart TD
     Q{"How big is the task?"}
     Q -->|"trivial — rename, typo, ≤10 lines"| TRIV["Just do it.<br/>branch optional · skip spec & plan"]
-    Q -->|"small — one function, one file"| SMALL["branch · spec = 1 sentence<br/>skip /plan · /test-first still required"]
+    Q -->|"small — one function, one file"| SMALL["branch · spec = 1 sentence<br/>skip /plan unless approach is unclear<br/>/test-first still required"]
     Q -->|"medium — 3–10 files"| MED["Full loop. (Where it shines.)"]
     Q -->|"large — refactor / new subsystem"| LARGE["Split into medium tasks first<br/>one spec + branch each"]
     LARGE --> SEQ["dependent pieces:<br/>loop × N, sequential<br/>phase handoff between sessions"]
     LARGE --> PAR["independent pieces:<br/>one worktree + agent per spec<br/>file ownership partitioned in non-goals"]
 ```
 
-A change that would touch **> 5 files** is a stop-and-ask, not a
-proceed-anyway — see `../AGENTS.md` "Your role: orchestrator." A complex
-program is not a bigger loop — it is the same medium-sized loop run *N*
+Implementation that needs **files outside the approved plan** is a
+stop-and-ask, not a proceed-anyway — see `../AGENTS.md` "Your role:
+orchestrator." A complex program is not a bigger loop — it is the same medium-sized loop run *N*
 times over a split backlog, sequentially when the pieces depend on each
 other, in parallel worktrees when they don't
 ([`parallel-agents.md`](parallel-agents.md)).
