@@ -255,3 +255,25 @@ being re-proposed.
   version you cite. That is the failure the
   `## External references` rule exists to prevent, and it had taken root
   here.
+
+- **The "> 5 files, stop and ask" rule** (resolved 2026-10-06). It shipped
+  in the first commit with no source. It traces to a personal research note
+  of example `CLAUDE.md` templates, where it was a style line in a file with
+  no orchestration loop and, in one template, read "propose a plan first."
+  In that setting it stood in for a plan gate. Once `/plan` with human
+  approval existed, the rule duplicated that gate for any Medium task over
+  five files, contradicted the "Medium: 3–10 files, full loop" row, and
+  never said whether it fired before or after an approved plan. It became
+  "if implementation needs files outside the approved plan, or Trivial/Small
+  work outgrows its size row, stop, ask, and re-size." The plan clause
+  catches drift during autodrive; the re-size clause, added after both
+  reviewers flagged it, keeps the tripwire the old count gave unplanned
+  work that grows mid-implementation. The "> 3 files → `/plan`" trigger had
+  the same unsourced origin and disagreed with the size table at its
+  boundary (a 3-file task was Medium, so planned, but not "> 3"). It became
+  "Medium or larger, or the approach is unclear": a plan earns its cost when
+  the approach is uncertain, not when a count is crossed, and a
+  well-understood small change gets nothing from a plan that restates the
+  spec. The size table keeps its rough file counts as a sizing guide, and a
+  task between rows takes the larger one, since sizing now decides whether
+  `/plan` runs.
