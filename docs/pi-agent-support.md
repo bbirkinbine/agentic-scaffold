@@ -8,6 +8,12 @@ trust/reload, and local-model evidence remain open
 
 Add Pi as a first-class client of the scaffold without creating a second workflow authority: generated projects keep `AGENTS.md`, the shared workflow sources, `.agents/skills/`, and `.agentic/toolchain.sh` canonical while receiving Pi-native prompts, specialist-role adapters, project configuration, lifecycle enforcement, documentation, and validation alongside the existing Claude Code and Codex surfaces.
 
+“Local model” in this implementation record means the model selected to
+orchestrate Pi and use its tools. That is distinct from the bounded delegate
+in [`local-delegate-runner.md`](local-delegate-runner.md), where a hosted
+frontier model remains orchestrator and the local model receives text and
+returns one file without tool access.
+
 ## Success criteria
 
 - Every stack flavor installs a trusted `.pi` project surface that exposes the installed workflow names as Pi slash prompts, renders the shared roles as Pi subagents, and loads the existing Agent Skills catalog without treating skill files as subagent definitions.

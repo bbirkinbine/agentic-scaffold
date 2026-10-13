@@ -206,7 +206,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-06)
+## Current state (updated 2026-10-13)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -243,11 +243,13 @@ Open:
   Pi cannot append the existing reminder to default compaction, and neither
   project trust nor role allowlists are OS containment; see
   `docs/pi-portability.md`.
-- Revisit local execution with Codex CLI as orchestrator and a pinned local
-  model as bounded coder. Keep one canonical scaffold: send the local model a
-  self-contained `/delegate` packet, deny direct worktree/tool access, and add
-  an adapter only after model/quantization/runtime-specific evaluation. Start
-  with Qwen3.8-27B dense and Qwen3.6-35B-A3B.
+- Local execution has a draft spec, not an implementation:
+  [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
+  stack-neutral runner that sends a self-contained `/delegate` packet to a
+  pinned local model with no tool access, verifies the result, and admits a
+  model only after calibration on the project's own tasks. The frontier model
+  stays orchestrator. Qwen3.8-27B dense and Qwen3.6-35B-A3B are the first
+  candidates to calibrate; scaffold files still name no model.
 - `docs/influences.md` records the provenance row for
   `python/docs/local-executor.md` without URLs or a retrieval date. The
   Terminal-Bench 2.0 figures in that doc are live leaderboard values the

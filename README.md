@@ -114,6 +114,9 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   and implementation record; [`docs/pi-portability.md`](docs/pi-portability.md)
   — remaining evidence and containment gaps. The earlier Codex adapter record
   is in [`docs/codex-portability.md`](docs/codex-portability.md).
+- [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) — design,
+  safety boundaries, and acceptance contract for bounded local-model
+  delegation; its status header records the current implementation state.
 
 `python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run

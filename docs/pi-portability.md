@@ -20,6 +20,13 @@ hosted Claude or Codex-family model, another supported provider, or a local
 model; capability and tool-use quality vary by model, but the repository
 contract and executable gate do not.
 
+“Local-model evidence” in this document means a tool-capable local model
+orchestrating the complete workflow through Pi. It is separate from the
+bounded delegate design in
+[`local-delegate-runner.md`](local-delegate-runner.md), where a hosted
+frontier orchestrator sends one file to a local model with no tool access.
+Each path needs its own acceptance evidence.
+
 ## Known gaps
 
 - No authenticated fresh-project Medium workflow has yet demonstrated the
