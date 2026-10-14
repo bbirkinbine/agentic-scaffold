@@ -668,6 +668,16 @@ and a classifier can be compared against the rules on it.
   makes this possible there). It conflicts with the non-goal below until
   local models are shown to handle those phases, and Claude and Codex do
   not expose the active model to the runner.
+- **A tool-using delegate as a measured candidate.** After v1 has
+  real-model evidence, run an agent harness inside the same scratch copy as
+  one more candidate setup, with the harness and its version pinned as part
+  of the quadruple, and compare its recorded outcomes with the single-shot
+  runner's on the same packets. The scratch copy, the gate, the
+  post-execution audit, and publish-only-on-pass apply unchanged. The
+  dedicated execution sandbox above becomes a prerequisite, because the
+  model itself would run commands. What single-shot gives up, and this
+  would measure, is the model recovering from a thin packet by exploring;
+  multi-file work stays with the frontier model either way.
 - **Reading harness configuration during setup.** Reusing endpoint URLs
   from Codex or Pi configuration saves a few questions, but those files can
   hold credentials inline (Pi's `models.json` keeps `apiKey` beside
@@ -676,8 +686,10 @@ and a classifier can be compared against the rules on it.
 
 ## Non-goals
 
-- An agentic local executor with tool access (Tier 3 in
+- An agentic local executor with tool access in v1 (Tier 3 in
   [`workflow/docs/local-executor.md`](../workflow/docs/local-executor.md)).
+  It is a deferred, measured candidate; see **A tool-using delegate as a
+  measured candidate** above.
 - Delegating spec, plan, test-first, or review phases.
 - Choosing or recommending specific models in scaffold files.
 - Committing endpoints, hostnames, or machine profiles to any repository.
@@ -687,6 +699,16 @@ and a classifier can be compared against the rules on it.
   where the envelope is.
 
 ## Open questions
+
+- Should records be keyed by task class as well as bucket? Scoring reads
+  one ledger per project with buckets by size only. Outside reports
+  suggest local models' strengths differ by task type (parsers and regular
+  expressions versus tests and runtime behaviour) and that single-run
+  rankings mislead. A class key would split already-small records further,
+  so it needs a definition of class the frontier model can assign
+  mechanically, and enough runs per class to rank. Read
+  opencode-model-router's per-class outcome records and shadow mode, which
+  logs routing decisions without acting on them, before designing this.
 
 - What prepared-fixture format captures dependency setup and permitted tool
   artifacts reproducibly across Python, TypeScript, and project-owned custom

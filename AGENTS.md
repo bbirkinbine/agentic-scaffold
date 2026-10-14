@@ -268,11 +268,12 @@ Open:
   frontier model stays orchestrator. Candidates are discovered from the
   machine's inference endpoints (`GET /v1/models`); model size never
   decides. Scaffold files still name no model.
-- `docs/influences.md` records the provenance row for
-  `python/docs/local-executor.md` without URLs or a retrieval date. The
-  Terminal-Bench 2.0 figures in that doc are live leaderboard values the
-  argument rests on; pin a source or soften the claim. Independent of the
-  local-execution item and much cheaper.
+- `docs/influences.md` now pins the Terminal-Bench 2.0 and tool-calling
+  sources behind `workflow/docs/local-executor.md` (retrieved 2026-10-14)
+  and keeps the unsourced 2026-08 figures only as dated history. Still
+  missing: the per-harness defect reports (Cline, Roo Code, OpenCode, the
+  Qwen CLI, llama.cpp, Ollama) behind that doc's serialization failure
+  list. Independent of the local-execution item and much cheaper.
 - The portability plan is not complete by its own definition. Hook and
   execpolicy enforcement is verified live against Codex CLI 0.146.0
   (`scripts/acceptance-codex-live.sh`; evidence in

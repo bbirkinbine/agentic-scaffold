@@ -15,10 +15,17 @@ whether it succeeded.**
 That is not a general principle about model quality. It follows from three
 facts, in order:
 
-1. On the independently-run Terminal-Bench 2.0 leaderboard, open-weight
-   models that fit in 72 GB of VRAM score roughly **25%** on autonomous
-   agentic coding tasks, against roughly **85%** for current frontier
-   models. Most local attempts at an agentic task fail.
+1. Local models fail agentic tasks often enough that failure must be
+   planned for. As of 2026-08 the comparison this doc started from put
+   open-weight models that fit in 72 GB of VRAM at roughly 25% on the
+   Terminal-Bench 2.0 agentic coding benchmark against roughly 85% for
+   frontier models; those figures were never pinned to a source and are
+   kept only as dated history. By 2026-10 a 27B open-weight model's vendor
+   reported about 59% on the same benchmark — self-reported, at full
+   precision, with long context, generous token budgets, and multi-hour
+   timeouts, not a quantized workstation setup. Published scores are a
+   prior about what to try, not evidence about your setup; your own
+   recorded runs are.
 2. A high failure rate is only affordable when detection is automatic and
    free.
 3. This scaffolding already owns automatic detection. `/test-first` writes
@@ -37,7 +44,7 @@ eyeballing the diff.
 | --- | --- | --- | --- |
 | **1 — inline autocomplete (FIM)** | Complete the line you are typing | 1.5B–7B **base** model | Works. Unrelated to this loop; wire it up and forget it |
 | **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | instruct, typically 27B and up | Viable *only* behind a green gate |
-| **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Does not work. Do not design around it |
+| **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Unproven on local hardware. Measure it before designing around it |
 
 Tier 1 notes worth carrying: use a **base** model, not an Instruct
 variant — chat tuning suppresses fill-in-the-middle, and model vendors say
@@ -53,7 +60,7 @@ implementation model should never be the same process.
 | `/test-first` | No | The tests *are* the oracle. Never delegate the grader |
 | Implement | **Yes, conditionally** | The only phase with mechanical pass/fail |
 | `/review-check` | n/a | Deterministic already — the stack's gate through `.agentic/toolchain.sh` |
-| `/review`, `/review-adversarial` | No | This is the rung that catches "gate green, feature wrong." A 25%-agentic model is the wrong judge |
+| `/review`, `/review-adversarial` | No | This is the rung that catches "gate green, feature wrong." The model that wrote the code, or one weaker than the orchestrator, is the wrong judge |
 
 ## Conditions on the implement phase
 
@@ -67,9 +74,11 @@ All six, or don't delegate:
    simultaneous multi-file edit stays with the frontier model. Returning
    several files from one call is a separate, unmeasured task shape: do not
    assume it from a one-file success rate.
-2. **Single shot, not an agentic loop.** Ask for a complete file back. The
-   loop is where the 25% lives; the single bounded edit is where the ~40%
-   lives.
+2. **Single shot, not an agentic loop.** Ask for a complete file back.
+   The edit-test-fix loop still happens, but the runner owns it: it runs
+   the tests and sends the failures back with the next request, so the
+   model never has to emit a tool call — the step where local setups most
+   often break (see below).
 3. **Tests for the file exist and fail before the call.** No oracle, no
    delegation.
 4. **Capped retries, then escalate to the frontier model.** The cap matters
@@ -119,7 +128,10 @@ as one sets up a disappointment.
 - A controlled comparison — same tasks, frontier-only versus frontier-plan
   plus local-execute, with quality and token numbers. No such measurement is
   published as of 2026-08. Running one on your own repo would be novel.
-- An open-weight model you can serve locally scoring above ~35% on an
-  independent agentic leaderboard. That would move Tier 3 from "no" to "measure it."
+- Your own recorded runs showing a tool-using harness beating the
+  single-shot runner on the same packets. Published agentic scores have
+  already passed the level this doc once used as its trigger, but only as
+  vendor-reported numbers on setups unlike a local one; a comparison on your
+  own tasks is the evidence that would move Tier 3.
 - Harness-side convergence on one tool-call serialization, which would
   retire most of the failure list above.
