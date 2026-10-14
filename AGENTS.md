@@ -251,11 +251,13 @@ Open:
   `docs/pi-portability.md`.
 - Local execution has a draft spec and a first slice:
   `workflow/bin/delegate-run.sh` (installed as `.agentic/delegate-run.sh`
-  with `--full`) runs one packet against a model the human names with
-  `--model`, verifies it in a scratch copy, and publishes only a passing
-  file; smoke-tested against a stub server, not yet against a real local
-  model. `qualify`, `discover`, selection, `record-review`, demotion,
-  coupled packets, and the automatic handoff remain.
+  with `--full`) qualifies a model with a plumbing check, discovers what
+  each endpoint serves, runs one packet against a named or selected
+  qualified model, verifies it in a scratch copy, publishes only a passing
+  file, and scores and demotes models from the ledger with `record-review`;
+  smoke-tested against a stub server, not yet against a real local model.
+  The `off`/`auto` policy, the automatic handoff in the workflow, and
+  coupled packets remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
   stack-neutral runner that sends a self-contained `/delegate` packet to a
   pinned local model with no tool access and verifies the result. A model

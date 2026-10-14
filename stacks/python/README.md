@@ -30,7 +30,7 @@ python/
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .agentic/
 │   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/test/gate; the one file naming the tools
-│   ├── delegate-run.sh                    # --full: run a /delegate packet against a named local model, verify, publish
+│   ├── delegate-run.sh                    # --full: qualify local models, run a /delegate packet, verify, publish, score
 │   └── hooks/                             # shared hook implementations used by all clients
 ├── .agents/
 │   └── skills/                            # Codex workflow + reusable repository skills

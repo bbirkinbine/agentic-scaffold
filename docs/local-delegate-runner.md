@@ -3,20 +3,26 @@
 **Status:** draft; first slice implemented
 **Last updated:** 2026-10-14
 
-**Implemented (manual slice).** `workflow/bin/delegate-run.sh run <packet>
---model <name>` (installed as `.agentic/delegate-run.sh` with `--full`) runs
-one packet against a model the human names from the profile, with no
-qualification check, labelled `manual` in its result and ledger record. It
-covers the packet header, the scratch snapshot and red baseline, the
-three-attempt retry policy with feedback, the transport rules, filters 1–3,
-the stale-workspace check, publication, and the ledger, tested by
-`scripts/smoke-test-delegate.sh` against a stub server. Two deliberate
-differences from the text below: verification compares each gate step to
-the baseline instead of requiring a fully green gate (see filter 2), and
-the post-execution audit covers unignored files only; ignored tool
-artifacts are not yet enumerated. Not built: `qualify`, `discover`,
-selection, `record-review`, demotion, optional `calibrate` suites, coupled
-packets, and the automatic handoff.
+**Implemented.** `workflow/bin/delegate-run.sh` (installed as
+`.agentic/delegate-run.sh` with `--full`) provides `qualify`, `discover`,
+`run <packet> [--model <name>]`, `record-review`, `status`, and `reset`.
+Without `--model`, `run` selects from the checkout's `[[project]]`
+candidates as specified under **Selection**. `run` covers the
+packet header, the bucket recomputed from the file, the scratch snapshot
+and red baseline, the three-attempt retry policy with feedback, the
+transport rules, filters 1–3, the stale-workspace check, publication, and
+the ledger; it refuses a model not qualified for its current setup and
+warns, without blocking, on a demoted one. Scoring, the Wilson interval,
+and both demotion triggers are computed from the ledger. Tested by
+`scripts/smoke-test-delegate.sh` against a stub server, not yet against a
+real local model. Differences from the text below: verification compares
+each gate step to the baseline instead of requiring a fully green gate (see
+filter 2); the post-execution audit covers unignored files only; the
+qualification record lives beside the profile and scoring reads each
+project's ledger, with no separate stack key; the reachability check is a
+`GET /models` within five seconds. Not built: coupled packets and their
+plumbing check, optional `calibrate`, the `off`/`auto` policy check, and
+the automatic handoff in the workflow.
 
 ## Goal
 
@@ -397,8 +403,11 @@ transfer cleanly between codebases. A model's record never crosses stacks.
 total, including the initial call. Each attempt starts from the same clean
 scratch snapshot. The first request contains the packet; subsequent requests
 contain the packet, the previous candidate, and bounded failure diagnostics.
-Qualification and calibration use the same request settings, feedback
-construction, reset behavior, and attempt limit as production. Changes to
+Qualification uses the production request settings and transport rules
+but sends a single request with no retry: a setup that needs a retry to
+return a clean file is not qualified. Calibration uses the same request
+settings, feedback construction, reset behavior, and attempt limit as
+production. Changes to
 these rules change the harness version, and so every fingerprint.
 
 When the budget is spent, return `needs_frontier` with the packet path, cause,
@@ -696,8 +705,8 @@ and a classifier can be compared against the rules on it.
 
 Add `workflow/bin/delegate-run.sh` (rendered to `.agentic/delegate-run.sh`,
 installed with `--full` alongside `/delegate`), with `qualify`, `discover`,
-`run`, `record-review`, and optional `calibrate` subcommands. Extend the
-renderer, bootstrap managed-file inventory, profile transitions, and update tests for
+`run`, `record-review`, `status`, `reset`, and optional `calibrate`
+subcommands. Extend the renderer, bootstrap managed-file inventory, profile transitions, and update tests for
 that executable. Update `workflow/commands/delegate.md` to emit the header,
 add the `coupled` packet shape and its delimiter output contract, and honor
 `off`/`auto` (per-file sequencing of a multi-file plan and the

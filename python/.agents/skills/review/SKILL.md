@@ -43,3 +43,15 @@ new complete semantic change set. A focused re-review must verify each claimed
 resolution and inspect the fix delta for regressions; if the fix materially
 changed design, behavior, or scope, run a full review instead. Do not treat a
 green mechanical gate as resolution of a semantic finding.
+
+Delegated files: if the change set includes a file that
+`.agentic/delegate-run.sh` published (a `green` run in
+`.agentic/delegate/ledger.jsonl` with no `review` record yet), the
+orchestrator — not the read-only reviewer — records the outcome once the
+final disposition is settled:
+`bash .agentic/delegate-run.sh record-review <run> <verdict>`. Use
+`model-defect` when a finding was a defect in the delegated file's own
+implementation, even if the orchestrator then fixed it; `packet-defect`
+when the cause was something the packet failed to quote; otherwise `pass`,
+including when findings concerned other files or docs. Tell the human the
+verdict and the record line the runner prints.

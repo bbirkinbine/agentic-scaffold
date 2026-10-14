@@ -125,10 +125,19 @@ Print, as plain text for the human:
   still runs against the spec afterward, over the complete semantic change
   set once every plan file has landed.
 
-Then stop, unless the human asked you to run the packet. Then run the
-runner with the model they named and report its result as it printed it:
-on exit 0 the file is published and `/review-check` comes next; on
-`needs_frontier` (exit 10) implement the file yourself without reading the
-local attempts; on any other exit, report the reason and stop. Never call a
-model any other way, never edit the target while the runner is working or
-before `/review`, and do not commit anything.
+Then stop, unless the human asked you to run the packet. The model must
+have passed `bash .agentic/delegate-run.sh qualify <name>` for its current
+setup; the runner refuses it otherwise, and `status` shows every model's
+state and record. Run it with the model they named (`--model <name>`), or
+without `--model` to let it select from the checkout's `[[project]]`
+candidates, and report its result as it printed it, including which model
+ran and why:
+
+- exit 0: the file is published; `/review-check` comes next, and after
+  `/review` record its verdict with `record-review` as `/review` describes;
+- `needs_frontier` (exit 10): implement the file yourself without reading
+  the local attempts;
+- any other exit: report the reason and stop.
+
+Never call a model any other way, never edit the target while the runner
+is working or before `/review`, and do not commit anything.
