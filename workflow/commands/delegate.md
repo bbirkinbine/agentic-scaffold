@@ -138,3 +138,30 @@ ran and why:
 
 Never call a model any other way, never edit the target while the runner
 is working or before `/review`, and do not commit anything.
+
+## Automatic mode
+
+At the implement step, when `.agentic/delegate-run.sh` is installed and
+`bash .agentic/delegate-run.sh policy` prints `auto`, the human has already
+approved local delegation for this checkout; do not ask again per file.
+Walk the approved plan's files in its order of operations:
+
+1. Check the preconditions above for the next file. If one fails, implement
+   that file yourself and move on; say which precondition failed.
+2. Otherwise write its packet and run
+   `bash .agentic/delegate-run.sh run <packet>` without `--model`; the
+   runner chooses the model from its record and says why.
+3. Act on the exit status:
+   - 0: the file is published; move to the next file without editing it.
+   - 10 (`needs_frontier`): implement the file yourself without reading
+     the local attempts, then move on.
+   - 2 (refused): implement the file yourself and report the reason.
+   - 3 (infrastructure): stop delegating for the rest of this plan,
+     implement the remaining files yourself, and report the failure.
+   - 4 (integrity stop): stop and report to the human; the workspace or the
+     candidate's verification did something unexpected.
+
+When every plan file has landed, continue with docs, `/review-check`, and
+`/review` as usual. After the final review disposition, record a verdict
+with `record-review` for every run that published a file. Report which
+files were delegated, which model ran each, and how each ended.

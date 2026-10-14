@@ -212,7 +212,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-13)
+## Current state (updated 2026-10-14)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -249,15 +249,17 @@ Open:
   Pi cannot append the existing reminder to default compaction, and neither
   project trust nor role allowlists are OS containment; see
   `docs/pi-portability.md`.
-- Local execution has a draft spec and a first slice:
+- Local execution has a draft spec and a working runner:
   `workflow/bin/delegate-run.sh` (installed as `.agentic/delegate-run.sh`
   with `--full`) qualifies a model with a plumbing check, discovers what
   each endpoint serves, runs one packet against a named or selected
   qualified model, verifies it in a scratch copy, publishes only a passing
   file, and scores and demotes models from the ledger with `record-review`;
-  smoke-tested against a stub server, not yet against a real local model.
-  The `off`/`auto` policy, the automatic handoff in the workflow, and
-  coupled packets remain.
+  with `policy = "auto"` the Implement step hands eligible plan files to it
+  through `/delegate` → "Automatic mode". Smoke-tested against a stub
+  server; two local models on a LAN inference server passed `qualify`
+  on 2026-10-14, but no real task has run yet. Coupled packets, optional `calibrate`, and the
+  founding-interview setup remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
   stack-neutral runner that sends a self-contained `/delegate` packet to a
   pinned local model with no tool access and verifies the result. A model

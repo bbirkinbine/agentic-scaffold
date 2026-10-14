@@ -291,6 +291,15 @@ greet_is "$GOOD" || fail "reasoning block was not stripped from the candidate"
 [[ "$(last_result | jq -r '[.attempts[].outcome] | join(",")')" == "format,format,green" ]] ||
   fail "fence and truncation were not rejected as format failures"
 
+# --- 4b. a candidate that hangs its tests times out and is retried --------------
+reset_case
+respond 01 'greet() { sleep 60; echo "hello $1"; }'
+respond 02 "$GOOD"
+DELEGATE_STEP_TIMEOUT=3 expect_run 0 stub-coder
+greet_is "$GOOD" || fail "the run did not recover after a timed-out attempt"
+jq -e '.messages[2].content | contains("timed out after 3s")' "$QUEUE/requests/02.json" >/dev/null ||
+  fail "the timeout was not reported back to the model"
+
 # --- 5a. focused tests pass but a step green before the run goes red -------------
 reset_case
 respond 01 'greet() { echo "hello $1"; } # FIXME'
@@ -429,6 +438,15 @@ disc="$(runner discover 2>&1)"
   { echo "$disc" >&2; fail "discover did not match stub-coder"; }
 [[ "$disc" == *"stub-model -> stub-coder-b: unqualified, project candidate"* ]] || fail "discover did not show stub-coder-b"
 [[ "$disc" == *"dead: unreachable"* ]] || fail "discover did not report the dead endpoint"
+
+pol="$(runner policy 2>&1)" && fail "policy reported auto with policy = off"
+[[ "$pol" == "off: policy is 'off'" ]] || fail "policy off reason wrong: $pol"
+sed -i.bak 's/^policy = "off"$/policy = "auto"/' "$PROFILE" && rm -f "$PROFILE.bak"
+pol="$(runner policy 2>&1)" && fail "policy reported auto without activation approval"
+[[ "$pol" == *"activation_approved is not true"* ]] || fail "missing-approval reason wrong: $pol"
+printf 'activation_approved = true\n' >>"$PROFILE"
+pol="$(runner policy 2>&1)" || fail "policy is not auto when approved with a qualified candidate: $pol"
+[[ "$pol" == "auto (qualified candidates: stub-coder)" ]] || fail "policy did not list qualified candidates: $pol"
 
 # dead-coder looks qualified (its setup has a pass on record) but cannot be reached.
 dead_fp="$(runner status 2>&1 | sed -n 's/^dead-coder (.*, setup \([0-9a-f]*\)).*/\1/p')"

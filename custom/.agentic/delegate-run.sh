@@ -27,6 +27,12 @@
 #   record-review <run> pass|model-defect|packet-defect
 #                            Record /review's final verdict on a published
 #                            candidate. Until then a green run is pending.
+#   policy                   Prints `auto` and exits 0 only when this
+#                            checkout's [[project]] entry has policy = "auto",
+#                            activation_approved = true, and at least one
+#                            qualified candidate; otherwise prints `off: <why>`
+#                            and exits 1. The orchestrator checks this before
+#                            handing implementation to a local model.
 #   discover                 What each endpoint's /models lists, matched to
 #                            profile models and their qualification.
 #   status                   Each profile model's qualification and its
@@ -100,7 +106,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,75p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,81p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -127,11 +133,36 @@ now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 bounded_tail() { tail -n "$DIAG_LINES" "$1" | tail -c "$DIAG_BYTES"; }
 
 # Run a verifier command in the scratch tree without the endpoint credential.
+# Each verifier command gets DELEGATE_STEP_TIMEOUT seconds (default 900) so a
+# candidate that hangs a test cannot hang the run. The command runs in its
+# own process group, which is killed whole on timeout; exit status is 124.
+STEP_TIMEOUT="${DELEGATE_STEP_TIMEOUT:-900}"
+
+bounded() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -e '
+      my $limit = shift;
+      my $pid = fork() // die "fork: $!";
+      if ($pid == 0) { setpgrp(0, 0); exec { $ARGV[0] } @ARGV or exit 127; }
+      local $SIG{ALRM} = sub {
+        kill "TERM", -$pid; sleep 2; kill "KILL", -$pid; waitpid($pid, 0);
+        print STDERR "delegate-run: timed out after ${limit}s: @ARGV\n";
+        exit 124;
+      };
+      alarm $limit;
+      waitpid($pid, 0);
+      exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+    ' "$STEP_TIMEOUT" "$@"
+  else
+    "$@"
+  fi
+}
+
 verify_cmd() {
   if [[ -n "${CRED_ENV:-}" ]]; then
-    (cd "$TREE" && env -u "$CRED_ENV" "$@")
+    (cd "$TREE" && bounded env -u "$CRED_ENV" "$@")
   else
-    (cd "$TREE" && "$@")
+    (cd "$TREE" && bounded "$@")
   fi
 }
 
@@ -1194,6 +1225,36 @@ cmd_discover() {
   done <<<"$(awk -F'\t' '$1 == "endpoint" && $3 == "name" { print $4 }' "$PROFILE_TSV")"
 }
 
+cmd_policy() {
+  local profile policy approved name qualified=""
+  profile="$(default_profile)"
+  [[ "${1:-}" == --profile ]] && profile="${2:-}"
+  require_deps jq awk
+  [[ -f "$profile" ]] || { echo "off: no profile at $profile"; exit 1; }
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-policy.XXXXXX")" || exit 3
+  STATE="$WORK/state"
+  mkdir -p "$STATE"
+  trap cleanup EXIT
+  load_profile "$profile"
+  policy="$(project_get policy)"
+  approved="$(project_get activation_approved)"
+  [[ -n "$policy" ]] || { echo "off: no [[project]] entry for this checkout"; exit 1; }
+  [[ "$policy" == auto ]] || { echo "off: policy is '$policy'"; exit 1; }
+  [[ "$approved" == true ]] || { echo "off: activation_approved is not true"; exit 1; }
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    if (
+      refuse() { exit 1; }
+      load_model "$name"
+      [[ "$(qualification_state "$name" "$FINGERPRINT")" == qualified ]]
+    ); then
+      qualified="${qualified:+$qualified, }$name"
+    fi
+  done <<<"$(toml_list "$(project_get candidates)")"
+  [[ -n "$qualified" ]] || { echo "off: no candidate is qualified for its current setup"; exit 1; }
+  echo "auto (qualified candidates: $qualified)"
+}
+
 cmd_reset() {
   local model="${1:-}" bucket="${2:-}"
   [[ -n "$model" && -n "$bucket" ]] || { say "usage: delegate-run.sh reset <model> <bucket>"; exit 2; }
@@ -1217,6 +1278,7 @@ case "${1:-}" in
   run) shift; cmd_run "$@" ;;
   record-review) shift; cmd_record_review "$@" ;;
   discover) shift; cmd_discover "$@" ;;
+  policy) shift; cmd_policy "$@" ;;
   status) shift; cmd_status "$@" ;;
   reset) shift; cmd_reset "$@" ;;
   -h | --help | "") usage; [[ -n "${1:-}" ]] ;;

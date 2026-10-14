@@ -141,7 +141,10 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
   test to confirm the expected failure. If installed, run `/analyze` before
   coding.
 - **Implement:** Be on a feature branch; write the minimum passing code. For
-  external-authority values, follow "External-reference provenance."
+  external-authority values, follow "External-reference provenance." When
+  `.agentic/delegate-run.sh` is installed and its `policy` prints `auto`,
+  hand eligible plan files to the local model first, as `/delegate` →
+  "Automatic mode" says.
 - **Docs:** Before review, correct affected docs. Change README only for pitch,
   installation, or user-facing changes. Add a doc only for standing guidance
   that fits no existing doc or docstring. Mark the spec `shipped` and
