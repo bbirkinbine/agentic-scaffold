@@ -248,8 +248,10 @@ Open:
   stack-neutral runner that sends a self-contained `/delegate` packet to a
   pinned local model with no tool access, verifies the result, and admits a
   model only after calibration on the project's own tasks. The frontier model
-  stays orchestrator. Qwen3.8-27B dense and Qwen3.6-35B-A3B are the first
-  candidates to calibrate; scaffold files still name no model.
+  stays orchestrator. Candidates are discovered from the machine's
+  inference endpoints (`GET /v1/models`) and each run uses the best
+  calibrated one for the task's bucket; model size never decides. Scaffold
+  files still name no model.
 - `docs/influences.md` records the provenance row for
   `python/docs/local-executor.md` without URLs or a retrieval date. The
   Terminal-Bench 2.0 figures in that doc are live leaderboard values the

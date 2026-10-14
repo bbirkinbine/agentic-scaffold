@@ -13,9 +13,12 @@ to the frontier model. Whether a local model is used at all is decided by
 measured capability on the project's own tasks, not by model size, vendor
 claims, or a per-task human guess.
 
-The first version supports one explicitly selected local model per project,
-prepared calibration packets, and at most three attempts on that model.
-Escalation notifies and returns control; it never switches models.
+The first version discovers the models served by the machine's registered
+inference endpoints, selects one per run from those calibrated for the
+task's bucket, and makes at most three attempts on it. Selection is by
+recorded outcomes on this project, never by model size or name. Prepared
+calibration packets supply the evidence. Escalation notifies and returns
+control; it never switches models mid-run.
 Automatic historical packet generation, model ladders, held-out tests, and
 local orchestration are deferred until this loop has end-to-end evidence.
 
@@ -35,10 +38,14 @@ in the conversation instead of repeating questions:
    already running?" Default delegation to `off`. If the user declines or no
    server is available, continue normal project setup without requiring an
    endpoint or calibration.
-2. **Ask for the connection.** Collect the endpoint, model ID, quantization,
-   runtime/version, context limit, and, when the server requires
-   authentication, the *name* of an environment variable holding the
-   credential. Never accept a literal secret, and never resolve the variable
+2. **Ask for the endpoints.** Collect the base URL of each inference server
+   the user wants available (a workstation Ollama, a llama.cpp or
+   llama-swap host on the LAN, and so on) and, when a server requires
+   authentication, the *name* of an environment variable holding its
+   credential. Model IDs are discovered from the servers, not typed in;
+   see **Discovery** below. For each discovered model the user wants as a
+   candidate, confirm the quadruple fields the server does not report
+   (quantization, runtime version) and the request settings to pin. Never accept a literal secret, and never resolve the variable
    into the conversation, process arguments, log, or profile. The HTTP client
    receives the value without exposing it in its command line, and verifier
    subprocesses run without that credential variable. Do not read other
@@ -47,9 +54,11 @@ in the conversation instead of repeating questions:
    client flow that visibly confirms the write outside the repository;
    otherwise print the entry for the human to save. Keep machine details out
    of committed interview notes.
-3. **Verify and calibrate.** Check the endpoint against the runner's
+3. **Verify and calibrate.** Check each endpoint against the runner's
    protocol, then verify runner dependencies and the project's toolchain.
-   Run the prepared calibration suite described below. If the new project's
+   Run the prepared calibration suite described below on each candidate the
+   user chooses; calibration takes real time per model, so it is never
+   started for every discovered model by default. If the new project's
    toolchain or fixtures are not ready, record setup as pending and continue
    normal work with delegation off.
 4. **Activate explicitly.** Present the calibration evidence and proposed
@@ -75,7 +84,7 @@ state. Keep artifacts separated by lifecycle:
 | Cross-cutting architecture decisions | `docs/adr/NNNN-*.md` | tracked when that profile is installed |
 | Project-wide operational handoff | `docs/agent-handoff.md` | tracked |
 | Delegate packets, results, scratch data, lock, and ledger | `.agentic/delegate/` | ignored |
-| Endpoint, model metadata, admissions, selected model, and `off`/`auto` policy | `~/.config/agentic/local-models.toml` | outside the repository |
+| Endpoints, discovered models and their pinned settings, admissions, candidates, and `off`/`auto` policy | `~/.config/agentic/local-models.toml` | outside the repository |
 
 A delegate packet is per-run execution state, not a feature spec, ADR, or
 project-wide handoff. Store it under
@@ -96,21 +105,23 @@ repository requires fresh activation approval.
 
 ## The three decisions, and who makes each
 
-Delegation needs three answers. Each goes to the decider that can answer it
+Delegation needs four answers. Each goes to the decider that can answer it
 cheapest and most reliably.
 
 | Question | Decider | Mechanism |
 | --- | --- | --- |
 | Is this task *shaped* for delegation? | Frontier model, checked mechanically | `/delegate` preconditions plus task features recorded in the packet |
 | Can *this model* do a task of this shape? | Measurement | A per-machine capability profile built by calibration, updated by outcomes |
+| *Which* admitted model runs this task? | The runner, from the ledger | Deterministic ranking of reachable, admitted candidates; see **Selection** |
 | Is the produced code good enough? | Gate, then frontier review | Runner checks, full toolchain gate, post-execution audit, existing `/review` |
 
 **Who runs it.** At the implementation handoff, after the required approvals
 and test-first evidence, the orchestrator session checks the saved policy.
-With `off`, no selected profile, or no applicable admission, it follows the
-existing implementation workflow without creating a delegation packet or
-calling a local endpoint. The mode and selection come from the checkout's
-entry in the private profile. In `auto` mode, an admitted model and a task
+With `off`, no profile, or no candidate admitted for the task's bucket, it
+follows the existing implementation workflow without creating a delegation
+packet or calling a local endpoint. The mode and candidate list come from the
+checkout's entry in the private profile. In `auto` mode, an admitted candidate
+and a task
 meeting `/delegate` preconditions trigger packet creation, runner invocation, and
 reading the result. A plan that touches several files is walked in its
 order of operations, one packet per eligible step, so some steps may be
@@ -155,8 +166,8 @@ A multi-file plan is split into one-file packets in dependency order
 whenever each file can reach green on its own once its predecessors have
 landed; `/delegate` already does this. A `coupled` packet is only for files
 that cannot pass separately — a new type and its sole consumer, or a
-signature change and its callers — and only when the selected model holds
-a `coupled` admission. Without one, that step goes to the frontier model.
+signature change and its callers — and only when some candidate holds a
+`coupled` admission. Without one, that step goes to the frontier model.
 The single-shot, no-tools, whole-file rules apply unchanged: a coupled call
 is still one request returning complete files, never a multi-turn edit.
 
@@ -178,41 +189,104 @@ local delegate to resolve an external reference.
 ### 2. Model capability
 
 Capability is a property of the quadruple the existing doc already says to
-pin — model, quantization, runtime version, harness version — measured
-against *this project's* tasks. Parameter count is a prior, not an
-admission rule.
+pin — model, quantization, runtime version, harness version — plus the
+request settings sent with every call (reasoning mode or thinking level,
+sampling parameters), measured against *this project's* tasks. The same
+weights with reasoning on and off are two profile entries with separate
+admissions. Parameter count is a prior, not an admission rule, and there is
+no upper or lower bound on model size: a model the machine can serve is a
+candidate, and calibration decides whether it is admitted.
 
 **Profile.** A per-machine file outside the repository (it names local
 endpoints, which do not belong in a public tree), for example
 `~/.config/agentic/local-models.toml`:
 
 ```toml
+[[endpoint]]
+name = "lan-gateway"
+base_url = "http://<host>:<port>/v1"   # must pass the runner's protocol checks
+credential_env = "LOCAL_MODEL_TOKEN"   # optional; variable name, never value
+
 [[model]]
-name = "local-coder"
-endpoint = "http://<host>:8080/v1"   # must pass the runner's protocol checks
-model_id = "..."
-quant = "Q6_K"
-runtime = "llama.cpp b5xxx"
+name = "coder-a-think"                 # profile entry: weights + settings
+endpoint = "lan-gateway"
+model_id = "..."                       # as reported by GET /v1/models
+quant = "Q8_K"                         # confirmed by the user
+runtime = "llama.cpp b5xxx"            # confirmed by the user
 harness = "delegate-run-v1"
-context = 65536
-credential_env = "LOCAL_MODEL_TOKEN"  # optional; variable name, never value
+context = 131072
+request = { reasoning_effort = "medium", temperature = 0.6 }  # pinned
 
 [[project]]
 root = "/canonical/local/path/to/repo"
 policy = "off"               # off | auto
-selected_model = "local-coder"
+candidates = ["coder-a-think", "coder-b"]
 activation_approved = false
 ```
 
 The founding interview above creates or reuses this profile. Resolve `root`
 from the physical repository root, without following a remote URL as project
 identity; a second clone is a separately approved checkout. No admissions
-exist until calibration runs. The project entry explicitly selects one model
-entry; the runner never guesses among models. Activation changes `policy` and
+exist until calibration runs. The project entry lists its candidates
+explicitly; a discovered model that is not a candidate is never called for
+the project, and the runner chooses only among admitted candidates as
+described under **Selection**. Activation changes `policy` and
 `activation_approved` together after approval. With no profile, no approved
-auto policy, or no admitted bucket, implement with the frontier model. Model
-size alone never grants or denies admission. All clients read this same
-runner-owned profile rather than their own model configuration.
+auto policy, or no candidate admitted for the bucket, implement with the
+frontier model. Model size alone never grants or denies admission. All
+clients read this same runner-owned profile rather than their own model
+configuration.
+
+**Discovery.** `delegate-run.sh discover` sends `GET /v1/models` to each
+registered endpoint and lists what each server reports, marking every model
+as one of: candidate and admitted (with buckets), candidate pending
+calibration, or available and unused. Ollama, llama.cpp's server,
+llama-swap, vLLM, and LM Studio serve this listing over their
+OpenAI-compatible APIs, so discovery is the same under Claude, Codex, and Pi:
+which models exist is a property of the machine's servers, not of the
+orchestrating harness. Discovery reports and never edits the profile.
+Adding a candidate, confirming its quadruple, and pinning its request
+settings is a setup step the user approves. Two cautions:
+
+- A listing is not a load state. A swap-on-demand gateway such as
+  llama-swap lists every configured model and loads one on first request,
+  so the first call can include model load time. Timeouts separate a load
+  allowance from the generation timeout, and calibration records both.
+- A listing is not a quadruple. `/v1/models` returns IDs, not quantization
+  or runtime version, and a server can serve different weights under the
+  same ID after a change. Record what the server reports alongside the
+  user-confirmed fields; a changed report invalidates admission the same
+  way a quadruple change does.
+
+Discovery does not read harness model configuration. Those files can hold
+credentials inline next to the endpoint list — Pi's `models.json` stores a
+provider `apiKey` beside its `baseUrl` — so reading one to save a few setup
+questions would put secrets into the agent's context.
+
+**Selection.** `delegate-run.sh run <packet>` picks one model per run,
+deterministically, and records why:
+
+1. Start from the project's candidates.
+2. Keep those admitted for the packet's bucket in this project and stack,
+   not demoted, and whose quadruple, request settings, and server-reported
+   ID still match their admission.
+3. Drop any whose endpoint fails a cheap reachability check. An unreachable
+   endpoint is an infrastructure fact, not a model failure, and is not
+   recorded against the model.
+4. Rank the remainder by success rate within three attempts in that bucket,
+   over the last 20 ledger runs in that bucket, counting calibration runs
+   until production runs accumulate. Break ties by lower median wall time
+   from the ledger, then by profile entry name.
+5. Use the top-ranked model for every attempt in the run. If none remain,
+   return `needs_frontier` with the reason.
+
+The result names the chosen model, the runner-up, and the numbers that
+decided it, so the human can see why one candidate ran instead of another. A model
+that stops being chosen keeps its last measured rate rather than accruing
+new evidence; re-calibration refreshes it. A preference for speed over success rate, or a
+human-pinned favorite, is not in v1: both are policy choices that need the
+same evidence as the ranking, and a pinned favorite is what calibration
+replaces.
 
 **Calibration.** `delegate-run.sh calibrate <model> --suite <path>` consumes
 prepared packets and reproducible fixtures. The frontier session or human
@@ -274,7 +348,7 @@ buckets = ["small"]
 source = "project"        # project | other-repo | canned
 ```
 
-**Retry policy.** Use the project's selected model for at most three calls
+**Retry policy.** Use the model chosen for the run for at most three calls
 total, including the initial call. Each attempt starts from the same clean
 scratch snapshot. The first request contains the packet; subsequent requests
 contain the packet, the previous candidate, and bounded failure diagnostics.
@@ -448,13 +522,20 @@ and a classifier can be compared against the rules on it.
   External research is resolved first; packets contain bounded, source-pinned
   claims rather than raw source material or unresolved references.
 - `delegate-run.sh run <packet>` checks policy, packet metadata, and the
-  selected model's admission, then validates the snapshot and execution
-  prerequisites. Every refusal includes a reason.
-- With no profile or no admitted bucket, the runner refuses and recommends
-  frontier implementation; no network call is made.
+  candidates' admissions, selects a model as specified, then validates the
+  snapshot and execution prerequisites. Every refusal includes a reason.
+- With no profile or no candidate admitted for the bucket, the runner
+  refuses and recommends frontier implementation; no model call is made.
+- `discover` lists every model each registered endpoint reports, with its
+  candidate and admission state, and never changes the profile. It reads no
+  harness configuration.
+- Selection is deterministic for a given profile and ledger, excludes
+  unreachable endpoints without recording a model failure, never chooses an
+  uncalibrated, demoted, or changed model, ignores model size, and names
+  the chosen model, the runner-up, and the deciding numbers in the result.
 - An admitted run reproduces pending edits and tests in a scratch copy,
   confirms the intended red baseline, and runs filters 1–3. It stops after
-  at most three calls to the selected model and prints `needs_frontier`
+  at most three calls to the chosen model and prints `needs_frontier`
   with the last failure diagnostics.
 - An unconfigured or broken verifier, an integrity violation, or a stale
   workspace cannot produce a green result.
@@ -474,7 +555,10 @@ and a classifier can be compared against the rules on it.
   names no language tool. Unsupported custom configurations refuse with an
   explanation; there is no claim of automatic support for every language.
 - A smoke test drives the runner against a stub OpenAI-compatible server
-  (a canned response file), covering admit, refuse, green, red-then-escalate,
+  (a canned response file and a canned `/v1/models` listing), covering
+  discovery, selection between two admitted candidates, an unreachable
+  endpoint, a changed server-reported model, admit, refuse, green,
+  red-then-escalate,
   and a test-file-tampering candidate. Include uncommitted/untracked tests,
   stale-target publication, already-green calibration fixtures, matching
   retry feedback, unconfigured/broken gates, malformed/truncated responses,
@@ -501,8 +585,10 @@ and a classifier can be compared against the rules on it.
 - **Automatic history reconstruction.** First prove prepared fixtures work.
   Later mining must retain the behavior-specific red/green eligibility
   checks; changed-file counts alone are insufficient.
-- **Model ladders.** Evaluate the exact selection and retry allocation policy
-  before admitting it. A per-model three-attempt score does not validate a
+- **Model ladders.** Switching to the runner-up after a failed attempt within
+  one run. V1 selects one model per run and keeps it for every attempt.
+  Evaluate the exact selection and retry allocation policy before admitting
+  it. A per-model three-attempt score does not validate a
   ladder that gives each model one attempt.
 - **Held-out tests.** V1 makes no test-secrecy claim. A future version needs
   an explicit stack interface for test selection and diagnostic separation.
@@ -519,9 +605,11 @@ and a classifier can be compared against the rules on it.
   makes this possible there). It conflicts with the non-goal below until
   local models are shown to handle those phases, and Claude and Codex do
   not expose the active model to the runner.
-- **Reading harness configuration during setup.** Reusing endpoint metadata
-  from Codex or Pi configuration saves a few questions but reads files next
-  to credential stores; revisit only if manual entry proves to be friction.
+- **Reading harness configuration during setup.** Reusing endpoint URLs
+  from Codex or Pi configuration saves a few questions, but those files can
+  hold credentials inline (Pi's `models.json` keeps `apiKey` beside
+  `baseUrl`). Server discovery already removes the model-ID questions;
+  revisit only if typing endpoint URLs proves to be friction.
 
 ## Non-goals
 
@@ -542,6 +630,10 @@ and a classifier can be compared against the rules on it.
   runners?
 - Optional mutation testing as an additional filter, exposed as an optional
   toolchain subcommand where a stack supports it.
+- How to pin quantization and runtime version when a server reports neither,
+  beyond user confirmation. llama.cpp exposes some build and model metadata
+  on endpoints outside the OpenAI-compatible surface; a per-runtime probe
+  would tighten the change check but adds runtime-specific code.
 - Bash plus `curl` and `jq` matches the repository, but `jq` becomes a new
   consumer dependency for `--full`. Profile and packet parsing also need a
   defined TOML/YAML parser; `jq` alone does not parse either format.
@@ -549,7 +641,8 @@ and a classifier can be compared against the rules on it.
 ## Sketch
 
 Add `workflow/bin/delegate-run.sh` (rendered to `.agentic/delegate-run.sh`,
-installed with `--full` alongside `/delegate`). Extend the renderer,
+installed with `--full` alongside `/delegate`), with `discover`, `calibrate`,
+`run`, and `record-review` subcommands. Extend the renderer,
 bootstrap managed-file inventory, profile transitions, and update tests for
 that executable. Update `workflow/commands/delegate.md` to emit the header,
 add the `coupled` packet shape and its delimiter output contract, and honor

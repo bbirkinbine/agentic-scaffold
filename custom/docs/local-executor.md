@@ -36,7 +36,7 @@ eyeballing the diff.
 | Tier | The job | Model class | Verdict |
 | --- | --- | --- | --- |
 | **1 — inline autocomplete (FIM)** | Complete the line you are typing | 1.5B–7B **base** model | Works. Unrelated to this loop; wire it up and forget it |
-| **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | 27B–120B instruct | Viable *only* behind a green gate |
+| **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | instruct, typically 27B and up | Viable *only* behind a green gate |
 | **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Does not work. Do not design around it |
 
 Tier 1 notes worth carrying: use a **base** model, not an Instruct
@@ -77,7 +77,9 @@ All six, or don't delegate:
 5. **Prefer whole-file output over diffs.** The same model on the same
    problems has scored 2x differently on format alone. Diff generation is a
    separate skill from coding and weak models are bad at it.
-6. **Pin the quadruple** — model, quant, runtime version, harness version.
+6. **Pin the quadruple** — model, quant, runtime version, harness version —
+   plus the request settings (reasoning mode or thinking level, sampling).
+   The same weights with reasoning on and off are different executors.
    Local tool-calling breaks on serialization mismatches between model,
    runtime and harness far more often than on reasoning, and every one of
    those layers ships breaking changes.
@@ -117,7 +119,7 @@ as one sets up a disappointment.
 - A controlled comparison — same tasks, frontier-only versus frontier-plan
   plus local-execute, with quality and token numbers. No such measurement is
   published as of 2026-08. Running one on your own repo would be novel.
-- An open-weight model fitting 72 GB scoring above ~35% on an independent
-  agentic leaderboard. That would move Tier 3 from "no" to "measure it."
+- An open-weight model you can serve locally scoring above ~35% on an
+  independent agentic leaderboard. That would move Tier 3 from "no" to "measure it."
 - Harness-side convergence on one tool-call serialization, which would
   retire most of the failure list above.
