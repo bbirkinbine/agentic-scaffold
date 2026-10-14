@@ -361,11 +361,15 @@ run_strict_flagless_update() {
   cp "$root/.codex/config.toml" "$codex_config_copy"
   cp "$root/.codex/hooks.json" "$codex_hooks_copy"
   cp "$root/.pi/settings.json" "$pi_settings_copy"
+  printf '# 0042 — Dashboard survivor\n\n**Status:** draft\n' >"$root/docs/specs/0042-dashboard-survivor.md"
 
   (
     cd "$root"
     bash "$REPO_DIR/python/bootstrap.sh" --update > "$log"
   )
+  grep -q '0042-dashboard-survivor.md' "$root/docs/specs/README.md" ||
+    { echo "SMOKE FAIL: --update wiped the spec dashboard" >&2; exit 1; }
+  rm "$root/docs/specs/0042-dashboard-survivor.md"
 
   state_must_equal "$root" PROFILE core
   state_must_equal "$root" STRICT_HOOKS 1

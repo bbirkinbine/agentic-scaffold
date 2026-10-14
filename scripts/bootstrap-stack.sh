@@ -1144,6 +1144,12 @@ sync .claude/commands/review.md
 sync .agents/skills/review/SKILL.md
 sync .pi/prompts/review.md
 sync docs/specs/README.md
+# The template's spec dashboard is empty; regenerate this project's so an
+# update never wipes the list of specs.
+if [[ -f "$DST_DIR/.agentic/hooks/specs-status.sh" ]]; then
+  (cd "$DST_DIR" && bash .agentic/hooks/specs-status.sh) >/dev/null 2>&1 ||
+    echo "  WARNING: could not regenerate docs/specs/README.md; run .agentic/hooks/specs-status.sh"
+fi
 sync docs/project-types.md
 sync docs/codex-cli.md
 sync docs/pi-agent.md
