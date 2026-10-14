@@ -8,7 +8,8 @@
 # needs_frontier, fenced and truncated responses, a lint regression, a
 # partial gate, a candidate whose gate run writes outside the target, an
 # already-green baseline, an unconfigured gate, a missing credential, an
-# HTTP error, a workspace that changes mid-run); scoring (pending until
+# HTTP error, a workspace that changes mid-run, a model that connects but
+# answers past timeout_seconds); scoring (pending until
 # review, review verdicts, demotion by interval and by review defect, the
 # demoted warning, reset); and discovery and selection (explore in list
 # order, rank by record, skip unqualified, demoted, and unreachable
@@ -147,6 +148,14 @@ request = '{"temperature": 0.2}'
 name = "dead-coder"
 endpoint = "dead"
 model_id = "nothing"
+
+[[model]]
+name = "slow-coder"
+endpoint = "stub"
+model_id = "stub-model"
+quant = "Q2_K"
+runtime = "stub 1"
+timeout_seconds = 2
 
 [[model]]
 name = "stub-coder-b"
@@ -378,6 +387,27 @@ grep -q '# edited during the run' tests/run.sh || fail "the user's edit was lost
 run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
 [[ -f "$run_dir/candidate" ]] || fail "green candidate was not kept after a stale-workspace stop"
 git checkout -q tests/run.sh
+
+# --- 9b. a model that connects but answers too slowly -----------------------------
+qualify_with 0 slow-coder "$EXPECTED"
+reset_case
+respond 01 "$GOOD"
+echo 4 >"$QUEUE/01.delay"
+expect_run 10 slow-coder
+cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "a timed-out run published something"
+[[ "$(last_result | jq -r '.attempts | map(.outcome) | join(",")')" == timeout ]] ||
+  fail "a post-connect timeout was not one timeout attempt: $(last_result | jq -c .attempts)"
+grep -q 'raise timeout_seconds' "$WORK/run.out" || fail "the timeout did not suggest raising timeout_seconds"
+state_has slow-coder small '0/1 passed' || fail "a model timeout was not scored: $(state_of slow-coder small)"
+reset_case
+respond 01 "OK"
+echo 4 >"$QUEUE/01.delay"
+got=0
+runner qualify slow-coder >"$WORK/qualify.out" 2>&1 || got=$?
+[[ "$got" == 5 ]] || { cat "$WORK/qualify.out" >&2; fail "a slow first response: expected qualify exit 5, got $got"; }
+status_out="$(runner status 2>&1)"
+[[ "$status_out" == *"slow-coder (stub-model, setup "*"): unqualified"* ]] ||
+  { echo "$status_out" >&2; fail "a timed-out qualify left the model qualified"; }
 
 # --- 10. scoring, review, demotion, reset ----------------------------------------
 # Fresh record for these checks.

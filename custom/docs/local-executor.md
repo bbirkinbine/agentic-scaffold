@@ -101,7 +101,9 @@ All six, or don't delegate:
    `~/.config/agentic/local-models.toml`, outside the repository
    (`bash .agentic/delegate-run.sh --help` shows the format). Set
    `max_tokens` in a model's `request` high enough for a whole file plus
-   any reasoning. A server key is named by `credential_env`, never written
+   any reasoning, and `timeout_seconds` long enough for one call to swap
+   and load the model, think, and reply — a model that connects but runs
+   past it is scored as failing, not excused as a server problem. A server key is named by `credential_env`, never written
    into the file. `discover` lists what each server serves.
 2. **Qualify.** `qualify <model>` sends one known-answer file about the
    size of a real task and grades the reply exactly. It needs no project

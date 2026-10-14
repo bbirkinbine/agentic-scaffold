@@ -360,7 +360,7 @@ deterministically, and records why:
 
 A scored run is one the model was responsible for: a success is a candidate
 that published and then passed review (`record-review pass`); a failure is
-`needs_frontier` or `model-defect`. Refusals, infrastructure failures,
+`needs_frontier` (including a model timeout, below) or `model-defect`. Refusals, infrastructure failures,
 integrity stops caused by the workspace, and `packet-defect` outcomes are
 not scored. A published candidate awaiting review counts as pending, not
 yet as a success. Manual runs (`--model`) are scored like automatic ones,
@@ -426,6 +426,17 @@ orchestrator does not anchor on a wrong approach. Infrastructure failures
 (such as an unreachable endpoint or unavailable verifier) stop the run and
 are recorded separately from model-quality failures; they are not scored
 and do not trigger an unbounded transport retry.
+
+`timeout_seconds` limits each model call, not the task, and covers queueing,
+any model swap and load, all reasoning, and the reply; the call is not
+streamed, so the runner cannot tell long thinking from a stall. A call that
+connected and then ran past the limit is the model's setup being too slow
+for its limit, not a server failure: the run ends with `needs_frontier`
+without retrying (a retry would most likely time out again), the attempt is
+recorded as `timeout`, and the run is scored as a failure, so a model that
+habitually thinks past its limit is demoted like any other failing one. A
+call that never connected stays an unscored infrastructure failure. In
+`qualify`, a timeout on either request fails the qualification.
 
 `needs_frontier` is a machine-readable result printed with a prominent
 notice naming the reason and the packet path. The runner does no model

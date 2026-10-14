@@ -72,7 +72,9 @@
 #
 # Exit status:
 #   0   run: green candidate published (uncommitted); qualify: passed
-#   10  needs_frontier: three attempts spent; implement with the frontier model
+#   10  needs_frontier: three attempts spent, a model call timed out after
+#       connecting (scored against the model; no retry), or nothing was
+#       selectable; implement with the frontier model
 #   2   refused: usage, profile, packet, or workspace preconditions
 #   5   qualify: the model failed the plumbing check
 #   3   infrastructure failure: endpoint, transport, or verifier
@@ -106,7 +108,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,81p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,83p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -572,7 +574,10 @@ request_retry() {
 }
 
 # call_model <label> <request-file> : writes $STATE/<label>.response.json and
-# sets CALL_SECONDS; infrastructure failures exit through infra().
+# sets CALL_SECONDS. Returns 2 when the server accepted the connection but the
+# model did not answer within timeout_seconds (thinking counts): that is the
+# model's setup being too slow, which the caller scores. Every other transport
+# failure exits through infra() and is not scored.
 call_model() {
   local label="$1" req="$2"
   local resp="$STATE/$label.response.json" err="$STATE/$label.curl.err"
@@ -583,19 +588,23 @@ call_model() {
     out="$(curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
       -H 'Content-Type: application/json' \
       -H @<(printf 'Authorization: Bearer %s\n' "${!CRED_ENV}") \
-      --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total}' \
+      --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total} %{time_connect}' \
       "$BASE_URL/chat/completions" 2>"$err")" || curl_status=$?
   else
     out="$(curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
       -H 'Content-Type: application/json' \
-      --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total}' \
+      --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total} %{time_connect}' \
       "$BASE_URL/chat/completions" 2>"$err")" || curl_status=$?
   fi
-  if [[ "$curl_status" != 0 ]]; then
-    infra "endpoint '$ENDPOINT_NAME' unreachable or timed out (curl exit $curl_status: $(head -c 300 "$err"))"
+  local connect
+  read -r code CALL_SECONDS connect <<<"$out"
+  if [[ "$curl_status" == 28 ]] && awk -v c="${connect:-0}" 'BEGIN { exit !(c > 0) }'; then
+    CALL_SECONDS="$TIMEOUT"
+    return 2
   fi
-  code="${out%% *}"
-  CALL_SECONDS="${out##* }"
+  if [[ "$curl_status" != 0 ]]; then
+    infra "endpoint '$ENDPOINT_NAME' unreachable (curl exit $curl_status: $(head -c 300 "$err"))"
+  fi
   if [[ "$code" != 2* ]]; then
     infra "endpoint '$ENDPOINT_NAME' returned HTTP $code: $(head -c 300 "$resp" 2>/dev/null)"
   fi
@@ -870,7 +879,19 @@ cmd_run() {
     else
       request_retry "$STATE/attempt-$n.request.json"
     fi
-    call_model "attempt-$n" "$STATE/attempt-$n.request.json"
+    if ! call_model "attempt-$n" "$STATE/attempt-$n.request.json"; then
+      # A retry would most likely time out again, so the run ends here and is
+      # scored as a failure for this model.
+      elapsed=$(($(date +%s) - started))
+      reason="the model did not answer within timeout_seconds=$TIMEOUT (connected; thinking counts toward the limit)"
+      printf '%s\n' "$reason" >"$STATE/last-diagnostics.txt"
+      record_attempt "$n" timeout "$reason" "$elapsed"
+      OUTCOME=needs_frontier
+      REASON="$reason; raise timeout_seconds for '$MODEL_NAME' or cap its reasoning in request"
+      say "needs_frontier: $REASON"
+      say "packet: $PACKET_REL"
+      finish 10
+    fi
     if ! reason="$(extract_candidate "attempt-$n")"; then
       elapsed=$(($(date +%s) - started))
       printf '%s\n' "$reason" >"$STATE/last-diagnostics.txt"
@@ -1097,12 +1118,20 @@ cmd_qualify() {
   say "qualifying '$MODEL_NAME' (setup $FINGERPRINT): first response, then a $(plumbing_file | wc -l | tr -d ' ')-line plumbing file"
   printf 'Reply with the single word OK.\n' >"$STATE/warmup.md"
   request_first "$STATE/warmup.request.json" "$STATE/warmup.md"
-  call_model warmup "$STATE/warmup.request.json"
+  if ! call_model warmup "$STATE/warmup.request.json"; then
+    record_qualification fail "first response timed out after ${TIMEOUT}s (includes any model load)" "$TIMEOUT" ""
+    say "not qualified: no first response within timeout_seconds=$TIMEOUT; raise it if the model needs longer to load"
+    exit 5
+  fi
   local first="$CALL_SECONDS"
 
   plumbing_packet >"$STATE/plumbing.md"
   request_first "$STATE/plumbing.request.json" "$STATE/plumbing.md"
-  call_model plumbing "$STATE/plumbing.request.json"
+  if ! call_model plumbing "$STATE/plumbing.request.json"; then
+    record_qualification fail "plumbing file timed out after ${TIMEOUT}s" "$first" "$TIMEOUT"
+    say "not qualified: the plumbing file did not come back within timeout_seconds=$TIMEOUT; raise it or cap the model's reasoning"
+    exit 5
+  fi
   local gen="$CALL_SECONDS" reason
   if ! reason="$(extract_candidate plumbing)"; then
     record_qualification fail "$reason" "$first" "$gen"
