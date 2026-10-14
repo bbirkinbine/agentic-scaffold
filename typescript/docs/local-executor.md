@@ -93,6 +93,17 @@ All six, or don't delegate:
    runtime and harness far more often than on reasoning, and every one of
    those layers ships breaking changes.
 
+A local executor does what the tests and the packet demand and little more:
+where the spec leaves a choice open, it tends to pick the smallest thing
+the tests accept. In a trial on a Pac-Man-inspired game, a frontier model
+given the same spec built a 15×11 maze in arcade colors; the local model
+built a 7×7 loop with white corridors, and both passed. So pin intent where
+the executor can't miss it: in tests where it is measurable (sizes, counts,
+constants), and as concrete decisions in the packet where it is not.
+Files that are mostly presentation (rendering, styles, copy) are where a
+weaker model's judgment shows most; keep them with the frontier model
+unless tests pin their look.
+
 ## Running it: `.agentic/delegate-run.sh`
 
 `--full` installs a runner that does the loop above without pasting. It

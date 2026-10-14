@@ -21,6 +21,7 @@ Rules:
 - One behavior per test. Test names describe the behavior, not the function: `returns 404 when user missing`, not `get user`.
 - No mocks for the database (or other infrastructure under test). Use the test DB / temp-dir fixture.
 - No tautological tests. `assert f() == f()` is forbidden.
+- Pin intent, not just existence. Where the spec states something measurable about quality or experience (sizes, counts, density, limits, named colors or constants, wording), assert it — `width >= 19`, not `width > 0`. Code that passes `> 0` with the smallest possible value is the most likely implementation, especially when a weaker model writes it.
 - If the spec is ambiguous, list the ambiguities and stop. Don't guess.
 
 Do NOT write the implementation. Your job ends at "tests fail correctly".

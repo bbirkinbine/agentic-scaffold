@@ -24,6 +24,9 @@ Run after the plan is approved and persisted, before test-first.
      reading, and behavior the tests will not pin;
    - choices the plan defers ("assume", "TBD", "if needed") or leaves to
      taste: names, layout, messages, defaults;
+   - look and feel, for anything a person will see: what it should look
+     like and how it should play or read, as measurably as the human can
+     put it, since nobody will see it until the run ends;
    - scope edges: adjacent work the plan neither claims nor excludes;
    - baseline: which existing branch, config, or scaffold changes are
      already accepted and must not be redone or reviewed as new;

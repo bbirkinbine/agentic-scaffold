@@ -46,6 +46,16 @@ the failure will look like a model problem.
    requires validation), stop and fix the packet, or ask the human to amend
    the plan. A packet that contradicts the plan is the most common cause of
    a gate-green file that review rejects.
+8. **No open choices are left to the executor.** Where the spec and plan
+   leave a choice open that a person will see or feel (size, layout, count,
+   palette, wording, defaults), decide it from the spec's goal, the product
+   spec, and the project's intent, and write the decision into the packet
+   concretely: "a symmetric maze about 19×21 with blue walls `#1d4ed8` on
+   black", not "an original maze". A local executor fills an open choice
+   with the smallest thing the tests accept. List these decisions in the
+   report after the packet; in an unattended run, log them under
+   `## Unattended decisions`. If a choice is product direction rather than
+   detail, ask the human instead.
 
 State which preconditions passed. If any failed, stop there — do not emit a
 partial packet.
@@ -88,8 +98,9 @@ go stale.
    a requirement, not as a narrative of the discussion.
 2. **Requirements** — the lines collected for precondition 7, quoted
    verbatim, each tagged `[test: <name>]`, `[contract]`, `[task]`, or
-   `[unverified: review checks]`. This is the executor's only view of the
-   spec; do not paraphrase it.
+   `[unverified: review checks]`, followed by the decisions from
+   precondition 8, each tagged `[decided: frontier]` and stated concretely.
+   This is the executor's only view of the spec; do not paraphrase it.
 3. **Contracts it must honor** — every signature, type, import, and
    constant from elsewhere in the codebase that the implementation touches,
    quoted directly — including from files implemented earlier in this
@@ -123,6 +134,8 @@ The exact message the model received is saved with each run as
 Print, as plain text for the human:
 
 - The packet path.
+- Every `[decided: frontier]` choice in the packet, so the human can see
+  what was decided on their behalf.
 - How to run it: `bash .agentic/delegate-run.sh run <packet>`, with
   `--model <name>` to name a `[[model]]` entry in the machine profile
   (`~/.config/agentic/local-models.toml`; `--help` shows the format). The
