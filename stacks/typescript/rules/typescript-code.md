@@ -35,6 +35,10 @@ paths:
   for the missing export (Vitest transpiles without type checking, so a
   missing export arrives as `undefined`), a not-implemented stub throwing,
   or a behavior-level `expect` failure. `tsc --noEmit` failing on the same
-  missing export is also expected at this phase. A syntax error in the test
-  file, a failed import of the test file itself, or a setup-file error is
-  not a red; it is a broken test.
+  missing export is also expected at this phase. For a source file the
+  approved plan creates, an import failure naming that planned file
+  (`ERR_MODULE_NOT_FOUND`, "Failed to load url") is also an expected red:
+  it fails for exactly the missing implementation, so do not create empty
+  module shells to avoid it. A syntax error in the test file, a failed
+  import of the test file itself or of a path the plan does not create, or
+  a setup-file error is not a red; it is a broken test.

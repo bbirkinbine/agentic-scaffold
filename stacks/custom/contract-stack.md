@@ -37,8 +37,10 @@ Never fill a step with a command that cannot fail.
 - Shared fixtures live in {{FIXTURE_PATHS}}; the test-first phase may edit
   those and the test directories, nothing else.
 - An expected red is {{WHAT_A_MISSING_BEHAVIOR_LOOKS_LIKE — a failed
-  assertion, a missing symbol, a not-implemented stub}}. A syntax error in
-  the test itself or a broken fixture is not a red; it is a broken test.
+  assertion, a missing symbol, a not-implemented stub}}. A failure to load
+  a source file the approved plan creates, naming that file, is also a red;
+  do not create empty shells to avoid it. A syntax error in the test itself
+  or a broken fixture is not a red; it is a broken test.
 - Work that produces no code to test (research, documentation, measurements)
   skips `/test-first`. Its spec names the evidence each success criterion
   will be checked against, and `/review` checks that evidence.
