@@ -335,6 +335,25 @@ copy all three files and add a one-line mention in `AGENTS.md`.
 | A product LLM/AI surface (summarizer, RAG, chatbot, agent trajectory, NL classifier) | `evaluator` + `/eval`; build to the [`llm-product.md`](llm-product.md) conventions | Deterministic product — tests suffice | [`evals.md`](evals.md) · [`llm-product.md`](llm-product.md) |
 | A large, long-lived repo where the agent re-maps structure every session | `serena` MCP | Fresh or small repo — grep is enough | [`serena-setup.md`](serena-setup.md) |
 | Two+ features independent at the file level, or a long unattended run | Worktrees / completion ladder | You are at the keyboard on one feature | [`parallel-agents.md`](parallel-agents.md) |
+| A local inference server (Ollama, llama.cpp, llama-swap, vLLM, LM Studio) you want to write bounded, tested files | `--full` + the setup below | No server, or no wish to delegate | [`local-executor.md`](local-executor.md) |
+
+**Local delegation setup (optional, `--full`).** Ask whether the human
+wants local models to implement eligible files and whether a server is
+running; default to no. If yes:
+
+1. Run `bash .agentic/delegate-run.sh init <base-url> ...` with each server
+   the human names (`--key-env VAR` before a URL whose server needs a key;
+   never accept the key itself). It prints a draft profile and writes
+   nothing; with an existing profile it prints only what is missing.
+2. Show the draft. The human confirms each kept model's `quant` and
+   `runtime`, deletes models they will not use, and orders `candidates`.
+   Save it to `~/.config/agentic/local-models.toml` only after they approve,
+   merging into an existing file rather than replacing it. It never goes in
+   the repository.
+3. Run `qualify <name>` on each candidate and report the results.
+4. Leave `policy = "off"`. Switching to `"auto"` with
+   `activation_approved = true` is a separate decision the human makes
+   after seeing the qualification results.
 
 `evals.md`, `llm-product.md`, `serena-setup.md`, `parallel-agents.md`, and
 `local-executor.md` install with `--full` or `--advanced-docs`. The optional agents themselves are always

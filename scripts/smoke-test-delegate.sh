@@ -2,8 +2,10 @@
 # Smoke-test the local delegate runner (.agentic/delegate-run.sh) against a
 # stub OpenAI-compatible server. Bootstraps the custom flavor with --full,
 # fills its runner with a small shell toolchain, writes a one-file packet,
-# and drives: qualification (pass, wrong edit, fence, truncation, inline
-# reasoning, unreachable endpoint, a setup change revoking it); runs (green
+# and drives: init (a draft profile, never written, readable by the
+# runner, skipping what exists); qualification (pass, wrong edit, fence,
+# truncation, inline reasoning, unreachable endpoint, a setup change
+# revoking it); runs (green
 # on the first call, red then green with retry feedback, three reds to
 # needs_frontier, fenced and truncated responses, a lint regression, a
 # partial gate, a candidate whose gate run writes outside the target, an
@@ -218,6 +220,25 @@ state_of() {
 }
 # state_has <model> <bucket> <text>
 state_has() { [[ "$(state_of "$1" "$2")" == *"$3"* ]]; }
+
+# --- 0a. init drafts a profile and never writes one -------------------------------
+draft="$WORK/draft.toml"
+runner init --profile "$WORK/none.toml" --key-env STUB_TOKEN "http://127.0.0.1:$PORT/v1" >"$draft" 2>&1 ||
+  { cat "$draft" >&2; fail "init failed"; }
+[[ ! -e "$WORK/none.toml" ]] || fail "init wrote a profile"
+for want in '[[endpoint]]' "base_url = \"http://127.0.0.1:$PORT/v1\"" 'credential_env = "STUB_TOKEN"' \
+  'model_id = "stub-model"' 'quant = "CONFIRM"' '[[project]]' 'policy = "off"'; do
+  grep -qF "$want" "$draft" || { cat "$draft" >&2; fail "init draft lacks: $want"; }
+done
+if grep -q smoke-secret-value "$draft"; then fail "init printed the key"; fi
+status_out="$(runner status --profile "$draft" 2>&1)"
+[[ "$status_out" == *"stub-model (stub-model, setup "*"): unqualified"* ]] ||
+  { echo "$status_out" >&2; fail "the runner could not read init's draft"; }
+again="$(runner init --profile "$PROFILE" --key-env STUB_TOKEN "http://127.0.0.1:$PORT/v1" 2>&1)"
+[[ "$again" == *"is already in the profile"* && "$again" != *'name = "stub"'* ]] ||
+  { echo "$again" >&2; fail "init repeated an endpoint already in the profile"; }
+runner init "ftp://nope" >/dev/null 2>&1 && fail "init accepted a non-http URL"
+runner init --key-env 'sk-123 abc' "http://127.0.0.1:$PORT/v1" >/dev/null 2>&1 && fail "init accepted a key in --key-env"
 
 # --- 0. qualification -----------------------------------------------------------
 reset_case

@@ -110,8 +110,10 @@ unless tests pin their look.
 needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
 
 1. **Profile.** Describe your inference servers and models in
-   `~/.config/agentic/local-models.toml`, outside the repository
-   (`bash .agentic/delegate-run.sh --help` shows the format). Set
+   `~/.config/agentic/local-models.toml`, outside the repository.
+   `bash .agentic/delegate-run.sh init <base-url> ...` prints a draft from
+   what each server lists; review it and save it yourself
+   (`--help` shows the format). Set
    `max_tokens` in a model's `request` high enough for a whole file plus
    any reasoning, and `timeout_seconds` long enough for one call to swap
    and load the model, think, and reply — a model that connects but runs

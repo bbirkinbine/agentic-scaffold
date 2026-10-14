@@ -33,6 +33,15 @@
 #                            qualified candidate; otherwise prints `off: <why>`
 #                            and exits 1. The orchestrator checks this before
 #                            handing implementation to a local model.
+#   init [--key-env VAR] <base-url> ...
+#                            Print a draft profile from what each server's
+#                            /models lists: endpoints, one [[model]] per
+#                            model with the fields to confirm marked, and a
+#                            [[project]] entry for this checkout (policy off).
+#                            Prints only; save it yourself after review. With
+#                            an existing profile, prints only what is missing.
+#                            --key-env names the variable holding the next
+#                            URL's key.
 #   discover                 What each endpoint's /models lists, matched to
 #                            profile models and their qualification.
 #   status                   Each profile model's qualification and its
@@ -111,7 +120,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,84p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,93p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -1257,6 +1266,90 @@ cmd_status() {
   done <<<"$(profile_models)"
 }
 
+cmd_init() {
+  local profile key_env="" url urls=() keys=()
+  profile="$(default_profile)"
+  while (($#)); do
+    case "$1" in
+      --key-env) key_env="${2:-}"; shift 2 ;;
+      --profile) profile="${2:-}"; shift 2 ;;
+      -*) say "unknown option: $1"; exit 2 ;;
+      *)
+        [[ "$1" =~ ^https?://[^[:space:]]+$ ]] || { say "not an http(s) base URL: $1"; exit 2; }
+        if [[ -n "$key_env" && ! "$key_env" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+          say "--key-env takes a variable name, never a key: $key_env"
+          exit 2
+        fi
+        urls+=("${1%/}"); keys+=("$key_env"); key_env=""; shift ;;
+    esac
+  done
+  ((${#urls[@]})) || { say "usage: delegate-run.sh init [--key-env VAR] <base-url> ..."; exit 2; }
+  require_deps curl jq awk
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-init.XXXXXX")" || exit 3
+  STATE="$WORK/state"
+  mkdir -p "$STATE"
+  trap cleanup EXIT
+  PROFILE_TSV="$STATE/profile.tsv"
+  : >"$PROFILE_TSV"
+  [[ -f "$profile" ]] && profile_entries "$profile" >"$PROFILE_TSV"
+
+  local i ep listing id name ctx models=() existing
+  printf '# Draft for %s: review, edit, then save it yourself.\n' "$profile"
+  printf '# Confirm quant and runtime (servers do not report them), delete models you\n'
+  printf '# will not use, list your choices in candidates, then run: delegate-run.sh qualify <name>\n'
+  for ((i = 0; i < ${#urls[@]}; i++)); do
+    url="${urls[$i]}"
+    ep="$(awk -F'\t' -v u="$url" '$1 == "endpoint" && $3 == "base_url" && $4 == u { print $2; exit }' "$PROFILE_TSV")"
+    if [[ -n "$ep" ]]; then
+      ep="$(awk -F'\t' -v i="$ep" '$1 == "endpoint" && $2 == i && $3 == "name" { print $4; exit }' "$PROFILE_TSV")"
+      printf '\n# endpoint %s (%s) is already in the profile\n' "$ep" "$url"
+    else
+      ep="$(sed -E 's#^https?://##; s#/.*$##; s#[^A-Za-z0-9]+#-#g; s#-+$##' <<<"$url")"
+      printf '\n[[endpoint]]\nname = "%s"\nbase_url = "%s"\n' "$ep" "$url"
+      [[ -n "${keys[$i]}" ]] && printf 'credential_env = "%s"\n' "${keys[$i]}"
+    fi
+    listing="$STATE/listing-$i.json"
+    CRED_ENV="${keys[$i]}"
+    if [[ -n "$CRED_ENV" && -n "${!CRED_ENV:-}" ]]; then
+      curl -sS --connect-timeout 5 --max-time 15 -o "$listing" \
+        -H @<(printf 'Authorization: Bearer %s\n' "${!CRED_ENV}") "$url/models" 2>/dev/null
+    else
+      curl -sS --connect-timeout 5 --max-time 15 -o "$listing" "$url/models" 2>/dev/null
+    fi
+    if ! jq -e '.data | type == "array"' "$listing" >/dev/null 2>&1; then
+      printf '# %s: no model listing (unreachable, or set %s)\n' "$url" "${CRED_ENV:-a key variable with --key-env}"
+      continue
+    fi
+    while IFS=$'\t' read -r id ctx; do
+      [[ -n "$id" ]] || continue
+      existing="$(awk -F'\t' -v e="$ep" -v m="$id" '
+        $1 == "model" && $3 == "endpoint" && $4 == e { ep[$2] = 1 }
+        $1 == "model" && $3 == "model_id" && $4 == m { mid[$2] = 1 }
+        END { for (k in ep) if (k in mid) { print "yes"; exit } }' "$PROFILE_TSV")"
+      if [[ "$existing" == yes ]]; then
+        printf '# model %s on %s is already in the profile\n' "$id" "$ep"
+        continue
+      fi
+      name="$(sed -E 's#[^A-Za-z0-9]+#-#g; s#^-+|-+$##g' <<<"$id" | tr 'A-Z' 'a-z')"
+      models+=("$name")
+      printf '\n[[model]]\nname = "%s"\nendpoint = "%s"\nmodel_id = "%s"\n' "$name" "$ep" "$id"
+      printf 'quant = "CONFIRM"\nruntime = "CONFIRM"\n'
+      [[ "$ctx" =~ ^[0-9]+$ && "$ctx" -gt 0 ]] && printf 'context = %s\n' "$ctx"
+      printf 'timeout_seconds = 3600   # one call: swap, load, thinking, reply\n'
+      printf "request = '{\"max_tokens\": 65536}'   # pin sampling and reasoning here\n"
+    done <<<"$(jq -r '.data[] | [.id, ((.meta.n_ctx // .meta.n_ctx_train // .context_length // "") | tostring)] | @tsv' "$listing")"
+  done
+
+  local here
+  here="$(cd "$ROOT" && pwd -P)"
+  if [[ -n "$(project_get root 2>/dev/null)" ]]; then
+    printf '\n# [[project]] for %s is already in the profile\n' "$here"
+  else
+    printf '\n[[project]]\nroot = "%s"\npolicy = "off"   # "auto" with activation_approved = true lets Implement delegate\n' "$here"
+    printf 'candidates = []   # e.g. [%s]\n' "$( ((${#models[@]})) && printf '"%s", ' "${models[@]:0:2}" | sed 's/, $//')"
+  fi
+}
+
 cmd_discover() {
   local profile endpoint id name listing found candidates
   profile="$(default_profile)"
@@ -1364,6 +1457,7 @@ case "${1:-}" in
   qualify) shift; cmd_qualify "$@" ;;
   run) shift; cmd_run "$@" ;;
   record-review) shift; cmd_record_review "$@" ;;
+  init) shift; cmd_init "$@" ;;
   discover) shift; cmd_discover "$@" ;;
   policy) shift; cmd_policy "$@" ;;
   status) shift; cmd_status "$@" ;;

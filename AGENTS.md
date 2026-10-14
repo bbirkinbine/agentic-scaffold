@@ -257,9 +257,16 @@ Open:
   file, and scores and demotes models from the ledger with `record-review`;
   with `policy = "auto"` the Implement step hands eligible plan files to it
   through `/delegate` → "Automatic mode". Smoke-tested against a stub
-  server; two local models on a LAN inference server passed `qualify`
-  on 2026-10-14, but no real task has run yet. Coupled packets, optional `calibrate`, and the
-  founding-interview setup remain.
+  server. Two trials on 2026-10-14 in a TypeScript consumer project ran
+  six packets through one local model: four published on the first
+  attempt, one failed three times (test-framework code placed in a source
+  file), and review found a packet that contradicted its plan and a
+  delegated maze far smaller and plainer than a frontier model built from
+  the same spec. Packet traceability, frontier-decided choices, and
+  intent-pinning tests followed from those. Frontier-token savings are
+  still unmeasured. `init` drafts the machine profile from each server's
+  model list and `project-types.md` carries the founding setup. Coupled
+  packets and optional `calibrate` remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
   stack-neutral runner that sends a self-contained `/delegate` packet to a
   pinned local model with no tool access and verifies the result. A model

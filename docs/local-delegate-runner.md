@@ -4,7 +4,7 @@
 **Last updated:** 2026-10-14
 
 **Implemented.** `workflow/bin/delegate-run.sh` (installed as
-`.agentic/delegate-run.sh` with `--full`) provides `qualify`, `discover`,
+`.agentic/delegate-run.sh` with `--full`) provides `init`, `qualify`, `discover`,
 `policy`, `run <packet> [--model <name>]`, `record-review`, `status`, and
 `reset`. The contract's Implement step and `/delegate` → "Automatic mode"
 hand eligible plan files to the runner when `policy` prints `auto`, and
@@ -35,10 +35,11 @@ enumerated allowlist of tool artifacts waits for a case where it would
 catch something; the
 qualification record lives beside the profile and scoring reads each
 project's ledger, with no separate stack key; the reachability check is a
-`GET /models` within five seconds. Activation is set by editing the
-profile (`policy = "auto"` and `activation_approved = true`); there is no
-setup command yet. Not built: coupled packets and their plumbing check,
-optional `calibrate`, and the founding-interview setup sequence.
+`GET /models` within five seconds. `init` prints a draft profile from
+each server's listing (never writes it) and `project-types.md` carries the
+founding setup sequence; activation is set by editing the profile
+(`policy = "auto"` and `activation_approved = true`). Not built: coupled
+packets and their plumbing check, and optional `calibrate`.
 
 ## Goal
 
