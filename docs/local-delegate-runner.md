@@ -21,7 +21,12 @@ and both demotion triggers are computed from the ledger. Tested by
 real local model. Differences from the text below: verification compares
 each gate step to the baseline instead of requiring a fully green gate (see
 filter 2); each verifier command runs under a per-step timeout
-(`DELEGATE_STEP_TIMEOUT`, default 900 seconds) in its own process group;
+(`DELEGATE_STEP_TIMEOUT`, default 900 seconds) in its own process group,
+and `run` refuses without `perl`, which provides that watchdog; every run
+ends with a summary of wall time, attempts, and which gate steps passed or
+could not verify the file; `/delegate` traces each spec and plan
+requirement on the target into the packet and refuses a packet that
+contradicts the plan, and `/review` tags findings by delegated file;
 the post-execution audit covers unignored files only, because ignored
 writes stay in the discarded scratch tree and the unignored files that
 could fake a green result (configs, tests) are already audited, so an
@@ -388,8 +393,9 @@ Demotion is reported in the run result and by `discover`. It stands until
 the human resets it, which starts a fresh record; a fingerprint change
 returns the model to unqualified instead.
 
-**Unsourced starting points.** The exploration minimum (5 runs), the
-ranking and demotion window (20 runs), the 95% interval, and the 50%
+**Unsourced starting points.** The interval is Wilson's score interval
+(E. B. Wilson, 1927; see `docs/influences.md`). The exploration minimum
+(5 runs), the ranking and demotion window (20 runs), the 95% interval, and the 50%
 demotion line are design choices, not measured values; nothing published
 sets them for this task shape. They are chosen so a clearly broken model is
 dropped within about five tasks while a short record cannot outrank a

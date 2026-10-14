@@ -80,13 +80,16 @@
 #   3   infrastructure failure: endpoint, transport, or verifier
 #   4   integrity stop: unexpected writes, or the workspace changed mid-run
 #
-# Requires: bash, git, curl, jq (1.6+), tar, and sha256sum or shasum.
+# Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
+# sha256sum or shasum.
 
 set -uo pipefail
 
 HARNESS_VERSION="delegate-run-v1"
 MAX_ATTEMPTS=3
-# Scoring and bucket parameters are unsourced starting points
+# Ranking and demotion use the Wilson score interval (E. B. Wilson, JASA 22,
+# 1927; see docs/influences.md in agentic-scaffold). Scoring and bucket
+# parameters are unsourced starting points
 # (docs/local-delegate-runner.md -> "Unsourced starting points"); tune them
 # from the ledger, and bump HARNESS_VERSION when the retry rules change.
 EXPLORE_MIN=5
@@ -108,7 +111,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,83p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,84p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -140,9 +143,9 @@ bounded_tail() { tail -n "$DIAG_LINES" "$1" | tail -c "$DIAG_BYTES"; }
 # own process group, which is killed whole on timeout; exit status is 124.
 STEP_TIMEOUT="${DELEGATE_STEP_TIMEOUT:-900}"
 
+# `run` refuses without perl rather than run a verifier with no time limit.
 bounded() {
-  if command -v perl >/dev/null 2>&1; then
-    perl -e '
+  perl -e '
       my $limit = shift;
       my $pid = fork() // die "fork: $!";
       if ($pid == 0) { setpgrp(0, 0); exec { $ARGV[0] } @ARGV or exit 127; }
@@ -154,10 +157,7 @@ bounded() {
       alarm $limit;
       waitpid($pid, 0);
       exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
-    ' "$STEP_TIMEOUT" "$@"
-  else
-    "$@"
-  fi
+  ' "$STEP_TIMEOUT" "$@"
 }
 
 verify_cmd() {
@@ -654,6 +654,8 @@ extract_candidate() {
 # ---- result and ledger ----------------------------------------------------------
 
 ATTEMPTS_JSON='[]'
+LAST_STEPS=""
+RUN_STARTED="$(date +%s)"
 GATE_LEVEL=""
 UNVERIFIED=""
 OUTCOME=""
@@ -684,6 +686,7 @@ finish() {
       --arg gate "${GATE_LEVEL:-}" --arg unverified "${UNVERIFIED:-}" \
       --arg fingerprint "${FINGERPRINT:-}" --argjson qualified "$([[ "${QUALIFIED:-}" == qualified ]] && echo true || echo false)" \
       --arg mode "${MODE:-manual}" --argjson selection "${SELECTION_JSON:-null}" \
+      --argjson wall "$(($(date +%s) - RUN_STARTED))" \
       '{type: "run", ts: $ts, run: $run, mode: $mode, selection: $selection, fingerprint: $fingerprint,
         qualified: $qualified, packet: $packet,
         packet_sha256: $packet_sha, target: $target, bucket: $bucket,
@@ -692,9 +695,11 @@ finish() {
                 endpoint: $endpoint, request: $request},
         attempts: $attempts, outcome: $outcome, reason: $reason,
         gate: $gate, unverified_steps: ($unverified | split(" ") | map(select(. != ""))),
+        wall_seconds: $wall,
         review: null}' \
       >"$result_dir/result.json"
     jq -c . "$result_dir/result.json" >>"$DELEGATE_DIR/ledger.jsonl"
+    print_summary "$result_dir/result.json"
     say "result: ${result_dir#"$ROOT"/}/result.json (run id: $RUN_ID)"
     if [[ "$OUTCOME" == green || "$OUTCOME" == needs_frontier ]]; then
       say "record for '$MODEL_NAME', $(describe_score "$MODEL_NAME" "$FINGERPRINT" "$BUCKET")"
@@ -704,6 +709,20 @@ finish() {
     fi
   fi
   exit "$status"
+}
+
+# The end-of-run summary: model, wall time, each attempt, and which gate
+# steps passed or could not verify this file.
+print_summary() {
+  [[ -n "${MODEL_NAME:-}" ]] || return 0
+  say "summary: $OUTCOME — '$MODEL_NAME' on $TARGET ($BUCKET), $(jq -r .wall_seconds "$1")s wall"
+  jq -r '.attempts[] | "  attempt \(.attempt): \(.outcome), \(.seconds)s\(if .detail != "" then " — " + .detail else "" end)"' "$1" >&2
+  if [[ -n "$LAST_STEPS" && -f "$LAST_STEPS" ]]; then
+    local passed red
+    passed="$(awk '$2 == 0 { printf "%s%s", sep, $1; sep = " " }' "$LAST_STEPS")"
+    red="$(awk '$2 != 0 { printf "%s%s", sep, $1; sep = " " }' "$LAST_STEPS")"
+    say "  gate steps passed: ${passed:-none}; red: ${red:-none}${UNVERIFIED:+ (red before the run too, so unverified: $UNVERIFIED)}"
+  fi
 }
 
 cleanup() {
@@ -732,7 +751,7 @@ cmd_run() {
   [[ -n "$MODEL_NAME" ]] || MODE=selected
 
   local dep
-  for dep in git curl jq tar awk; do
+  for dep in git curl jq tar awk perl; do
     command -v "$dep" >/dev/null 2>&1 || { say "missing dependency: $dep"; exit 2; }
   done
   git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
@@ -918,6 +937,7 @@ cmd_run() {
     if [[ "$status" == 0 ]]; then
       verify_cmd bash "$TOOLCHAIN" test "${test_args[@]}" >"$STATE/attempt-$n.focused.log" 2>&1 || focused=$?
       run_steps "attempt-$n"
+      LAST_STEPS="$STATE/attempt-$n.steps"
       for step in $GATE_STEPS; do
         if [[ "$(step_status "attempt-$n" "$step")" != 0 ]]; then
           if [[ "$(step_status baseline "$step")" == 0 ]]; then

@@ -35,6 +35,17 @@ the failure will look like a model problem.
    say `/test-first` has not run.
 6. The target file is under 300 lines, or the change is confined to a
    region you can quote in full.
+7. **Every requirement on the target is traced.** Collect, verbatim, each
+   line of the spec and the approved plan that applies to this file: its
+   files-to-touch entry, its order-of-operations step, test-strategy and
+   risk lines that name it or its behavior, and the success criteria it
+   implements. Each must be covered by a failing test quoted in the packet,
+   a quoted contract, or the Task paragraph; mark any that only `/review`
+   can check as unverified. If the packet would forbid or omit behavior a
+   requirement demands (for example, "must not validate" where the plan
+   requires validation), stop and fix the packet, or ask the human to amend
+   the plan. A packet that contradicts the plan is the most common cause of
+   a gate-green file that review rejects.
 
 State which preconditions passed. If any failed, stop there — do not emit a
 partial packet.
@@ -57,8 +68,8 @@ and never sends it to the model:
 ---
 targets: [<path of the one target file>]
 target_lines: <current line count, 0 for a new file>
-contract_items: <signatures, types, and constants quoted in section 5>
-visible_tests: <test functions quoted in section 3>
+contract_items: <signatures, types, and constants quoted in section 6>
+visible_tests: <test functions quoted in section 4>
 test_targets: [<test file(s) that exercise the target>]
 new_dependencies: false
 bucket: <small: <=150 lines and <=8 contract items; medium: <=300 and <=15>
@@ -69,21 +80,25 @@ Sections, in this order:
 
 1. **Task** — one paragraph. What the file must do when finished. Written as
    a requirement, not as a narrative of the discussion.
-2. **The file as it exists now** — full current contents in a fenced block,
+2. **Requirements** — the lines collected for precondition 7, quoted
+   verbatim, each tagged `[test: <name>]`, `[contract]`, `[task]`, or
+   `[unverified: review checks]`. This is the executor's only view of the
+   spec; do not paraphrase it.
+3. **The file as it exists now** — full current contents in a fenced block,
    or `NEW FILE` if it does not exist yet.
-3. **The failing tests** — full contents of the test functions for the
+4. **The failing tests** — full contents of the test functions for the
    target that must pass, in a fenced block. Not a summary of them; the
    actual code.
-4. **The exact failure output** — verbatim from the gate.
-5. **Contracts it must honor** — every signature, type, import, and
+5. **The exact failure output** — verbatim from the gate.
+6. **Contracts it must honor** — every signature, type, import, and
    constant from elsewhere in the codebase that the implementation touches,
    quoted directly — including from files implemented earlier in this
    plan. Assume the executor cannot look anything up. This section is where
    delegation succeeds or fails.
-6. **Out of bounds** — files it must not touch (every other file in the
+7. **Out of bounds** — files it must not touch (every other file in the
    plan included), behavior it must not change, dependencies it must not
    add.
-7. **Output contract** — verbatim:
+8. **Output contract** — verbatim:
    > Return the complete final contents of `<path>`, and nothing else. No
    > diff, no patch, no commentary, no markdown fence around the file, no
    > explanation of your changes.
@@ -98,7 +113,9 @@ Sections, in this order:
 - **Keep the instruction count down.** Instruction-following degrades as
   constraints accumulate, and it degrades faster on smaller models. Six
   sharp constraints beat twenty exhaustive ones. Cut anything the tests
-  already enforce — the tests are the specification.
+  already enforce from the Task and Out-of-bounds prose — but never cut a
+  requirement from section 2, and never add a prohibition the plan does
+  not make.
 - **Do not include reasoning, alternatives, or rationale.** The executor is
   not deciding anything. Rationale belongs in the spec.
 

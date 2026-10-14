@@ -95,7 +95,8 @@ All six, or don't delegate:
 
 ## Running it: `.agentic/delegate-run.sh`
 
-`--full` installs a runner that does the loop above without pasting:
+`--full` installs a runner that does the loop above without pasting. It
+needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
 
 1. **Profile.** Describe your inference servers and models in
    `~/.config/agentic/local-models.toml`, outside the repository
