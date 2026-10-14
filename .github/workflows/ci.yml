@@ -62,9 +62,9 @@ jobs:
       # Codex or Pi. Keep these versions aligned with the portability docs.
       - name: Install pinned client validation baselines
         run: |
-          npm install --global @openai/codex@0.146.0 @earendil-works/pi-coding-agent@1.0.4
+          npm install --global @openai/codex@0.146.0 @earendil-works/pi-coding-agent@1.2.0
           test "$(codex --version)" = "codex-cli 0.146.0"
-          test "$(pi --version)" = "1.0.4"
+          test "$(pi --version)" = "1.2.0"
 
       - name: Validate shared sources and client adapters
         run: |
