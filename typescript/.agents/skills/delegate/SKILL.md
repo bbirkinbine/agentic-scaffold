@@ -176,7 +176,10 @@ Walk the approved plan's files in its order of operations:
    - 3 (infrastructure): stop delegating for the rest of this plan,
      implement the remaining files yourself, and report the failure.
    - 4 (integrity stop): stop and report to the human; the workspace or the
-     candidate's verification did something unexpected.
+     candidate's verification did something unexpected. In an unattended run
+     with standing consent, run the packet once more from a fresh snapshot;
+     if it stops again, implement the file yourself and log both stops
+     under `## Unattended decisions`.
 
 When every plan file has landed, continue with docs, `/review-check`, and
 `/review` as usual. After the final review disposition, record a verdict

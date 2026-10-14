@@ -224,8 +224,8 @@ Read top-down: everything in a tier includes the tiers above it.
   `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`,
   `docs/local-executor.md`
 - **Workflows (`--full` only):** Claude and Pi `/security`, `/performance`,
-  `/eval`, `/delegate` and matching Codex `$` skills (the first three are
-  stubs — each requires its opt-in agent, below), plus the
+  `/eval`, `/delegate`, `/unattended` and matching Codex `$` skills (the
+  first three are stubs — each requires its opt-in agent, below), plus the
   `.agentic/delegate-run.sh` local delegate runner that `/delegate` uses
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
@@ -271,6 +271,7 @@ and Pi; Codex uses the same name as `$<name>`.
 | `/security` (`security-reviewer`) | App-sec-only review | The diff touches a trust boundary (section 6) | full + opt-in agent |
 | `/performance` (`performance-reviewer`) | Perf-only review | The diff touches a hot path (section 6) | full + opt-in agent |
 | `/eval` (`evaluator`) | Authors/runs an LLM output-quality eval | The product ships an LLM/AI surface (section 6) | full + opt-in agent |
+| `/unattended` | `start` asks every foreseeable decision up front and records standing consent; `reconcile` reviews the decisions an unattended run made on the human's behalf | Leaving one feature to run unattended (overnight, a day away) to "ready to merge" ([`parallel-agents.md`](parallel-agents.md)) | full |
 | `/delegate` | Builds a self-contained handoff packet for a weaker/local executor, and runs it through `.agentic/delegate-run.sh` when asked or when its `policy` is `auto` | Handing one already-tested file to a local model ([`local-executor.md`](local-executor.md)) | full |
 
 Two hard rules survive every profile: **CI is the gate you cannot skip**,

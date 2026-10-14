@@ -299,6 +299,31 @@ If a decision was load-bearing enough to redo the original spec, do
 that instead — `Status: superseded-by-NNNN` and a new spec. This
 section is for the small stuff.
 
+### `## Standing decisions` and `## Unattended decisions`
+
+Only for unattended runs (`/unattended`). `/unattended start` writes the
+human's up-front answers and the standing consent to `## Standing
+decisions`; the run treats them as the human's answers. Each decision the
+run makes on the human's behalf is appended to `## Unattended decisions`
+with its alternatives, reason, files, and how to reverse it, and
+`/unattended reconcile` marks each `kept` or `overridden` when the human is back.
+
+```markdown
+## Standing decisions
+
+- Baseline: commits up to abc1234 are accepted; do not redo or review them
+  as new (asked 2026-10-14).
+- Manual browser check: defer to the morning (asked 2026-10-14).
+- Unattended shipping authorized through "ready to merge"; no commits.
+
+## Unattended decisions
+
+- **Q:** Should pause also freeze the HUD timer? **Chose:** yes.
+  **Alternatives:** keep the timer running. **Why:** the spec pauses "the
+  game". **Files:** src/game-state.ts. **Reverse:** drop the timer guard in
+  `tick()`. — kept
+```
+
 ## The product spec — `0000-product.md`
 
 Feature specs answer "what is this unit of work?"; the product spec

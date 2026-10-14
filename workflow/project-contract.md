@@ -105,7 +105,9 @@ review invalidate the spec. Never commit without approval.
 Review findings are `[auto-fix]`, `[no-op]`, or `[ask-user]`. Apply
 `[auto-fix]`, sync docs, rerun the complete gate, and obtain a fresh focused
 review (full review for substantial fixes) until clear. Surface `[ask-user]`
-verbatim and stop unless the human explicitly authorized unattended shipping.
+verbatim and stop unless the human explicitly authorized unattended shipping;
+with that consent recorded in the spec's `## Standing decisions`, answer and
+log it as `/unattended` describes.
 
 - **Spec:** Before non-trivial work, create `docs/specs/NNNN-<feature>.md`
   with goal, criteria, non-goals, and external references. Use `/scope-check`

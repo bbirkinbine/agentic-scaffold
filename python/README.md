@@ -62,7 +62,8 @@ python/
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
 │   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
 │   │   ├── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
-│   │   └── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
+│   │   ├── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
+│   │   └── unattended.md                   # /unattended — ask decisions up front, then reconcile an unattended run's choices
 │   └── skills/
 │       ├── python-module-split/
 │       │   └── SKILL.md                   # Auto-invoked when a .py file ≥ 300 lines

@@ -26,7 +26,7 @@ rungs of the completion ladder you activate, not which phases you run.
 | --- | --- | --- | --- |
 | **1 · Attended** (default) | Both checkpoints, adjudicate `[ask-user]` findings live | Use the scaffold as shipped | Use the scaffold as shipped |
 | **2 · Long autodrive** (one feature, you're nearby) | Same checkpoints; the implement-to-green stretch runs long without you | Set `/goal` from the spec's runnable success criteria after approving the plan | State the same completion condition in the kickoff prompt; keep the Stop hook and fresh review enabled |
-| **3 · Unattended** ("just ship it" / overnight) | Standing consent given up front; checkpoints collapse into the spec | `/goal` + `/sandbox` + scoped permissions | `codex --sandbox workspace-write` or the project permission profile + a tight spec + Stop hook; grant commit authority separately if intended |
+| **3 · Unattended** ("just ship it" / overnight / away for the day) | Standing consent given up front; checkpoints collapse into the spec (`/unattended start` and `reconcile`) | `/goal` + `/sandbox` + scoped permissions | `codex --sandbox workspace-write` or the project permission profile + a tight spec + Stop hook; grant commit authority separately if intended |
 | **4 · Babysitting / recurring** (no feature in flight) | None per iteration | `/loop <interval> <prompt>`; cap iterations or cost | Use an external scheduler around a bounded `codex exec` invocation; recurring scheduling is not a workflow shipped by this repository |
 
 **The unattended ceiling is "ready-to-merge," not "merged."** Standing
@@ -176,6 +176,28 @@ can start with a fresh context and pick up from disk.
   without a tight spec, and uncapped cost — set max-iterations.
 - **A client completion condition + autodrive** covers the common middle:
   one feature, end to end, with the spec holding the finish line.
+
+### One feature while you are away
+
+One feature, run to "ready to merge" while nobody watches: overnight, a
+day at a conference, a long meeting. Three steps:
+
+1. **Before leaving: `/unattended start`.** After the plan is approved, the
+   orchestrator asks every decision it can foresee in one batch (ambiguous
+   criteria, deferred choices, scope edges, the accepted baseline, checks it
+   cannot run itself, fallback on failure), each with a default. Answers and
+   the standing consent go in the spec's `## Standing decisions`.
+2. **During the run.** An `[ask-user]` that the standing decisions do not
+   settle is answered with the human's most likely choice and logged in
+   `## Unattended decisions` with its alternatives, reason, files, and how to
+   reverse it. Irreversible steps and anything outside the approved plan
+   still stop the run. Local delegation keeps running: a failed file falls
+   back to the frontier model, and an integrity stop is retried once.
+3. **When you are back: `/unattended reconcile`.** Keep or override each logged
+   decision; overrides go through the normal gate and a focused review.
+
+The run never pushes or merges. Unless standing consent grants commits on
+the feature branch, it ends uncommitted at "ready to merge".
 
 Safety posture for unattended runs is different from interactive ones:
 prefer the client's sandbox and a scoped permission mode over bypass flags;

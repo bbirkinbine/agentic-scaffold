@@ -270,6 +270,12 @@ Open:
   frontier model stays orchestrator. Candidates are discovered from the
   machine's inference endpoints (`GET /v1/models`); model size never
   decides. Scaffold files still name no model.
+- `/unattended` (`--full`) prepares one feature to run with nobody
+  watching (overnight or a day away): `start` asks every foreseeable
+  decision up front and records standing consent in the spec, the run
+  answers remaining `[ask-user]` findings on the human's behalf and logs
+  them under `## Unattended decisions`, and `reconcile` keeps or overrides
+  each on return. Not yet exercised in a real run.
 - `docs/influences.md` now pins the Terminal-Bench 2.0 and tool-calling
   sources behind `workflow/docs/local-executor.md` (retrieved 2026-10-14)
   and keeps the unsourced 2026-08 figures only as dated history. Still

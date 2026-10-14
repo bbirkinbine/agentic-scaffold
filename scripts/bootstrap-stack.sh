@@ -1215,6 +1215,9 @@ if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/delegate.md
   sync .agents/skills/delegate/SKILL.md
   sync .pi/prompts/delegate.md
+  sync .claude/commands/unattended.md
+  sync .agents/skills/unattended/SKILL.md
+  sync .pi/prompts/unattended.md
   sync .agentic/delegate-run.sh
   sync .github/workflows/claude-review.yml.example
 fi
@@ -1268,6 +1271,9 @@ prune_profile_transition() {
     .claude/commands/delegate.md
     .agents/skills/delegate/SKILL.md
     .pi/prompts/delegate.md
+    .claude/commands/unattended.md
+    .agents/skills/unattended/SKILL.md
+    .pi/prompts/unattended.md
     .agentic/delegate-run.sh
     .github/workflows/claude-review.yml.example
   )
