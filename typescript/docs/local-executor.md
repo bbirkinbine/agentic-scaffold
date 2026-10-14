@@ -93,6 +93,35 @@ All six, or don't delegate:
    runtime and harness far more often than on reasoning, and every one of
    those layers ships breaking changes.
 
+## Running it: `.agentic/delegate-run.sh`
+
+`--full` installs a runner that does the loop above without pasting:
+
+1. **Profile.** Describe your inference servers and models in
+   `~/.config/agentic/local-models.toml`, outside the repository
+   (`bash .agentic/delegate-run.sh --help` shows the format). Set
+   `max_tokens` in a model's `request` high enough for a whole file plus
+   any reasoning. A server key is named by `credential_env`, never written
+   into the file. `discover` lists what each server serves.
+2. **Qualify.** `qualify <model>` sends one known-answer file about the
+   size of a real task and grades the reply exactly. It needs no project
+   fixture. Any change to the model's setup (weights, quantization,
+   runtime, request settings, server) needs a new pass.
+3. **Run.** `/delegate` writes a packet under `.agentic/delegate/packets/`;
+   `run <packet> --model <name>` sends it, verifies the reply in a scratch
+   copy of the workspace, and publishes only a passing file. Without
+   `--model`, it selects from the project's `[[project]]` candidates.
+4. **Review and record.** After `/review`, `record-review <run>
+   pass|model-defect|packet-defect` scores the model. Its record decides
+   selection and demotion; `status` shows it.
+5. **Automate.** With `policy = "auto"` and `activation_approved = true`
+   in the project entry, `policy` prints `auto` and the Implement step
+   hands eligible plan files to the runner on its own.
+
+Packets, results, and the ledger stay in the gitignored
+`.agentic/delegate/`. The local model sees only the packet: no
+conversation, spec, repository, or tools.
+
 ## What breaks, and it is not what you expect
 
 The dominant local-executor failure is **serialization, not reasoning**:
