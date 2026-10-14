@@ -86,6 +86,20 @@ new dependencies, changes to `.agentic/`, CI, or security-relevant
 configuration, files outside the plan, or a spec the run has shown to be
 wrong. Those wait for the human.
 
+## Back early — the human returns mid-run
+
+When the human says they are back before the run ends:
+
+1. Stop auto-answering from that message on; `[ask-user]` findings go to
+   the human again. Standing decisions still stand.
+2. Let a local-model call in progress (`delegate-run.sh run`) finish rather
+   than kill it, and make no workspace edits meanwhile: the runner refuses
+   to publish into a tree that changed under it.
+3. Report where the run is (last green step, next step) and list the
+   `## Unattended decisions` logged so far, then offer to reconcile them
+   now or at the end.
+4. Continue the approved plan with the human present.
+
 ## `reconcile` — when the human is back
 
 1. Read `## Unattended decisions`. For each entry, show the human the
