@@ -254,16 +254,18 @@ Open:
   with `--full`) runs one packet against a model the human names with
   `--model`, verifies it in a scratch copy, and publishes only a passing
   file; smoke-tested against a stub server, not yet against a real local
-  model. Admission, `calibrate`, `discover`, selection, `record-review`,
+  model. `qualify`, `discover`, selection, `record-review`, demotion,
   coupled packets, and the automatic handoff remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
   stack-neutral runner that sends a self-contained `/delegate` packet to a
-  pinned local model with no tool access, verifies the result, and admits a
-  model only after calibration on the project's own tasks. The frontier model
-  stays orchestrator. Candidates are discovered from the machine's
-  inference endpoints (`GET /v1/models`) and each run uses the best
-  calibrated one for the task's bucket; model size never decides. Scaffold
-  files still name no model.
+  pinned local model with no tool access and verifies the result. A model
+  qualifies with one plumbing check, then takes real tasks on probation:
+  selection explores new candidates, ranks by recorded outcomes on the
+  project's own tasks, and demotion drops a model the evidence shows
+  failing. Quality rests on the gate and review, not on that evidence. The
+  frontier model stays orchestrator. Candidates are discovered from the
+  machine's inference endpoints (`GET /v1/models`); model size never
+  decides. Scaffold files still name no model.
 - `docs/influences.md` records the provenance row for
   `python/docs/local-executor.md` without URLs or a retrieval date. The
   Terminal-Bench 2.0 figures in that doc are live leaderboard values the

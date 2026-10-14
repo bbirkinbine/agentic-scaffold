@@ -19,9 +19,10 @@
 #
 # This version is the manual slice of docs/local-delegate-runner.md in the
 # agentic-scaffold repository: the human names the model, so there is no
-# admission check, discovery, or selection yet. Every run is labelled
-# "manual" in its result and ledger record, and manual runs never count as
-# calibration evidence.
+# qualification check, discovery, or selection yet. Every run is labelled
+# "manual" in its result and ledger record; under the spec's probation
+# design, manual runs are scored like automatic ones, so they build the
+# model's record.
 #
 # Profile: ${AGENTIC_DELEGATE_PROFILE:-${XDG_CONFIG_HOME:-~/.config}/agentic/local-models.toml}
 # (outside the repository; it names private endpoints). Example:
@@ -370,7 +371,7 @@ finish() {
       --arg request "${REQUEST_JSON:-}" --arg target "${TARGET:-}" --arg bucket "${BUCKET:-}" \
       --arg snapshot "${SNAPSHOT_SHA:-}" --argjson attempts "$ATTEMPTS_JSON" \
       --arg gate "${GATE_LEVEL:-}" --arg unverified "${UNVERIFIED:-}" \
-      '{ts: $ts, run: $run, mode: "manual", admission: "none", packet: $packet,
+      '{ts: $ts, run: $run, mode: "manual", qualification: "unchecked", packet: $packet,
         packet_sha256: $packet_sha, target: $target, bucket: $bucket,
         snapshot_sha256: $snapshot, harness: $harness,
         model: {name: $model, model_id: $model_id, quant: $quant, runtime: $runtime,
@@ -407,7 +408,7 @@ cmd_run() {
   done
   [[ -n "$packet" ]] || { say "usage: delegate-run.sh run <packet> --model <name>"; exit 2; }
   [[ -n "$MODEL_NAME" ]] || {
-    say "--model is required: this version runs only a model the human names (no admission or selection yet)"
+    say "--model is required: this version runs only a model the human names (no qualification or selection yet)"
     exit 2
   }
 
