@@ -190,6 +190,7 @@ runner can accept or refuse without reading prose:
 format: 2                     # the runner assembles the mechanical sections
 targets: [src/pkg/parser.py]  # one entry per file the model returns
 target_lines: 140          # summed current size, 0 for new files
+expected_lines: 0          # a new file's planned size; sizes the bucket
 contract_items: 6          # signatures/types/constants quoted in "Contracts"
 visible_tests: 4
 test_targets: [tests/test_parser.py]  # focused targets accepted by toolchain test
@@ -206,7 +207,12 @@ and a good record in one never implies another. The thresholds are a
 starting point to be corrected by the ledger, not a claim about model
 capability. The runner recomputes `target_lines` from the file rather than
 trusting the header, so a mislabelled packet cannot land in a smaller
-bucket.
+bucket. A new file has no size until it is generated, so `expected_lines`,
+the frontier model's estimate, stands in; the runner refuses a packet whose
+`bucket` is smaller than its counts give and keeps one that is larger. The
+orchestrator routes models by `bucket` before the run, so the two must
+agree (a 2026-10-14 trial routed by labels that the runner, then sizing
+new files at zero lines, recorded in the other bucket).
 
 A multi-file plan is split into one-file packets in dependency order
 whenever each file can reach green on its own once its predecessors have

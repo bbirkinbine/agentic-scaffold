@@ -99,6 +99,9 @@ to keep wide searches or noisy output out of the main context.
 | Need full test output, a wide survey, or doc fetches | A focused subagent |
 | Implementation needs files outside the approved plan, or Trivial/Small work outgrows its size row | Stop and ask the human first; re-size (Medium runs `/plan`) |
 
+Subagents run on the session's model: pass no model override to a subagent
+or workflow unless the human names a model for that subagent.
+
 Re-read the spec at phase boundaries and after context drift. Write a phase
 handoff before changing sessions. Verify claims outside the gate (for example,
 migrations or file comparisons) with a concrete check.

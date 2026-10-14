@@ -82,6 +82,7 @@ and never sends it to the model:
 format: 2
 targets: [<path of the one target file>]
 target_lines: <current line count, 0 for a new file>
+expected_lines: <for a new file: the plan's estimate of its finished size>
 contract_items: <signatures, types, and constants quoted in Contracts>
 visible_tests: <test functions in the target's test files>
 test_targets: [<test file(s) that exercise the target>]
@@ -89,6 +90,11 @@ new_dependencies: false
 bucket: <small: <=150 lines and <=8 contract items; medium: <=300 and <=15>
 ---
 ```
+
+`bucket` takes the larger size that either count gives, with lines being
+the larger of `target_lines` and `expected_lines`. The runner applies the
+same rule, refuses a packet labelled smaller than its counts, and keeps a
+label larger than they give, so route models by this field.
 
 Write only the sections that need judgment, in this order. Do **not** copy
 the target file, the test files, or the gate output into the packet: with

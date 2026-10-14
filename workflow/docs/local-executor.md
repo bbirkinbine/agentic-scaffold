@@ -128,8 +128,9 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    copy of the workspace, and publishes only a passing file. Without
    `--model`, it selects from the project's `[[project]]` candidates.
 4. **Review and record.** After `/review`, `record-review <run>
-   pass|model-defect|packet-defect` scores the model. Its record decides
-   selection and demotion; `status` shows it.
+   pass|model-defect|packet-defect` scores the model and logs how many of
+   the published lines review kept. Its record decides selection and
+   demotion; `status` shows it.
 5. **Automate.** With `policy = "auto"` and `activation_approved = true`
    in the project entry, `policy` prints `auto` and the Implement step
    hands eligible plan files to the runner on its own.

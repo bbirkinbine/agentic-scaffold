@@ -27,6 +27,8 @@
 #   record-review <run> pass|model-defect|packet-defect
 #                            Record /review's final verdict on a published
 #                            candidate. Until then a green run is pending.
+#                            Also records how many of the published lines
+#                            (kept in results/<run>/candidate) review kept.
 #   policy                   Prints `auto` and exits 0 only when this
 #                            checkout's [[project]] entry has policy = "auto",
 #                            activation_approved = true, and at least one
@@ -829,8 +831,10 @@ cmd_run() {
   local targets tests
   targets="$(awk -F'\t' '$1 == "targets" { print $2 }' "$STATE/header.tsv")"
   tests="$(awk -F'\t' '$1 == "test_targets" { print $2 }' "$STATE/header.tsv")"
-  local declared_bucket contracts
+  local declared_bucket contracts expected
   declared_bucket="$(awk -F'\t' '$1 == "bucket" { print $2; exit }' "$STATE/header.tsv")"
+  expected="$(awk -F'\t' '$1 == "expected_lines" { print $2; exit }' "$STATE/header.tsv")"
+  [[ "$expected" =~ ^[0-9]+$ ]] || expected=0
   contracts="$(awk -F'\t' '$1 == "contract_items" { print $2; exit }' "$STATE/header.tsv")"
   [[ "$contracts" =~ ^[0-9]+$ ]] || contracts=0
   [[ -n "$targets" ]] || refuse "packet has no front-matter 'targets' (re-run /delegate to regenerate it)"
@@ -851,14 +855,22 @@ cmd_run() {
   no_symlink_path "$ROOT" "$TARGET" || integrity "target path '$TARGET' passes through a symlink"
 
   # The bucket comes from the file, not the label, so a mislabelled packet
-  # cannot land in a smaller bucket.
+  # cannot land in a smaller bucket. A new file has no size yet, so the
+  # packet's expected_lines stands in, and a declared bucket larger than the
+  # counts give is kept (the frontier model's estimate of the finished file).
   local lines=0
   [[ -f "$ROOT/$TARGET" ]] && lines="$(wc -l <"$ROOT/$TARGET" | tr -d ' ')"
+  ((expected > lines)) && lines="$expected"
   BUCKET="$(bucket_for "$lines" "$contracts")"
   [[ "$BUCKET" != too-large ]] ||
     refuse "target is $lines lines with $contracts contract items: larger than the medium bucket (<=$MEDIUM_LINES lines, <=$MEDIUM_CONTRACTS items)"
-  [[ -z "$declared_bucket" || "$declared_bucket" == "$BUCKET" ]] ||
-    say "note: packet says bucket '$declared_bucket'; the file makes it '$BUCKET'"
+  case "$declared_bucket:$BUCKET" in
+    "":* | small:small | medium:medium) ;;
+    medium:small) BUCKET=medium ;;
+    small:medium)
+      refuse "packet says bucket 'small' but $lines lines with $contracts contract items make it 'medium'; fix the header and route by the corrected bucket" ;;
+    *) refuse "packet has unknown bucket '$declared_bucket' (small or medium)" ;;
+  esac
 
   # -- model: the one the human named, or the runner's selection
   if [[ -n "$MODEL_NAME" ]]; then
@@ -1064,6 +1076,10 @@ cmd_run() {
   cp "$TREE/$TARGET" "$tmp" || infra "could not stage the candidate in the workspace"
   [[ -x "$ROOT/$TARGET" ]] && chmod +x "$tmp"
   mv -f "$tmp" "$ROOT/$TARGET" || infra "could not publish the candidate"
+  # Keep the file as published, so record-review can measure what review
+  # changed in it.
+  mkdir -p "$DELEGATE_DIR/results/$RUN_ID"
+  cp "$TREE/$TARGET" "$DELEGATE_DIR/results/$RUN_ID/candidate"
 
   OUTCOME=green
   REASON=""
@@ -1235,8 +1251,21 @@ cmd_record_review() {
   rec="$(jq -c -s --arg r "$run" 'map(select((.type // "run") == "run" and .run == $r)) | last // empty' "$ledger")"
   [[ -n "$rec" ]] || { say "no run '$run' in the ledger"; exit 2; }
   [[ "$(jq -r .outcome <<<"$rec")" == green ]] || { say "run '$run' did not publish a candidate; nothing to review"; exit 2; }
-  jq -c -n --arg ts "$(now_utc)" --arg run "$run" --arg verdict "$verdict" \
-    '{type: "review", ts: $ts, run: $run, verdict: $verdict}' >>"$ledger"
+  # How much of the published file survived review: lines review removed
+  # from it and lines review added, against the target as it is now.
+  local cand="$DELEGATE_DIR/results/$run/candidate" target changes='null'
+  target="$(jq -r .target <<<"$rec")"
+  if [[ -f "$cand" && -f "$ROOT/$target" ]]; then
+    local published removed added
+    published="$(wc -l <"$cand" | tr -d ' ')"
+    removed="$( (diff "$cand" "$ROOT/$target" || true) | grep -c '^<' || true)"
+    added="$( (diff "$cand" "$ROOT/$target" || true) | grep -c '^>' || true)"
+    changes="$(jq -c -n --argjson p "$published" --argjson r "$removed" --argjson a "$added" \
+      '{published_lines: $p, kept_lines: ($p - $r), removed_lines: $r, added_lines: $a}')"
+    say "review kept $((published - removed)) of $published published lines in $target, removed $removed, added $added"
+  fi
+  jq -c -n --arg ts "$(now_utc)" --arg run "$run" --arg verdict "$verdict" --argjson changes "$changes" \
+    '{type: "review", ts: $ts, run: $run, verdict: $verdict, review_changes: $changes}' >>"$ledger"
   local model fingerprint bucket
   model="$(jq -r .model.name <<<"$rec")"
   fingerprint="$(jq -r .fingerprint <<<"$rec")"

@@ -33,13 +33,21 @@ Run after the plan is approved and persisted, before test-first.
    - verification the run cannot do itself (manual or browser checks):
      defer it to the morning or skip it;
    - failure handling: if a step stays red or local delegation fails,
-     fall back to the frontier model or stop.
+     fall back to the frontier model or stop;
+   - models: frontier work, subagents included, runs on the session's
+     model, so a frontier choice means "start the session on it" and is
+     recorded as the session model, never as an override. When local
+     delegation is on, list the qualified models from
+     `bash .agentic/delegate-run.sh status` with their records and ask
+     which to use, one for all files or one per bucket; route each packet
+     by the bucket the runner accepts (it refuses a packet labelled smaller
+     than its counts).
 2. Ask them in one batch, each naming the spec or plan line it affects and
    offering your best-guess default so "defaults are fine" is a complete
    answer. Ask only what the spec, plan, and `AGENTS.md` do not already
    settle; say so if nothing needs asking.
 3. Record the answers in the spec under `## Standing decisions`, one bullet
-   each (`<decision>: <answer> (asked <date>)`), and add `## Overnight
+   each (`<decision>: <answer> (asked <date>)`), and add `## Unattended
    decisions` with the line `None yet.` The run treats standing decisions
    as the human's answers.
 4. Ask for standing consent explicitly and record it under `## Standing
@@ -62,6 +70,12 @@ standing decision does not settle no longer stops the run. The orchestrator:
    to reverse it;
 3. keeps that decision's changes separable — its own commit when commits
    were granted, otherwise a list of the exact hunks — and continues.
+
+A tool or command that fails on its own invocation (an unsupported
+parameter, a wrong path or flag) is not a decision: correct the call from
+the error and retry once, with the same intent and no new scope, and note
+it in the run's report. A second failure, or a fix that would change what
+the step does, stops as below.
 
 It still stops, and leaves the run at its last green state, for anything
 irreversible or outside the approved plan: deleting or rewriting history,

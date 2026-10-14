@@ -61,4 +61,7 @@ read-only reviewer — records each delegated file's outcome:
 implementation, even if the orchestrator then fixed it; `packet-defect`
 when the cause was something the packet failed to quote or contradicted;
 otherwise `pass`, including when findings concerned other files or docs.
-Tell the human the verdict and the record line the runner prints.
+Record once review's fixes are applied: the runner compares the file as
+published with the file as it is then and logs how many lines review kept,
+removed, and added. Tell the human the verdict and the lines the runner
+prints.

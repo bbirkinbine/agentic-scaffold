@@ -263,8 +263,11 @@ Open:
   file), and review found a packet that contradicted its plan and a
   delegated maze far smaller and plainer than a frontier model built from
   the same spec. Packet traceability, frontier-decided choices, and
-  intent-pinning tests followed from those. Frontier-token savings are
-  still unmeasured. `init` drafts the machine profile from each server's
+  intent-pinning tests followed from those. A third trial published all
+  four packets across two models; from it the runner sizes a new file by
+  the packet's `expected_lines`, refuses a bucket labelled smaller than its
+  counts, and keeps each published file so `record-review` logs how much
+  of it review kept. Frontier-token savings are still unmeasured. `init` drafts the machine profile from each server's
   model list and `project-types.md` carries the founding setup. Coupled
   packets and optional `calibrate` remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a

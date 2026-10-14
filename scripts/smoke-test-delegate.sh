@@ -294,6 +294,7 @@ done
 run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
 cmp -s <(jq -j '.messages[0].content' "$QUEUE/requests/01.json") "$run_dir/prompt.md" ||
   fail "prompt.md is not the message the model received"
+cmp -s "$run_dir/candidate" lib/greet.sh || fail "the published candidate was not kept in the result"
 if grep -rq smoke-secret-value .agentic/delegate; then fail "credential value leaked into delegation state"; fi
 git diff --cached --quiet || fail "runner staged changes"
 
@@ -383,6 +384,26 @@ expect_run 2 stub-coder
 grep -q 'unconfigured' "$WORK/run.out" || fail "unconfigured gate was not named"
 mv .agentic/toolchain.sh.bak .agentic/toolchain.sh
 
+# --- 7b. bucket: a small label on medium counts is refused; a larger label stays --
+reset_case
+SAVED_PACKET="$PACKET"
+PACKET=.agentic/delegate/packets/0001-lib-greet-sh-bucket.md
+sed 's/^contract_items: 1$/contract_items: 12/' "$SAVED_PACKET" >"$PACKET"
+expect_run 2 stub-coder
+[[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called for a mislabelled bucket"
+grep -q "make it 'medium'" "$WORK/run.out" || fail "the bucket refusal did not name the corrected bucket"
+sed -e 's/^bucket: small$/bucket: medium/' "$SAVED_PACKET" >"$PACKET"
+respond 01 "$GOOD"
+expect_run 0 stub-coder
+[[ "$(last_result | jq -r .bucket)" == medium ]] || fail "a declared medium bucket was lowered to small"
+reset_case
+awk '/^bucket:/ { next } { print } /^target_lines:/ { print "expected_lines: 200" }' "$SAVED_PACKET" >"$PACKET"
+respond 01 "$GOOD"
+expect_run 0 stub-coder
+[[ "$(last_result | jq -r .bucket)" == medium ]] || fail "expected_lines did not size the bucket"
+PACKET="$SAVED_PACKET"
+rm -f .agentic/delegate/packets/0001-lib-greet-sh-bucket.md
+
 # --- 8. missing credential, unreachable endpoint, HTTP error ---------------------
 reset_case
 respond 01 "$GOOD"
@@ -448,7 +469,12 @@ run_id="$(last_result | jq -r .run)"
 [[ "$(last_result | jq -r .bucket)" == small ]] || fail "bucket was not computed from the file"
 state_has stub-coder small '0/0 passed, 1 awaiting review' || fail "a published run was not pending: $(state_of stub-coder small)"
 grep -q "record-review $run_id" "$WORK/run.out" || fail "the run did not print its record-review command"
-runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review pass failed"
+printf '%s\n' "$GOOD" '# review added this' >lib/greet.sh
+runner record-review "$run_id" pass >"$WORK/review.out" 2>&1 || fail "record-review pass failed"
+grep -q 'review kept 1 of 1 published lines in lib/greet.sh, removed 0, added 1' "$WORK/review.out" ||
+  { cat "$WORK/review.out" >&2; fail "record-review did not measure review's changes"; }
+jq -s -e --arg r "$run_id" 'map(select(.type == "review" and .run == $r)) | last | .review_changes.added_lines == 1' \
+  .agentic/delegate/ledger.jsonl >/dev/null || fail "review changes were not recorded in the ledger"
 state_has stub-coder small '1/1 passed' || fail "a review pass was not scored: $(state_of stub-coder small)"
 runner record-review nope pass >/dev/null 2>&1 && fail "record-review accepted an unknown run"
 
