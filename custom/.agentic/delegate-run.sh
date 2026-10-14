@@ -244,6 +244,34 @@ packet_header() {
   ' "$1"
 }
 
+# assemble_sections <tree> <failure-log> : the mechanical packet sections a
+# format-2 packet leaves to the runner, so the frontier model never spends
+# output tokens copying files: the target as it exists now, the full test
+# files, the live failure output, and the fixed output contract.
+assemble_sections() {
+  local tree="$1" log="$2" t
+  printf '\n## The file as it exists now\n\n'
+  if [[ -f "$tree/$TARGET" ]]; then
+    printf '`%s`:\n\n````\n' "$TARGET"
+    cat "$tree/$TARGET"
+    printf '````\n'
+  else
+    printf 'NEW FILE: `%s` does not exist yet.\n' "$TARGET"
+  fi
+  printf '\n## The failing tests\n\nThese must pass. They are the specification.\n'
+  while IFS= read -r t; do
+    [[ -f "$tree/$t" ]] || continue
+    printf '\n`%s`:\n\n````\n' "$t"
+    cat "$tree/$t"
+    printf '````\n'
+  done <<<"$TESTS"
+  printf '\n## The exact failure output\n\n````\n'
+  # Color codes are noise to the model.
+  sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$log" | tail -n "$DIAG_LINES" | tail -c "$DIAG_BYTES"
+  printf '````\n'
+  printf '\n## Output contract\n\n> Return the complete final contents of `%s`, and nothing else. No\n> diff, no patch, no commentary, no markdown fence around the file, no\n> explanation of your changes.\n' "$TARGET"
+}
+
 packet_body() {
   awk 'NR == 1 && $0 == "---" { fm = 1; next } fm && $0 == "---" { fm = 0; next } !fm' "$1"
 }
@@ -676,6 +704,9 @@ finish() {
     mkdir -p "$result_dir"
     [[ -n "$STATE" && -f "$STATE/last-diagnostics.txt" ]] &&
       cp "$STATE/last-diagnostics.txt" "$result_dir/last-diagnostics.txt"
+    # The exact first message the model received, for review attribution.
+    [[ -n "$STATE" && -s "$STATE/packet-body.md" ]] &&
+      cp "$STATE/packet-body.md" "$result_dir/prompt.md"
     jq -n \
       --arg ts "$(now_utc)" --arg run "$RUN_ID" --arg packet "${PACKET_REL:-}" \
       --arg packet_sha "${PACKET_SHA:-}" --arg outcome "$OUTCOME" --arg reason "$REASON" \
@@ -782,6 +813,10 @@ cmd_run() {
   # -- packet
   packet_header "$packet_abs" >"$STATE/header.tsv"
   packet_body "$packet_abs" >"$STATE/packet-body.md"
+  # format: 2 -> the runner adds the file, tests, failure output, and output
+  # contract; older packets carry them and are sent as written.
+  PACKET_FORMAT="$(awk -F'\t' '$1 == "format" { print $2; exit }' "$STATE/header.tsv")"
+  TESTS="$(awk -F'\t' '$1 == "test_targets" { print $2 }' "$STATE/header.tsv")"
   local targets tests
   targets="$(awk -F'\t' '$1 == "targets" { print $2 }' "$STATE/header.tsv")"
   tests="$(awk -F'\t' '$1 == "test_targets" { print $2 }' "$STATE/header.tsv")"
@@ -872,6 +907,9 @@ cmd_run() {
   while IFS= read -r t; do test_args+=("$t"); done <<<"$tests"
   verify_cmd bash "$TOOLCHAIN" test "${test_args[@]}" >"$STATE/baseline-test.log" 2>&1 || status=$?
   [[ "$status" != 0 ]] || refuse "the target's tests already pass; there is nothing to delegate"
+  if [[ "$PACKET_FORMAT" == 2 ]]; then
+    assemble_sections "$TREE" "$STATE/baseline-test.log" >>"$STATE/packet-body.md"
+  fi
   # Steps red before the run (other plan files not landed yet) cannot be
   # held against the candidate; steps green before the run must stay green.
   run_steps baseline

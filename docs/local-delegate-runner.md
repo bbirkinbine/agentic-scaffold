@@ -26,7 +26,8 @@ and `run` refuses without `perl`, which provides that watchdog; every run
 ends with a summary of wall time, attempts, and which gate steps passed or
 could not verify the file; `/delegate` traces each spec and plan
 requirement on the target into the packet and refuses a packet that
-contradicts the plan, and `/review` tags findings by delegated file;
+contradicts the plan, while the runner assembles the packet's mechanical
+sections (format 2), and `/review` tags findings by delegated file;
 the post-execution audit covers unignored files only, because ignored
 writes stay in the discarded scratch tree and the unignored files that
 could fake a green result (configs, tests) are already audited, so an
@@ -185,6 +186,7 @@ in `/delegate`. Extend the packet with a machine-readable header so the
 runner can accept or refuse without reading prose:
 
 ```yaml
+format: 2                     # the runner assembles the mechanical sections
 targets: [src/pkg/parser.py]  # one entry per file the model returns
 target_lines: 140          # summed current size, 0 for new files
 contract_items: 6          # signatures/types/constants quoted in "Contracts"
@@ -214,6 +216,15 @@ the multi-file plumbing check. Without one, that step goes to the frontier
 model.
 The single-shot, no-tools, whole-file rules apply unchanged: a coupled call
 is still one request returning complete files, never a multi-turn edit.
+
+With `format: 2` the frontier model writes only the sections that need
+judgment — task, requirements traced from the spec and plan, contracts, and
+out of bounds — and the runner appends the target as it exists in the
+snapshot, the full test files, the live failure output from its own red
+baseline, and the output contract. Copying those by hand cost frontier
+output tokens roughly the size of the file being delegated, which erased
+most of the saving for small files, and let the failure output go stale.
+Each run saves the assembled message as `results/<run>/prompt.md`.
 
 The judgment the frontier model contributes is *self-containment*: whether
 every reference the executor needs is quoted. That cannot be fully checked

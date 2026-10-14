@@ -96,6 +96,7 @@ mkdir -p .agentic/delegate/packets
 PACKET=.agentic/delegate/packets/0001-lib-greet-sh.md
 cat >"$PACKET" <<'MD'
 ---
+format: 2
 targets: [lib/greet.sh]
 target_lines: 1
 contract_items: 1
@@ -104,13 +105,9 @@ test_targets: [tests/test_greet.sh]
 new_dependencies: false
 bucket: small
 ---
-# Task
+## Task
 
 `greet NAME` prints `hello NAME`.
-
-# Output contract
-
-Return the complete final contents of `lib/greet.sh`, and nothing else.
 MD
 git check-ignore -q "$PACKET" || fail ".agentic/delegate/ is not gitignored in a fresh project"
 
@@ -268,6 +265,14 @@ jq -e '.temperature == 0.2 and .model == "stub-model" and .stream == false' "$QU
   fail "request settings from the profile were not applied"
 jq -e '.messages[0].content | contains("targets:") | not' "$QUEUE/requests/01.json" >/dev/null ||
   fail "packet front matter was sent to the model"
+for want in '## The file as it exists now' 'greet() { echo "TODO"; }' '## The failing tests' \
+  'tests/test_greet.sh' "expected 'hello bob'" '## Output contract' 'complete final contents of `lib/greet.sh`'; do
+  jq -e --arg w "$want" '.messages[0].content | contains($w)' "$QUEUE/requests/01.json" >/dev/null ||
+    fail "the runner did not add to the packet: $want"
+done
+run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
+cmp -s <(jq -j '.messages[0].content' "$QUEUE/requests/01.json") "$run_dir/prompt.md" ||
+  fail "prompt.md is not the message the model received"
 if grep -rq smoke-secret-value .agentic/delegate; then fail "credential value leaked into delegation state"; fi
 git diff --cached --quiet || fail "runner staged changes"
 

@@ -66,17 +66,23 @@ and never sends it to the model:
 
 ```yaml
 ---
+format: 2
 targets: [<path of the one target file>]
 target_lines: <current line count, 0 for a new file>
-contract_items: <signatures, types, and constants quoted in section 6>
-visible_tests: <test functions quoted in section 4>
+contract_items: <signatures, types, and constants quoted in Contracts>
+visible_tests: <test functions in the target's test files>
 test_targets: [<test file(s) that exercise the target>]
 new_dependencies: false
 bucket: <small: <=150 lines and <=8 contract items; medium: <=300 and <=15>
 ---
 ```
 
-Sections, in this order:
+Write only the sections that need judgment, in this order. Do **not** copy
+the target file, the test files, or the gate output into the packet: with
+`format: 2` the runner appends the target as it exists, the full test files
+named in `test_targets`, the live failure output from its own red baseline,
+and the output contract, so those cost no frontier output tokens and never
+go stale.
 
 1. **Task** — one paragraph. What the file must do when finished. Written as
    a requirement, not as a narrative of the discussion.
@@ -84,24 +90,17 @@ Sections, in this order:
    verbatim, each tagged `[test: <name>]`, `[contract]`, `[task]`, or
    `[unverified: review checks]`. This is the executor's only view of the
    spec; do not paraphrase it.
-3. **The file as it exists now** — full current contents in a fenced block,
-   or `NEW FILE` if it does not exist yet.
-4. **The failing tests** — full contents of the test functions for the
-   target that must pass, in a fenced block. Not a summary of them; the
-   actual code.
-5. **The exact failure output** — verbatim from the gate.
-6. **Contracts it must honor** — every signature, type, import, and
+3. **Contracts it must honor** — every signature, type, import, and
    constant from elsewhere in the codebase that the implementation touches,
    quoted directly — including from files implemented earlier in this
    plan. Assume the executor cannot look anything up. This section is where
    delegation succeeds or fails.
-7. **Out of bounds** — files it must not touch (every other file in the
+4. **Out of bounds** — files it must not touch (every other file in the
    plan included), behavior it must not change, dependencies it must not
    add.
-8. **Output contract** — verbatim:
-   > Return the complete final contents of `<path>`, and nothing else. No
-   > diff, no patch, no commentary, no markdown fence around the file, no
-   > explanation of your changes.
+
+The exact message the model received is saved with each run as
+`.agentic/delegate/results/<run>/prompt.md`.
 
 ## Rules for writing it
 
@@ -124,14 +123,12 @@ Sections, in this order:
 Print, as plain text for the human:
 
 - The packet path.
-- How to run it. When `.agentic/delegate-run.sh` is installed:
-  `bash .agentic/delegate-run.sh run <packet> --model <name>`, where
-  `<name>` is a `[[model]]` entry in the machine profile
+- How to run it: `bash .agentic/delegate-run.sh run <packet>`, with
+  `--model <name>` to name a `[[model]]` entry in the machine profile
   (`~/.config/agentic/local-models.toml`; `--help` shows the format). The
-  runner verifies in a scratch copy, retries at most **3** times, and
-  publishes only a passing file. Otherwise the loop is manual: run the
-  executor, apply its output, run `/review-check`, and on red retry at most
-  **3** times before escalating this file back to the frontier model.
+  runner completes the packet, verifies in a scratch copy, retries at most
+  **3** times, and publishes only a passing file. A format-2 packet is not
+  meant to be pasted by hand: it lacks the sections the runner adds.
 - The plan files still unimplemented after this one, and which of them is
   next eligible for a packet. Gate failures from those files are expected
   until they land; failures in the target's own tests are not.
