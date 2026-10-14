@@ -21,14 +21,33 @@ Procedure:
    - File exists → **refresh mode**: read it, compare against the open
      issue list (`gh issue list -s open` if available), and ask only
      about sections that are missing, vague, or contradicted by where
-     the project has gone since. Three questions maximum. If nothing
-     needs asking, say "product spec is current" and stop.
+     the project has gone since. Three questions maximum. A product
+     that names a reference but has no `## Reference behavior` counts as
+     missing a section; its confirmation batch (step 4) is one question.
+     If nothing needs asking, say "product spec is current" and stop.
 2. Ask **one question at a time** and wait for the answer before the
    next. If an answer is vague ("not sure", "depends"), push back once:
    "what would have to be true for that to be concrete?" Don't push
    twice — record the honest unknown under `## Open questions` instead
    of inventing certainty.
-3. After the last answer, write the file from the answers, keeping the
+3. If any answer names a reference the product should resemble ("plays
+   like arcade Pac-Man", "a Trello-style board", "git-compatible"), it
+   is load-bearing: a one-line mention gives later specs nothing to
+   trace, and "original, not a copy" drifts into "not like the
+   reference". Do step 4 before writing.
+4. **Reference behavior** — the one section you draft from your own
+   knowledge, because the human named the source and decides every
+   line. List the recognizable rules, features, and behaviors a user of
+   the reference would expect, concretely enough to test (for a game:
+   each enemy's rule, timers, scoring values; for a tool: the commands,
+   formats, and conventions users rely on). Mark each `must`, `later`,
+   or `won't` with your best guess, and list separately what must not
+   be copied (artwork, audio, code, trademarks, data tables the human
+   does not want reproduced). Show it in one batch and ask the human to
+   correct the marks; record only what they confirm. Following a
+   reference's rules and copying its assets are separate decisions;
+   keep them apart.
+5. After the last answer, write the file from the answers, keeping the
    human's voice. Skeleton below. Stop after writing; surface the path
    and do NOT continue into `/spec` or `/plan`.
 
@@ -53,6 +72,7 @@ Questions:
    facts a planner must not design against.
 7. **What are the first two or three units of work?** These become the
    first issues and feature specs; they seed `## Roadmap pointers`.
+   With a reference inventory, each unit names the items it covers.
 
 File skeleton (substitute the product name from `$ARGUMENTS` or the
 repo name, and today's date):
@@ -84,10 +104,23 @@ alternative not being competed with.>
 
 - <Q6: one bullet per constraint.>
 
+## Reference behavior
+
+<Only when the product names a reference (step 4). Omit otherwise.>
+
+Reference: <what the product should resemble, and how closely>
+
+| Item | Expected behavior | Mark | Spec |
+| --- | --- | --- | --- |
+| <R1> | <the rule as a user of the reference knows it> | must / later / won't | <NNNN once a spec covers it> |
+
+Not copied: <assets, code, trademarks, or data the human ruled out>
+
 ## Roadmap pointers
 
 <Q7: links to the issues/specs currently serving the direction —
-a list of links, not a plan. Update as specs land; the issue tracker
+a list of links, not a plan, each naming the reference items it covers
+when there is an inventory. Update as specs land; the issue tracker
 stays the backlog.>
 
 ## Open questions

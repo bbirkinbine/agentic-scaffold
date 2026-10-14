@@ -341,6 +341,11 @@ file, reserved number `0000`, covering:
   feature specs don't relitigate them one at a time.
 - **Constraints and assumptions** — platform, licensing, budget,
   "solo-maintained"; the facts a planner must not design against.
+- **Reference behavior** (only when the product should resemble
+  something) — the reference's recognizable rules, each marked `must`,
+  `later`, or `won't` by the human, plus what must not be copied.
+  Feature specs name the items they cover, so "like the arcade game"
+  is traced rather than remembered.
 - **Roadmap pointers** — links to the feature specs and open work items
   that currently serve the direction. A list of links, not a plan;
   the backlog stays the backlog.
