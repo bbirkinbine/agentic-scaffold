@@ -28,6 +28,10 @@ coverage/
 .claude/settings.local.json
 CLAUDE.local.md
 
+# Local delegation state — /delegate packets and runner scratch data.
+# Per-run and machine-specific; never committed.
+.agentic/delegate/
+
 # OS / editor cruft
 .DS_Store
 *.swp

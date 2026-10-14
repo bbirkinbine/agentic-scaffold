@@ -80,9 +80,11 @@ state. Keep artifacts separated by lifecycle:
 A delegate packet is per-run execution state, not a feature spec, ADR, or
 project-wide handoff. Store it under
 `.agentic/delegate/packets/<spec-id>-<target-slug>.md`; the runner's other
-local state lives alongside it. This replaces the current `/delegate`
-location under `docs/specs/`, where a second file with the active spec's
-number would violate spec-number uniqueness and enter the status dashboard.
+local state lives alongside it. `/delegate` already writes packets there
+(it previously used `docs/specs/`, where a second file with the active
+spec's number would violate spec-number uniqueness and enter the status
+dashboard), and the stack `.gitignore` sources already ignore
+`.agentic/delegate/`.
 The active spec remains the durable source of requirements and may name a
 pending packet path in its phase handoff when resumption context is useful.
 
@@ -549,12 +551,10 @@ and a classifier can be compared against the rules on it.
 Add `workflow/bin/delegate-run.sh` (rendered to `.agentic/delegate-run.sh`,
 installed with `--full` alongside `/delegate`). Extend the renderer,
 bootstrap managed-file inventory, profile transitions, and update tests for
-that executable. Update every `stacks/*/project/.gitignore` source so rendered
-projects ignore `.agentic/delegate/`. Update
-`workflow/commands/delegate.md` to move packets from `docs/specs/` to
-`.agentic/delegate/packets/`, emit the header, add the `coupled` packet
-shape and its delimiter output contract, and honor `off`/`auto` (per-file
-sequencing of a multi-file plan has already landed there);
+that executable. Update `workflow/commands/delegate.md` to emit the header,
+add the `coupled` packet shape and its delimiter output contract, and honor
+`off`/`auto` (per-file sequencing of a multi-file plan and the
+`.agentic/delegate/packets/` location have already landed there);
 update `/review` so its orchestrator records the final attributable outcome
 for a delegated candidate while its reviewer remains read-only. Re-render the
 Claude, Codex, and Pi surfaces from these sources.

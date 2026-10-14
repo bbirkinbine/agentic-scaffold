@@ -44,8 +44,12 @@ partial packet.
 
 ## The packet
 
-Write it to `docs/specs/<NNNN>-handoff-<slug>.md` and print the path. It must
-be readable by a model with **no access to this conversation, this
+Write it to `.agentic/delegate/packets/<NNNN>-<target-slug>.md`, where
+`<NNNN>` is the active spec's number and `<target-slug>` is derived from the
+target path, and print the path. The directory is gitignored: a packet is
+per-run execution state, not a spec, and a file under `docs/specs/` would
+reuse the spec's number and enter the status dashboard. It must be readable
+by a model with **no access to this conversation, this
 repository, or any tool**. Everything it needs is in the file.
 
 Sections, in this order:
