@@ -1,9 +1,11 @@
 ---
 description: Build a self-contained handoff packet so a weaker or local model can implement one file against failing tests. Produces the packet and stops — does not call the other model.
-argument-hint: "[path to the one file to implement, or blank to infer from the approved plan]"
+argument-hint: "[path to one file from the approved plan, or blank to pick the next eligible file]"
 ---
 
-Produce a **local-executor handoff packet** for exactly one file.
+Produce a **local-executor handoff packet** for exactly one file. A plan
+that touches several files is delegated as a sequence of one-file packets in
+dependency order, one invocation per file.
 
 Read `docs/local-executor.md` first if it is installed; this command
 implements the rule it states. Refuse the task rather than bending it —
@@ -16,12 +18,22 @@ the failure will look like a model problem.
    → **Active-spec resolution**, and it has a `## Success criteria` section.
    Ambiguity stops; never guess from the highest spec number.
 2. The spec carries an `## Approved implementation plan` and the target is
-   **one** file. If the plan touches more than one, say so and stop — split
-   the spec instead.
-3. Tests for this work exist and **currently fail**. Run the gate and show
-   the failing output. If tests pass or do not exist, stop and say
-   `/test-first` has not run.
-4. The target file is under 300 lines, or the change is confined to a
+   **one** file from its files-to-touch list. With no argument, pick the
+   first file in the plan's order of operations that is not yet implemented
+   and whose dependencies are.
+3. Every file the target depends on that the plan creates or changes is
+   already implemented, so its signatures can be quoted from the tree rather
+   than from the plan. If one is not, name it and stop — it goes first.
+4. The target can reach green on its own. If its tests cannot pass without
+   a simultaneous edit to another file (a signature change rippling to
+   callers, two modules that only make sense together), stop: the frontier
+   model implements that change.
+5. Tests for the target exist and **currently fail**. Run the gate and show
+   the failing output. Name the tests that exercise the target; failures
+   belonging to other not-yet-implemented plan files are expected and stay
+   out of the packet. If the target's tests pass or do not exist, stop and
+   say `/test-first` has not run.
+6. The target file is under 300 lines, or the change is confined to a
    region you can quote in full.
 
 State which preconditions passed. If any failed, stop there — do not emit a
@@ -39,15 +51,18 @@ Sections, in this order:
    a requirement, not as a narrative of the discussion.
 2. **The file as it exists now** — full current contents in a fenced block,
    or `NEW FILE` if it does not exist yet.
-3. **The failing tests** — full contents of the test functions that must
-   pass, in a fenced block. Not a summary of them; the actual code.
+3. **The failing tests** — full contents of the test functions for the
+   target that must pass, in a fenced block. Not a summary of them; the
+   actual code.
 4. **The exact failure output** — verbatim from the gate.
 5. **Contracts it must honor** — every signature, type, import, and
    constant from elsewhere in the codebase that the implementation touches,
-   quoted directly. Assume the executor cannot look anything up. This
-   section is where delegation succeeds or fails.
-6. **Out of bounds** — files it must not touch, behavior it must not change,
-   dependencies it must not add.
+   quoted directly — including from files implemented earlier in this
+   plan. Assume the executor cannot look anything up. This section is where
+   delegation succeeds or fails.
+6. **Out of bounds** — files it must not touch (every other file in the
+   plan included), behavior it must not change, dependencies it must not
+   add.
 7. **Output contract** — verbatim:
    > Return the complete final contents of `<path>`, and nothing else. No
    > diff, no patch, no commentary, no markdown fence around the file, no
@@ -76,9 +91,12 @@ Print, as plain text for the human:
 - A reminder that the loop is: run the executor, apply its output, run
   `/review-check`, and on a red gate retry at most **3** times before
   escalating this file back to the frontier model.
+- The plan files still unimplemented after this one, and which of them is
+  next eligible for a packet. Gate failures from those files are expected
+  until they land; failures in the target's own tests are not.
 - A reminder that a green gate is necessary and not sufficient — `/review`
   still runs against the spec afterward, over the complete semantic change
-  set.
+  set once every plan file has landed.
 
 Then stop. Do not invoke another model, do not implement the file yourself,
 and do not commit anything.

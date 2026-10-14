@@ -1,14 +1,14 @@
 # Local Delegate Runner
 
 **Status:** draft for discussion; nothing implemented
-**Last updated:** 2026-10-13
+**Last updated:** 2026-10-14
 
 ## Goal
 
 Close the gap between `/delegate` (which writes a handoff packet and stops)
 and a working local-execution loop: a stack-neutral runner that sends one
 packet to a local model, applies the result in a scratch copy, verifies it, and
-either hands a green candidate to frontier review or escalates the file back
+either hands a green candidate to frontier review or escalates the task back
 to the frontier model. Whether a local model is used at all is decided by
 measured capability on the project's own tasks, not by model size, vendor
 claims, or a per-task human guess.
@@ -110,8 +110,12 @@ existing implementation workflow without creating a delegation packet or
 calling a local endpoint. The mode and selection come from the checkout's
 entry in the private profile. In `auto` mode, an admitted model and a task
 meeting `/delegate` preconditions trigger packet creation, runner invocation, and
-reading the result. A green candidate moves on to `/review`; a refusal or
-`needs_frontier` result means the orchestrator implements the file itself.
+reading the result. A plan that touches several files is walked in its
+order of operations, one packet per eligible step, so some steps may be
+delegated and others implemented by the orchestrator. A green candidate
+moves on to the next step, and `/review` runs once the plan's files have
+landed; a refusal or `needs_frontier` result means the orchestrator
+implements that step itself.
 A broken gate or changed workspace must be resolved first. In `off` mode,
 `/delegate` retains its manual packet-only behavior and the human may run the
 packet by hand.
@@ -127,8 +131,8 @@ in `/delegate`. Extend the packet with a machine-readable header so the
 runner can admit or refuse without reading prose:
 
 ```yaml
-target: src/pkg/parser.py
-target_lines: 140          # current size, 0 for a new file
+targets: [src/pkg/parser.py]  # one entry per file the model returns
+target_lines: 140          # summed current size, 0 for new files
 contract_items: 6          # signatures/types/constants quoted in "Contracts"
 visible_tests: 4
 test_targets: [tests/test_parser.py]  # focused targets accepted by toolchain test
@@ -137,13 +141,26 @@ bucket: small              # derived: see below
 ```
 
 `bucket` is derived from the counts by fixed thresholds (for example
-`small`: ≤150 lines and ≤8 contract items; `medium`: ≤300 and ≤15; anything
-larger is not delegable). The thresholds are a starting point to be
-corrected by the ledger, not a claim about model capability.
+`small`: one file, ≤150 lines and ≤8 contract items; `medium`: one file,
+≤300 and ≤15; `coupled`: two or three files, ≤300 lines in total and ≤15
+contract items; anything larger is not delegable). File count is a bucket
+dimension like the others, not a fixed rule: each bucket is admitted only
+by its own calibration, and admission in one never implies another. The
+thresholds are a starting point to be corrected by the ledger, not a claim
+about model capability.
+
+A multi-file plan is split into one-file packets in dependency order
+whenever each file can reach green on its own once its predecessors have
+landed; `/delegate` already does this. A `coupled` packet is only for files
+that cannot pass separately — a new type and its sole consumer, or a
+signature change and its callers — and only when the selected model holds
+a `coupled` admission. Without one, that step goes to the frontier model.
+The single-shot, no-tools, whole-file rules apply unchanged: a coupled call
+is still one request returning complete files, never a multi-turn edit.
 
 The judgment the frontier model contributes is *self-containment*: whether
 every reference the executor needs is quoted. That cannot be fully checked
-mechanically. On escalation, the orchestrator implements the file and
+mechanically. On escalation, the orchestrator implements the targets and
 records one of two causes in the ledger: `packet` if its own implementation
 needed a signature, type, or constant the packet did not quote, `model`
 otherwise. Packet defects do not count toward a model's demotion; a rising
@@ -202,8 +219,11 @@ mine Git history. Each fixture records its source, stack, packet, starting
 file tree, focused test targets, and known-good target file. It runs two
 stages:
 
-1. *Plumbing* — one already-solved packet. The model must return a parseable
-   whole file with no fence, preamble, or truncation. This catches the
+1. *Plumbing* — one already-solved packet per output shape being
+   calibrated (single-file, and multi-file when `coupled` is). The model
+   must return parseable whole files with no fence, preamble, or
+   truncation, and a multi-file response must use the delimiter format in
+   the packet's output contract. This catches the
    serialization failures
    [`workflow/docs/local-executor.md`](../workflow/docs/local-executor.md)
    names as dominant. A
@@ -217,7 +237,9 @@ stages:
    retry policy below. A bucket is admitted when at least 60% of at least
    10 distinct eligible tasks succeed within three attempts. Record task and
    per-attempt outcomes; this measures the feedback loop, not independent
-   sample pass@3.
+   sample pass@3. Each bucket needs its own ten tasks of that shape; a
+   `coupled` fixture must have targets that cannot pass separately, or it
+   measures nothing a sequence of one-file packets would not.
 
 Admission is scoped to the project. A model's score depends on the
 language, the codebase's conventions, and how much contract context a
@@ -267,7 +289,7 @@ model or trigger an unbounded transport retry.
 
 `needs_frontier` is a machine-readable result printed with a prominent
 notice naming the reason and the packet path. The runner does no model
-routing: the orchestrator that invoked it implements the file, and the
+routing: the orchestrator that invoked it implements the step, and the
 handoff state lives in the spec, packet, and ledger rather than only in
 conversation, so a human can resume it in any client.
 
@@ -285,8 +307,10 @@ stages plus approval before another real task.
 A candidate passes through three runner filters before frontier review.
 A candidate failure spends an attempt; an integrity violation stops the run.
 
-1. **Runner checks (mechanical, no model).** The output is one complete
-   file; only the target path changes; test files are byte-identical to
+1. **Runner checks (mechanical, no model).** The output contains exactly
+   one complete file per declared target, each once, in the packet's
+   delimiter format when there is more than one; only the target paths
+   change; test files are byte-identical to
    before (hash comparison, as the test-first fingerprint audit already
    does); transport metadata does not report truncation. Reject unsafe target
    paths and symlink escapes before writing. Language-level completeness and
@@ -299,7 +323,7 @@ A candidate failure spends an attempt; an integrity violation stops the run.
    skipped gate as green. A green focused test with a broken neighbor is red.
 3. **Post-execution audit.** Compare file contents, types, and modes with
    the baseline after the gate, including failed runs. Only the supplied
-   target may differ; the gate must not alter that candidate either. Tests
+   targets may differ; the gate must not alter that candidate either. Tests
    and fixtures remain byte-identical. Enumerate permitted tool artifacts
    explicitly rather than exempting every ignored path. Unexpected writes
    invalidate the result and stop the run before promotion.
@@ -315,7 +339,7 @@ A candidate failure spends an attempt; an integrity violation stops the run.
    A docs or broader-change finding does not count against the model; close it
    and record `pass` if the delegated implementation itself was accepted.
    Record `model-defect` or `packet-defect` even when the frontier model then
-   repairs the file, preserving attribution without treating an intermediate
+   repairs the targets, preserving attribution without treating an intermediate
    review verdict as final.
 
 The model receives text and returns text; it has no repository tools.
@@ -357,8 +381,9 @@ Only a candidate passing filters 1–3 may return to the working tree. Before
 copying it, recheck the original workspace against the captured manifest,
 including new untracked inputs and target existence. If it changed while
 the model was running, preserve both the user's work and the scratch result
-and require a fresh run. Publish only the target, uncommitted, without
-changing the index. Serialize publication against other runner instances
+and require a fresh run. Publish only the targets, uncommitted, without
+changing the index; a multi-file candidate publishes all its targets or
+none. Serialize publication against other runner instances
 and perform the freshness check immediately before replacement.
 
 ### 5. Client and transport compatibility
@@ -390,8 +415,8 @@ fixtures.
 A routing classifier would answer question 2 by predicting success from
 task features. It is the wrong first tool here:
 
-- The features that matter are few and countable (file size, contract
-  count, test count, bucket, model quadruple). Fixed thresholds plus
+- The features that matter are few and countable (file count, file size,
+  contract count, test count, bucket, model quadruple). Fixed thresholds plus
   measured admission cover them, and a human can read why a task was
   refused.
 - A classifier needs labeled outcomes per model and per project. Nobody
@@ -452,7 +477,9 @@ and a classifier can be compared against the rules on it.
   stale-target publication, already-green calibration fixtures, matching
   retry feedback, unconfigured/broken gates, malformed/truncated responses,
   timeouts, and a candidate whose gate run writes outside the target inside
-  the scratch tree. CI never calls a real model.
+  the scratch tree. Multi-file fixtures cover a missing target, an extra
+  or undeclared path, a duplicated target, and a coupled candidate in which
+  one file fails so neither is published. CI never calls a real model.
 - Setup fixtures cover no server, declined setup, missing details, a literal
   credential offered in place of a variable name, an incompatible API
   format, pending calibration, and approved activation. They prove that
@@ -525,7 +552,9 @@ bootstrap managed-file inventory, profile transitions, and update tests for
 that executable. Update every `stacks/*/project/.gitignore` source so rendered
 projects ignore `.agentic/delegate/`. Update
 `workflow/commands/delegate.md` to move packets from `docs/specs/` to
-`.agentic/delegate/packets/`, emit the header, and honor `off`/`auto`;
+`.agentic/delegate/packets/`, emit the header, add the `coupled` packet
+shape and its delimiter output contract, and honor `off`/`auto` (per-file
+sequencing of a multi-file plan has already landed there);
 update `/review` so its orchestrator records the final attributable outcome
 for a delegated candidate while its reviewer remains read-only. Re-render the
 Claude, Codex, and Pi surfaces from these sources.

@@ -59,12 +59,19 @@ implementation model should never be the same process.
 
 All six, or don't delegate:
 
-1. **One file.** Multi-file refactors are the named failure in every
-   negative field report.
+1. **One file per call.** A plan that touches several files is delegated
+   as a sequence of one-file calls in dependency order, each quoting the
+   signatures of files already landed. The multi-file failure in field
+   reports is the agentic refactor, where the model navigates and edits
+   many files with tools (Tier 3); a change that only works as a
+   simultaneous multi-file edit stays with the frontier model. Returning
+   several files from one call is a separate, unmeasured task shape: do not
+   assume it from a one-file success rate.
 2. **Single shot, not an agentic loop.** Ask for a complete file back. The
    loop is where the 25% lives; the single bounded edit is where the ~40%
    lives.
-3. **Tests exist and fail before the call.** No oracle, no delegation.
+3. **Tests for the file exist and fail before the call.** No oracle, no
+   delegation.
 4. **Capped retries, then escalate to the frontier model.** The cap matters
    more than its value; three is a reasonable start.
 5. **Prefer whole-file output over diffs.** The same model on the same
