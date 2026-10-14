@@ -39,7 +39,8 @@ engines. No secrets, no internal hostnames, no work-related context.
 Markdown templates plus bash and one project-local Pi TypeScript adapter
 (the generic bootstrap, the shared stack bootstrap body
 `scripts/bootstrap-stack.sh`, client-neutral hook sources under
-`shared/hooks/` and `workflow/hooks/`, the Pi adapter under `shared/pi/`,
+`shared/hooks/` and `workflow/hooks/`, the local delegate runner under
+`workflow/bin/`, the Pi adapter under `shared/pi/`,
 one gate runner per stack under
 `stacks/<name>/toolchain.sh`, and validation under `scripts/`). No build or
 deploy target — files here are consumed by copy into new repos, and smoke
@@ -128,14 +129,15 @@ apply to this repo itself, not just to repos bootstrapped from it.
 
 ```bash
 bash scripts/render-client-surfaces.sh   # after any change under workflow/, shared/, or stacks/
-bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
-shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
+bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh workflow/bin/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
+shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh workflow/bin/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 bash scripts/validate-codex-adapters.sh
 bash scripts/validate-pi-adapters.sh
 bash scripts/smoke-test-generic.sh
 bash scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-typescript.sh [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-custom.sh
+bash scripts/smoke-test-delegate.sh
 ```
 
 `scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
@@ -149,6 +151,10 @@ toolchain, proves the gate and Stop hook then work, and proves `--update`
 leaves the project-owned runner, CI workflow, and Dependabot config alone.
 It also exercises generic-to-custom migration and ensures broken active
 runners fail CI, edit/Stop hooks, and the custom pre-commit entries.
+`scripts/smoke-test-delegate.sh` drives `.agentic/delegate-run.sh` against
+a stub OpenAI-compatible server (`scripts/delegate-stub-server.py`) in a
+filled custom project; it needs `curl`, `jq`, and `python3` and makes no
+network call beyond 127.0.0.1.
 `scripts/smoke-test-generic.sh` covers the stack-neutral flavor, including
 the branch warning on a repository with no commits. CI
 (`.github/workflows/ci.yml`) runs the shell checks plus every
@@ -243,7 +249,13 @@ Open:
   Pi cannot append the existing reminder to default compaction, and neither
   project trust nor role allowlists are OS containment; see
   `docs/pi-portability.md`.
-- Local execution has a draft spec, not an implementation:
+- Local execution has a draft spec and a first slice:
+  `workflow/bin/delegate-run.sh` (installed as `.agentic/delegate-run.sh`
+  with `--full`) runs one packet against a model the human names with
+  `--model`, verifies it in a scratch copy, and publishes only a passing
+  file; smoke-tested against a stub server, not yet against a real local
+  model. Admission, `calibrate`, `discover`, selection, `record-review`,
+  coupled packets, and the automatic handoff remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
   stack-neutral runner that sends a self-contained `/delegate` packet to a
   pinned local model with no tool access, verifies the result, and admits a

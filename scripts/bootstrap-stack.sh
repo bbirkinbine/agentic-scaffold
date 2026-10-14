@@ -86,7 +86,8 @@
 #   - full or --advanced-docs: docs/parallel-agents.md,
 #     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
 #     docs/llm-product.md, docs/local-executor.md.
-#   - full only: command stubs for security / performance / eval / delegate
+#   - full only: command stubs for security / performance / eval / delegate,
+#     the .agentic/delegate-run.sh local delegate runner,
 #     and the inert Claude PR-review workflow example.
 #
 # What it also creates (only if absent):
@@ -1214,6 +1215,7 @@ if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/delegate.md
   sync .agents/skills/delegate/SKILL.md
   sync .pi/prompts/delegate.md
+  sync .agentic/delegate-run.sh
   sync .github/workflows/claude-review.yml.example
 fi
 
@@ -1266,6 +1268,7 @@ prune_profile_transition() {
     .claude/commands/delegate.md
     .agents/skills/delegate/SKILL.md
     .pi/prompts/delegate.md
+    .agentic/delegate-run.sh
     .github/workflows/claude-review.yml.example
   )
   local advanced_files=(

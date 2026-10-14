@@ -1,7 +1,22 @@
 # Local Delegate Runner
 
-**Status:** draft for discussion; nothing implemented
+**Status:** draft; first slice implemented
 **Last updated:** 2026-10-14
+
+**Implemented (manual slice).** `workflow/bin/delegate-run.sh run <packet>
+--model <name>` (installed as `.agentic/delegate-run.sh` with `--full`) runs
+one packet against a model the human names from the profile, with no
+admission check, labelled `manual` in its result and ledger record. It
+covers the packet header, the scratch snapshot and red baseline, the
+three-attempt retry policy with feedback, the transport rules, filters 1–3,
+the stale-workspace check, publication, and the ledger, tested by
+`scripts/smoke-test-delegate.sh` against a stub server. Two deliberate
+differences from the text below: verification compares each gate step to
+the baseline instead of requiring a fully green gate (see filter 2), and
+the post-execution audit covers unignored files only; ignored tool
+artifacts are not yet enumerated. Not built: admission, `calibrate`,
+`discover`, selection, `record-review`, coupled packets, demotion, and the
+automatic handoff.
 
 ## Goal
 
@@ -393,10 +408,17 @@ A candidate failure spends an attempt; an integrity violation stops the run.
    import restrictions need stack-specific checks or frontier review; a
    language-neutral shell parser cannot prove them.
 2. **Full gate.** Syntax-check `.agentic/toolchain.sh`, then run `ready`.
-   Exit 0 permits `.agentic/toolchain.sh gate`: lint, format-check, types,
-   and the whole suite. Exit 3 refuses delegation because verification is
-   unconfigured; any other failure reports a broken verifier. Never treat a
-   skipped gate as green. A green focused test with a broken neighbor is red.
+   Exit 0 permits running each gate step — lint, format-check, typecheck,
+   and the whole suite — plus the packet's focused tests. Exit 3 refuses
+   delegation because verification is unconfigured; any other failure
+   reports a broken verifier. Never treat a skipped gate as green. The
+   focused tests must pass, and every step that was green on the baseline
+   must stay green: a green focused test with a broken neighbor is red.
+   A step already red on the baseline cannot be held against the candidate
+   — in a multi-file plan, the other plan files' tests (and often the type
+   check) fail until those files land — so it is reported as unverified
+   and the result is a `partial` gate. The full gate is required once every
+   plan file has landed, as it is for frontier-written code.
 3. **Post-execution audit.** Compare file contents, types, and modes with
    the baseline after the gate, including failed runs. Only the supplied
    targets may differ; the gate must not alter that candidate either. Tests

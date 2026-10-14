@@ -49,6 +49,22 @@ reuse the spec's number and enter the status dashboard. It must be readable
 by a model with **no access to this conversation, this
 repository, or any tool**. Everything it needs is in the file.
 
+Start the file with this front matter, filled from the plan and the
+preconditions above. `.agentic/delegate-run.sh` reads it to check the run
+and never sends it to the model:
+
+```yaml
+---
+targets: [<path of the one target file>]
+target_lines: <current line count, 0 for a new file>
+contract_items: <signatures, types, and constants quoted in section 5>
+visible_tests: <test functions quoted in section 3>
+test_targets: [<test file(s) that exercise the target>]
+new_dependencies: false
+bucket: <small: <=150 lines and <=8 contract items; medium: <=300 and <=15>
+---
+```
+
 Sections, in this order:
 
 1. **Task** — one paragraph. What the file must do when finished. Written as
@@ -91,10 +107,14 @@ Sections, in this order:
 Print, as plain text for the human:
 
 - The packet path.
-- The command to run the gate on the result.
-- A reminder that the loop is: run the executor, apply its output, run
-  `/review-check`, and on a red gate retry at most **3** times before
-  escalating this file back to the frontier model.
+- How to run it. When `.agentic/delegate-run.sh` is installed:
+  `bash .agentic/delegate-run.sh run <packet> --model <name>`, where
+  `<name>` is a `[[model]]` entry in the machine profile
+  (`~/.config/agentic/local-models.toml`; `--help` shows the format). The
+  runner verifies in a scratch copy, retries at most **3** times, and
+  publishes only a passing file. Otherwise the loop is manual: run the
+  executor, apply its output, run `/review-check`, and on red retry at most
+  **3** times before escalating this file back to the frontier model.
 - The plan files still unimplemented after this one, and which of them is
   next eligible for a packet. Gate failures from those files are expected
   until they land; failures in the target's own tests are not.
@@ -102,5 +122,10 @@ Print, as plain text for the human:
   still runs against the spec afterward, over the complete semantic change
   set once every plan file has landed.
 
-Then stop. Do not invoke another model, do not implement the file yourself,
-and do not commit anything.
+Then stop, unless the human asked you to run the packet. Then run the
+runner with the model they named and report its result as it printed it:
+on exit 0 the file is published and `/review-check` comes next; on
+`needs_frontier` (exit 10) implement the file yourself without reading the
+local attempts; on any other exit, report the reason and stop. Never call a
+model any other way, never edit the target while the runner is working or
+before `/review`, and do not commit anything.

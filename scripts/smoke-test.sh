@@ -118,6 +118,7 @@ case "$PROFILE" in
     must_not .claude/commands/delegate.md
     must_not .pi/prompts/security.md
     must_not .pi/prompts/delegate.md
+    must_not .agentic/delegate-run.sh
     ;;
   full)
     must .claude/agents/analyzer.md
@@ -133,6 +134,7 @@ case "$PROFILE" in
     must .claude/commands/delegate.md
     must .agents/skills/delegate/SKILL.md
     must .pi/prompts/delegate.md
+    must .agentic/delegate-run.sh
     must .github/workflows/claude-review.yml.example
     ;;
   *)
