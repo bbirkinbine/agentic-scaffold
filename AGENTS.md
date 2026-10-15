@@ -267,7 +267,13 @@ Open:
   four packets across two models; from it the runner sizes a new file by
   the packet's `expected_lines`, refuses a bucket labelled smaller than its
   counts, and keeps each published file so `record-review` logs how much
-  of it review kept. Frontier-token savings are still unmeasured. `init` drafts the machine profile from each server's
+  of it review kept. Frontier-token savings are still unmeasured.
+  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) (draft,
+  not built) proposes handing a whole phase to a headless local Pi session
+  in a worktree, verified and reviewed by the frontier orchestrator, after a
+  local model ran the full loop well with tools. It also flags that the
+  runner's scratch copy omits ignored dependencies, which may explain the
+  trials' unverified typecheck and test steps. `init` drafts the machine profile from each server's
   model list and `project-types.md` carries the founding setup. Coupled
   packets and optional `calibrate` remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
