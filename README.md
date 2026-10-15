@@ -117,6 +117,10 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
 - [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) — design,
   safety boundaries, and acceptance contract for bounded local-model
   delegation; its status header records the current implementation state.
+  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) hands a whole
+  phase to a local session. A Claude Code or Codex orchestrator can
+  delegate either way; the handoff session itself, and a fully local loop,
+  run in Pi.
 
 `python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run

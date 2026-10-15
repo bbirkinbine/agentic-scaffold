@@ -272,7 +272,7 @@ and Pi; Codex uses the same name as `$<name>`.
 | `/performance` (`performance-reviewer`) | Perf-only review | The diff touches a hot path (section 6) | full + opt-in agent |
 | `/eval` (`evaluator`) | Authors/runs an LLM output-quality eval | The product ships an LLM/AI surface (section 6) | full + opt-in agent |
 | `/unattended` | `start` asks every foreseeable decision up front and records standing consent; `reconcile` reviews the decisions an unattended run made on the human's behalf | Leaving one feature to run unattended (overnight, a day away) to "ready to merge" ([`parallel-agents.md`](parallel-agents.md)) | full |
-| `/delegate` | Builds a self-contained handoff packet for a weaker/local executor, and runs it through `.agentic/delegate-run.sh` when asked or when its `policy` is `auto` | Handing one already-tested file to a local model ([`local-executor.md`](local-executor.md)) | full |
+| `/delegate` | Hands work to a local model through `.agentic/delegate-run.sh`: one tested file per call (`files`) or a whole phase to a local session in a worktree (`handoff`), in the mode the human picks per run | Local implementation with frontier verification and review ([`local-executor.md`](local-executor.md)) | full |
 
 Two hard rules survive every profile: **CI is the gate you cannot skip**,
 and **you write the commit message** — the agent never commits for you.
@@ -353,7 +353,10 @@ running; default to no. If yes:
 3. Run `qualify <name>` on each candidate and report the results.
 4. Leave `policy = "off"`. Switching to `"auto"` with
    `activation_approved = true` is a separate decision the human makes
-   after seeing the qualification results.
+   after seeing the qualification results; even then, each run's
+   delegation mode (`none`, `files`, `handoff`) is chosen per run. The
+   `handoff` mode and a fully local loop need Pi installed; `files` mode
+   works from any client.
 
 `evals.md`, `llm-product.md`, `serena-setup.md`, `parallel-agents.md`, and
 `local-executor.md` install with `--full` or `--advanced-docs`. The optional agents themselves are always

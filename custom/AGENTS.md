@@ -173,9 +173,10 @@ log it as `/unattended` describes.
   coding.
 - **Implement:** Be on a feature branch; write the minimum passing code. For
   external-authority values, follow "External-reference provenance." When
-  `.agentic/delegate-run.sh` is installed and its `policy` prints `auto`,
-  hand eligible plan files to the local model first, as `/delegate` →
-  "Automatic mode" says.
+  `.agentic/delegate-run.sh` is installed, its `policy` prints `auto`, and
+  the human chose a delegation mode for this run (`files` or `handoff`, a
+  standing decision or a direct answer), delegate as `/delegate` says for
+  that mode. Without that choice, implement yourself.
 - **Docs:** Before review, correct affected docs. Change README only for pitch,
   installation, or user-facing changes. Add a doc only for standing guidance
   that fits no existing doc or docstring. Mark the spec `shipped` and

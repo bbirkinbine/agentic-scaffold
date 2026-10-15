@@ -175,12 +175,24 @@ ran and why:
 Never call a model any other way, never edit the target while the runner
 is working or before `/review`, and do not commit anything.
 
+## Delegation modes
+
+`policy` printing `auto` means the human approved local delegation for this
+checkout. Which kind, if any, is chosen per run, as a standing decision
+from `/unattended start` or the human's direct answer:
+
+- `none`: implement yourself. Also the answer when the session itself runs
+  on a local model, since delegating to another local model only adds work.
+- `files`: "Automatic mode" below, one file per call through `run`.
+- `handoff`: "Phase handoff" below, a whole phase to a local session.
+
+With no choice recorded, ask once at the implement step; never assume one
+from the policy alone.
+
 ## Automatic mode
 
-At the implement step, when `.agentic/delegate-run.sh` is installed and
-`bash .agentic/delegate-run.sh policy` prints `auto`, the human has already
-approved local delegation for this checkout; do not ask again per file.
-Walk the approved plan's files in its order of operations:
+With delegation `files` and `policy` printing `auto`, do not ask again per
+file. Walk the approved plan's files in its order of operations:
 
 1. Check the preconditions above for the next file. If one fails, implement
    that file yourself and move on; say which precondition failed.
@@ -204,3 +216,37 @@ When every plan file has landed, continue with docs, `/review-check`, and
 `/review` as usual. After the final review disposition, record a verdict
 with `record-review` for every run that published a file. Report which
 files were delegated, which model ran each, and how each ended.
+
+## Phase handoff
+
+Instead of one file at a time, the whole implement phase (or test-first plus
+implement) can go to a local agent session that reads the repository, edits,
+and runs the tests itself, in its own git worktree. The session runs in Pi
+whichever client orchestrates, so Pi must be installed. Use it with
+delegation `handoff`, the plan approved, the spec `shipping`, and the tree
+committed:
+
+1. Run `bash .agentic/delegate-run.sh handoff <spec> --phase implement`
+   (or `--phase test-first+implement`), with `--model <name>` when the
+   human named one. The session runs headless; this can take an hour or
+   more. Do not edit the repository while it runs.
+2. Act on the exit status:
+   - 0: verified (full gate green, only plan files changed, no test file in
+     an implement-only phase) and committed on `handoff/<run>`. Read the
+     spec's `### After handoff` note in the worktree, then run `/review`
+     (and `/review-adversarial` on meaningful features) on
+     `git diff HEAD...handoff/<run>`. Fix findings yourself or hand off
+     again; then `git merge --squash handoff/<run>` into the feature branch
+     and continue with closeout.
+   - 10 (`needs_frontier`): the session ended with the gate red or changed
+     nothing. Read its handoff note in the kept worktree, then either
+     implement yourself from the branch's starting point or hand off once
+     more with a short hint in the spec.
+   - 4 (integrity): the session changed files outside the plan, or a test
+     in an implement-only phase. Report to the human; do not merge.
+   - 3 (infrastructure) or 2 (refused): report and implement yourself.
+3. After merging or abandoning a handoff, remove its worktree and branch:
+   `bash .agentic/delegate-run.sh handoff-clean <run>`
+   (`handoff-clean` alone lists what is left; `--all` removes every one).
+   Record the review verdict with `record-review <run>` first; a handoff is
+   scored per phase like a file run.

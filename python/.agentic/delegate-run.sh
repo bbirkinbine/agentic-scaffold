@@ -49,6 +49,20 @@
 #   status                   Each profile model's qualification and its
 #                            record per bucket in this project.
 #   reset <model> <bucket>   Clear a demotion; starts a fresh record.
+#   handoff <spec> [--phase implement|test-first+implement] [--model <name>]
+#                            Hand a whole phase of an approved spec to a
+#                            local agent session (Pi) in a new git worktree:
+#                            install, run the session headless on the
+#                            model, then verify the full gate and that only
+#                            the plan's files changed (and, for `implement`,
+#                            no test file). A verified run is committed on
+#                            its own branch `handoff/<run>` for the
+#                            orchestrator to review and merge; scored per
+#                            phase like a run. See docs/local-phase-handoff.md.
+#   handoff-clean [<run-id> | --all]
+#                            List handoff worktrees, or remove one (or all)
+#                            with its handoff/ branch after merging or
+#                            abandoning it.
 #
 # Scoring (docs/local-delegate-runner.md in agentic-scaffold): a success is
 # a published candidate that passed review; a failure is needs_frontier or
@@ -67,8 +81,8 @@
 #   base_url = "http://<host>:<port>/v1"
 #   credential_env = "LOCAL_MODEL_TOKEN"   # optional; variable NAME, never the value
 #
-#   [[model]]
-#   name = "coder-a"
+#   [[model]]                              # pi_model / pi_thinking: optional,
+#   name = "coder-a"                       # used by handoff (default <endpoint>/<model_id>)
 #   endpoint = "lan-gateway"
 #   model_id = "<id the server reports>"
 #   quant = "Q8_K"
@@ -90,6 +104,9 @@
 #   5   qualify: the model failed the plumbing check
 #   3   infrastructure failure: endpoint, transport, or verifier
 #   4   integrity stop: unexpected writes, or the workspace changed mid-run
+#   handoff: 0 verified and committed on handoff/<run>; 10 the session ended
+#   with the gate red; 4 out-of-plan or test-file changes; 3 harness crash,
+#   timeout, install, or worktree failure; 2 refused.
 #
 # Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
 # sha256sum or shasum.
@@ -122,7 +139,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,93p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,112p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -894,6 +911,10 @@ cmd_run() {
   (cd "$ROOT" && tar -cf - --null -T "$STATE/files.nul") | (cd "$TREE" && tar -xf -) ||
     infra "could not copy the workspace snapshot"
   git -C "$TREE" init -q || infra "could not initialize scratch listing"
+  # Ignored dependency directories (node_modules, .venv) are not in the
+  # snapshot; install them so typecheck and tests can verify the candidate.
+  verify_cmd bash "$TOOLCHAIN" install >"$STATE/install.log" 2>&1 ||
+    say "warning: '$TOOLCHAIN install' failed in the scratch copy; steps needing dependencies may stay red: $(bounded_tail "$STATE/install.log" | tail -n 2 | tr '\n' ' ')"
 
   no_symlink_path "$TREE" "$TARGET" || integrity "target path '$TARGET' passes through a symlink"
   [[ -f "$TREE/$TOOLCHAIN" ]] || refuse "no $TOOLCHAIN in the workspace"
@@ -1475,6 +1496,221 @@ cmd_reset() {
   say "reset '$model' for $bucket tasks; its record starts fresh"
 }
 
+# ---- handoff: a whole phase to a local agent session ----------------------------
+
+# plan_files <spec> : the backticked paths listed under "## Files to touch".
+plan_files() {
+  awk '/^## Files to touch/ { on = 1; next } on && /^## / { exit }
+    on && /^- `/ { sub(/^- `/, ""); sub(/`.*/, ""); print }' "$1"
+}
+
+# is_test_path <path> : the stack-neutral test-file rule used by the
+# implement phase (tests are the oracle there and must not change).
+is_test_path() {
+  [[ "$1" =~ (^|/)(tests?|__tests__|spec)/ || "$1" =~ [._-](test|spec)\.[A-Za-z0-9]+$ || "$1" =~ (^|/)test_[^/]*$ ]]
+}
+
+handoff_prompt() {
+  local spec="$1" phase="$2" phases
+  case "$phase" in
+    implement) phases="implementation, then /review-check" ;;
+    *) phases="/test-first, then implementation, then /review-check" ;;
+  esac
+  cat <<PROMPT
+You are a local model implementing one phase of an approved spec in an isolated worktree. Spec: $spec. Its plan is approved; the spec, its standing decisions, and its clarified decisions are final inputs.
+
+Run $phases, following AGENTS.md. Rules:
+- Change only the files the plan lists under "## Files to touch", plus the spec's own phase-handoff note.$( [[ "$phase" == implement ]] && printf '\n- The tests already exist and are the oracle: do not edit, add, or delete any test file. If a test looks wrong, stop and say so in the handoff note.' )
+- Do not use local delegation (.agentic/delegate-run.sh or /delegate) and pass no model override to any subagent.
+- Do not commit, push, or change branches. Do not ask the human anything: no one is watching. Where the spec leaves a choice open, pick the option that keeps the approved plan intact and record it in the handoff note.
+- Stop when /review-check is green, or when you are blocked. Before stopping, append a short "### After handoff" entry under "## Phase handoff" in the spec: what you did, any choice you made, and anything left red or blocked.
+PROMPT
+}
+
+cmd_handoff() {
+  local spec="" phase=implement profile
+  profile="$(default_profile)"
+  MODEL_NAME=""
+  while (($#)); do
+    case "$1" in
+      --phase) phase="${2:-}"; shift 2 ;;
+      --model) MODEL_NAME="${2:-}"; shift 2 ;;
+      --profile) profile="${2:-}"; shift 2 ;;
+      -h | --help) usage; exit 0 ;;
+      -*) say "unknown option: $1"; exit 2 ;;
+      *) [[ -z "$spec" ]] || { say "one spec per handoff"; exit 2; }; spec="$1"; shift ;;
+    esac
+  done
+  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> [--phase implement|test-first+implement] [--model <name>]"; exit 2; }
+  case "$phase" in implement | test-first+implement) ;; *) say "unknown phase: $phase"; exit 2 ;; esac
+  MODE=manual
+  [[ -n "$MODEL_NAME" ]] || MODE=selected
+  require_deps git jq awk perl curl
+
+  local harness="${DELEGATE_HANDOFF_HARNESS:-pi}"
+  command -v "$harness" >/dev/null 2>&1 || { say "agent harness not found: $harness"; exit 2; }
+  git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
+
+  mkdir -p "$DELEGATE_DIR/results"
+  if ! mkdir "$DELEGATE_DIR/lock" 2>/dev/null; then
+    say "another run holds $DELEGATE_DIR/lock; remove it if no run is active"
+    exit 2
+  fi
+  LOCKED=1
+  trap cleanup EXIT
+
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-handoff.XXXXXX")" || infra "could not create scratch directory"
+  STATE="$WORK/state"
+  mkdir -p "$STATE"
+  [[ -f "$ROOT/$spec" ]] || refuse "spec not found: $spec"
+  case "$spec" in /* | *..*) refuse "spec path must be relative to the repository: $spec" ;; esac
+  RUN_ID="handoff-$(basename "$spec" .md)-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  PACKET_REL="$spec"
+  PACKET_SHA="$(sha_file "$ROOT/$spec")"
+  TARGET="$spec"
+  BUCKET="phase:$phase"
+
+  # -- preconditions
+  grep -q '^\*\*Status:\*\* shipping' "$ROOT/$spec" || refuse "spec status is not 'shipping' (the plan must be approved first)"
+  grep -q '^## Approved implementation plan' "$ROOT/$spec" || refuse "spec has no '## Approved implementation plan'"
+  plan_files "$ROOT/$spec" >"$STATE/plan-files"
+  [[ -s "$STATE/plan-files" ]] || refuse "spec lists no files under '## Files to touch'"
+  [[ -z "$(git -C "$ROOT" status --porcelain)" ]] || refuse "the working tree is not clean; commit or stash first (the worktree starts from HEAD)"
+
+  # -- model
+  load_profile "$profile"
+  if [[ -n "$MODEL_NAME" ]]; then
+    load_model "$MODEL_NAME"
+    check_credential
+    QUALIFIED="$(qualification_state "$MODEL_NAME" "$FINGERPRINT")"
+    [[ "$QUALIFIED" == qualified ]] ||
+      refuse "model '$MODEL_NAME' is $QUALIFIED for its current setup; run: delegate-run.sh qualify $MODEL_NAME"
+  else
+    select_model
+  fi
+  local pi_model pi_thinking harness_version
+  pi_model="$(profile_get model "$MODEL_NAME" pi_model)"
+  pi_model="${pi_model:-$ENDPOINT_NAME/$MODEL_ID}"
+  pi_thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
+  harness_version="$("$harness" --version 2>/dev/null | head -n 1)"
+  # The harness is part of the setup: a new harness version starts a new record.
+  FINGERPRINT="$(printf '%s\n' "$FINGERPRINT" "$harness" "$harness_version" "$pi_thinking" | "${SHA[@]}" | cut -c1-16)"
+
+  # -- worktree
+  local base wt branch
+  base="${DELEGATE_HANDOFF_DIR:-${TMPDIR:-/tmp}/agentic-handoff}"
+  mkdir -p "$base" || infra "could not create $base"
+  wt="$base/$RUN_ID"
+  branch="handoff/$RUN_ID"
+  git -C "$ROOT" worktree add -q -b "$branch" "$wt" HEAD >"$STATE/worktree.log" 2>&1 ||
+    infra "could not create the worktree: $(bounded_tail "$STATE/worktree.log")"
+  TREE="$wt"
+  SNAPSHOT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+  local result_dir="$DELEGATE_DIR/results/$RUN_ID"
+  mkdir -p "$result_dir/session"
+  say "worktree: $wt (branch $branch)"
+
+  verify_cmd bash "$TOOLCHAIN" install >"$result_dir/install.log" 2>&1 ||
+    say "warning: '$TOOLCHAIN install' failed in the worktree; see ${result_dir#"$ROOT"/}/install.log"
+  local ready=0
+  verify_cmd bash "$TOOLCHAIN" ready >"$STATE/ready.log" 2>&1 || ready=$?
+  ((ready == 0)) || refuse "the gate is not ready in the worktree ($TOOLCHAIN ready exited $ready); remove it with: git worktree remove --force $wt"
+  if [[ "$phase" == implement ]] && verify_cmd bash "$TOOLCHAIN" test >"$STATE/baseline.log" 2>&1; then
+    refuse "the tests already pass: nothing to implement (run test-first first, or use --phase test-first+implement); remove the worktree with: git worktree remove --force $wt"
+  fi
+
+  # -- session
+  handoff_prompt "$spec" "$phase" >"$result_dir/prompt.md"
+  local -a hargs=(-p --approve --model "$pi_model" --session-dir "$result_dir/session" --mode json)
+  [[ -n "$pi_thinking" ]] && hargs+=(--thinking "$pi_thinking")
+  local -a envkeep=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb)
+  [[ -n "${TMPDIR:-}" ]] && envkeep+=(TMPDIR="$TMPDIR")
+  [[ -n "${CRED_ENV:-}" ]] && envkeep+=("$CRED_ENV=${!CRED_ENV}")
+  local limit="${DELEGATE_HANDOFF_TIMEOUT:-14400}" started rc=0
+  started="$(date +%s)"
+  say "session: $harness on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"
+  (cd "$wt" && STEP_TIMEOUT="$limit" bounded env -i "${envkeep[@]}" "$harness" "${hargs[@]}" "$(cat "$result_dir/prompt.md")") \
+    >"$result_dir/harness.log" 2>&1 || rc=$?
+  record_attempt 1 session "harness exit $rc" "$(($(date +%s) - started))"
+  ((rc == 124)) && infra "the session hit its ${limit}s limit; worktree kept at $wt"
+  ((rc == 0)) || infra "the harness exited $rc: $(bounded_tail "$result_dir/harness.log" | tail -n 5)"
+
+  # -- verify, independently of what the session said
+  git -C "$wt" status --porcelain=v1 -uall | awk '{ p = substr($0, 4); sub(/.* -> /, "", p); print p }' |
+    LC_ALL=C sort -u >"$STATE/changed"
+  : >"$STATE/outside"
+  : >"$STATE/tests-touched"
+  local f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    [[ "$f" == "$spec" || "$f" == docs/specs/README.md ]] && continue
+    grep -qxF "$f" "$STATE/plan-files" || printf '%s\n' "$f" >>"$STATE/outside"
+    if [[ "$phase" == implement ]] && is_test_path "$f"; then printf '%s\n' "$f" >>"$STATE/tests-touched"; fi
+  done <"$STATE/changed"
+  jq -n --arg wt "$wt" --arg branch "$branch" --arg phase "$phase" --arg harness "$harness" \
+    --arg harness_version "$harness_version" --arg pi_model "$pi_model" \
+    --rawfile changed "$STATE/changed" --rawfile outside "$STATE/outside" --rawfile tests "$STATE/tests-touched" \
+    '{worktree: $wt, branch: $branch, phase: $phase, harness: $harness, harness_version: $harness_version,
+      pi_model: $pi_model, changed: ($changed | split("\n") | map(select(. != ""))),
+      outside_plan: ($outside | split("\n") | map(select(. != ""))),
+      test_files_changed: ($tests | split("\n") | map(select(. != "")))}' >"$result_dir/handoff.json"
+  [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
+  [[ -s "$STATE/outside" ]] && integrity "changes outside the plan's files: $(tr '\n' ' ' <"$STATE/outside")(worktree kept at $wt)"
+  [[ -s "$STATE/tests-touched" ]] && integrity "the implement phase changed test files: $(tr '\n' ' ' <"$STATE/tests-touched")(worktree kept at $wt)"
+
+  if ! verify_cmd bash "$TOOLCHAIN" gate >"$result_dir/gate.log" 2>&1; then
+    OUTCOME=needs_frontier
+    REASON="the session ended with the gate red: $(bounded_tail "$result_dir/gate.log" | tail -n 5 | tr '\n' ' ')"
+    say "needs_frontier: $REASON"
+    say "worktree kept at $wt; read the spec's '### After handoff' note there"
+    finish 10
+  fi
+  GATE_LEVEL=full
+
+  git -C "$wt" add -A >/dev/null 2>&1 &&
+    git -C "$wt" commit -q -m "Local handoff $RUN_ID ($phase on $MODEL_NAME)" >"$STATE/commit.log" 2>&1 ||
+    infra "could not commit on $branch: $(bounded_tail "$STATE/commit.log")"
+  OUTCOME=green
+  REASON=""
+  say "green: $phase verified (full gate, plan scope) and committed on $branch."
+  say "Next: review the branch (git diff HEAD...$branch), then: git merge --squash $branch"
+  say "  then: delegate-run.sh handoff-clean $RUN_ID"
+  finish 0
+}
+
+# handoff-clean [<run-id> | --all] : remove handoff worktrees and their
+# branches. A run id removes that one; --all removes every handoff worktree
+# of this repository. Without either, lists them. Never touches the main
+# working tree or any branch outside handoff/.
+cmd_handoff_clean() {
+  require_deps git awk
+  local target="${1:-}" path branch removed=0
+  git -C "$ROOT" worktree prune
+  while IFS=$'\t' read -r path branch; do
+    [[ "$branch" == handoff/* ]] || continue
+    if [[ -z "$target" ]]; then
+      printf '%s\t%s\n' "${branch#handoff/}" "$path"
+      continue
+    fi
+    [[ "$target" == --all || "$target" == "${branch#handoff/}" ]] || continue
+    git -C "$ROOT" worktree remove --force "$path" 2>/dev/null || rm -rf "$path"
+    git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
+    say "removed $branch ($path)"
+    removed=$((removed + 1))
+  done < <(git -C "$ROOT" worktree list --porcelain |
+    awk '/^worktree / { p = substr($0, 10) } /^branch refs\/heads\// { print p "\t" substr($0, 19) }')
+  # Branches whose worktree is already gone.
+  if [[ -n "$target" ]]; then
+    while IFS= read -r branch; do
+      [[ -n "$branch" ]] || continue
+      [[ "$target" == --all || "$target" == "${branch#handoff/}" ]] || continue
+      git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1 && { say "removed $branch"; removed=$((removed + 1)); }
+    done < <(git -C "$ROOT" branch --list 'handoff/*' --format='%(refname:short)')
+    git -C "$ROOT" worktree prune
+    ((removed > 0)) || { say "no handoff worktree matches '$target'"; exit 2; }
+  fi
+}
+
 require_deps() {
   local dep
   for dep in "$@"; do
@@ -1491,6 +1727,8 @@ case "${1:-}" in
   policy) shift; cmd_policy "$@" ;;
   status) shift; cmd_status "$@" ;;
   reset) shift; cmd_reset "$@" ;;
+  handoff) shift; cmd_handoff "$@" ;;
+  handoff-clean) shift; cmd_handoff_clean "$@" ;;
   -h | --help | "") usage; [[ -n "${1:-}" ]] ;;
   *) say "unknown subcommand: $1 (run with --help)"; exit 2 ;;
 esac

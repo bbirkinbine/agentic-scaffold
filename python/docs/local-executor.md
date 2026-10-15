@@ -132,12 +132,32 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    the published lines review kept. Its record decides selection and
    demotion; `status` shows it.
 5. **Automate.** With `policy = "auto"` and `activation_approved = true`
-   in the project entry, `policy` prints `auto` and the Implement step
-   hands eligible plan files to the runner on its own.
+   in the project entry, `policy` prints `auto`. The human then picks a
+   delegation mode per run (`none`, `files`, or `handoff`; `/delegate` →
+   "Delegation modes"), and the Implement step follows it.
+6. **Phase handoff.** `handoff <spec> --phase implement` gives the whole
+   implement phase (or `test-first+implement`) to a local agent session in
+   a git worktree, verifies the gate and the plan's file scope, and commits
+   the result on `handoff/<run>` for review and a squash merge;
+   `handoff-clean` removes it afterwards
+   (design: `docs/local-phase-handoff.md` in agentic-scaffold).
 
 Packets, results, and the ledger stay in the gitignored
-`.agentic/delegate/`. The local model sees only the packet: no
-conversation, spec, repository, or tools.
+`.agentic/delegate/`. In `files` mode the local model sees only the
+packet: no conversation, spec, repository, or tools. In `handoff` mode it
+works in its own worktree with the repository and tools.
+
+### Which clients can do what
+
+| Role | Claude Code | Codex CLI | Pi |
+|---|---|---|---|
+| Orchestrate with a frontier model and delegate locally (`files` or `handoff`) | yes | yes | yes |
+| `files` mode (plain HTTP calls to the model server; no agent harness) | yes | yes | yes |
+| `handoff` session (the local agent itself) | runs Pi | runs Pi | yes |
+| A local model orchestrating the whole loop | not wired by this scaffold | not wired by this scaffold | yes, with a model that handles long tool use |
+
+So local delegation works under any of the three clients; only the
+handoff session and a fully local loop need Pi installed.
 
 ## What breaks, and it is not what you expect
 

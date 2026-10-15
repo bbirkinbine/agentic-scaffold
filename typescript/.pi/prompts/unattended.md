@@ -41,7 +41,10 @@ Run after the plan is approved and persisted, before test-first.
      `bash .agentic/delegate-run.sh status` with their records and ask
      which to use, one for all files or one per bucket; route each packet
      by the bucket the runner accepts (it refuses a packet labelled smaller
-     than its counts).
+     than its counts). Ask the delegation mode for this run: `none`, `files`
+     (one file per call), or `handoff` (implementation, or test-first plus
+     implementation, to a local session; `/delegate` → "Delegation modes").
+     Default `none` when this session itself runs on a local model.
 2. Ask them in one batch, each naming the spec or plan line it affects and
    offering your best-guess default so "defaults are fine" is a complete
    answer. Ask only what the spec, plan, and `AGENTS.md` do not already

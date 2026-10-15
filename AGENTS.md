@@ -268,12 +268,18 @@ Open:
   the packet's `expected_lines`, refuses a bucket labelled smaller than its
   counts, and keeps each published file so `record-review` logs how much
   of it review kept. Frontier-token savings are still unmeasured.
-  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) (draft,
-  not built) proposes handing a whole phase to a headless local Pi session
-  in a worktree, verified and reviewed by the frontier orchestrator, after a
-  local model ran the full loop well with tools. It also flags that the
-  runner's scratch copy omits ignored dependencies, which may explain the
-  trials' unverified typecheck and test steps. `init` drafts the machine profile from each server's
+  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md): `handoff`
+  (v1, smoke-tested with a stub harness, no real-model run yet) hands a
+  whole phase to a headless local Pi session in a git worktree; the runner
+  verifies the gate and plan scope, commits on `handoff/<run>`, and the
+  frontier orchestrator reviews and squash-merges; `handoff-clean` removes
+  the worktree. Built after a local model (GLM-5.3) ran the full loop well
+  with tools. Delegation is now an explicit per-run mode (`none`, `files`,
+  `handoff`) rather than implied by `policy = "auto"`. The single-file
+  runner's scratch copy omitted ignored dependencies (`node_modules`), so
+  its TypeScript typecheck and test steps were likely never verified in
+  the trials; it now runs `toolchain.sh install` there (not yet exercised
+  on a real TypeScript run). `init` drafts the machine profile from each server's
   model list and `project-types.md` carries the founding setup. Coupled
   packets and optional `calibrate` remain.
   [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a

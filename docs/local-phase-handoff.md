@@ -1,6 +1,14 @@
 # Local phase handoff — draft spec
 
-**Status:** draft (2026-10-15). Not implemented. Extends
+**Status:** v1 implemented (2026-10-15) as `delegate-run.sh handoff` and
+`handoff-clean`, smoke-tested with a stub harness; no real-model run yet.
+Differences from the draft below: dependencies come from the stack's own
+`toolchain.sh install` in the worktree; a verified run is committed on its
+`handoff/<run>` branch so the orchestrator can review and `git merge
+--squash` it; `handoff-clean` removes worktrees and branches; the scope
+audit also allows the spec itself and the regenerated `docs/specs/README.md`;
+the implement phase's test-file rule is a path heuristic (`tests/`,
+`__tests__/`, `spec/`, `*.test.*`, `*.spec.*`, `test_*`). Extends
 [`docs/local-delegate-runner.md`](local-delegate-runner.md); reuses its
 profile, ledger, qualification, and policy.
 

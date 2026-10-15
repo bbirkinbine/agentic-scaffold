@@ -592,6 +592,89 @@ expect_select 10
 grep -q 'no selectable candidate' "$WORK/run.out" || fail "an empty selection did not say why"
 [[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called with nothing selectable"
 
+# --- 13. handoff: a whole phase to a stub agent harness in a worktree -------------
+reset_case
+git config user.name smoke
+git config user.email smoke@example.invalid
+mkdir -p docs/specs
+cat >docs/specs/0002-greet.md <<'MD'
+# 0002 — Greet
+
+**Status:** shipping
+
+## Phase handoff
+
+## Approved implementation plan
+
+## Files to touch
+
+- `lib/greet.sh` — print the greeting.
+MD
+git add -A >/dev/null && git commit -qm "spec 0002"
+[[ -z "$(git status --porcelain)" ]] || fail "handoff setup left the tree dirty: $(git status --porcelain)"
+HARNESS="$WORK/stub-harness"
+cat >"$HARNESS" <<SH
+#!/usr/bin/env bash
+[[ "\${1:-}" == --version ]] && { echo "stub-harness 1.0"; exit 0; }
+env >"$WORK/harness-env"
+printf '%s\n' "\$@" >"$WORK/harness-args"
+case "\$(cat "$WORK/harness-mode")" in
+  good) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
+  outside) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo x >lib/extra.sh ;;
+  tests) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo 'exit 0' >tests/test_greet.sh ;;
+  red) printf '%s\n' 'greet() { echo "bye \$1"; }' >lib/greet.sh ;;
+  hang) sleep 30 ;;
+  crash) exit 7 ;;
+esac
+printf '%s\n' '### After handoff' 'Implemented greet.' >>docs/specs/0002-greet.md
+SH
+chmod +x "$HARNESS"
+handoff() {
+  local want="$1" mode="$2" got=0
+  echo "$mode" >"$WORK/harness-mode"
+  DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" HANDOFF_SMOKE_SECRET=leak \
+    bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
+  [[ "$got" == "$want" ]] || { cat "$WORK/handoff.out" >&2; fail "handoff $mode: expected exit $want, got $got"; }
+}
+drop_worktrees() { runner handoff-clean --all >/dev/null 2>&1; return 0; }
+
+handoff 0 good
+branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)"
+[[ -n "$branch" ]] || fail "a verified handoff left no handoff branch"
+[[ "$(git show "$branch:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "the handoff branch does not hold the session's work"
+greet_is "$(cat "$WORK/greet.baseline")" || fail "a handoff changed the main working tree"
+[[ "$(last_result | jq -r .bucket)" == phase:implement ]] || fail "handoff was not recorded under its phase bucket"
+grep -q 'stub/stub-model' "$WORK/harness-args" || fail "the harness was not given <endpoint>/<model_id>"
+grep -q '^--approve$' "$WORK/harness-args" || fail "the harness was not run with --approve"
+if grep -q HANDOFF_SMOKE_SECRET "$WORK/harness-env"; then fail "the session inherited an unlisted environment variable"; fi
+run_id="$(last_result | jq -r .run)"
+runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept a handoff run"
+runner handoff-clean | grep -q "${run_id}" || fail "handoff-clean did not list the kept worktree"
+runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "handoff-clean could not remove one run"
+[[ -z "$(git branch --list 'handoff/*')" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
+  fail "handoff-clean left a worktree or branch behind"
+
+handoff 4 outside
+grep -q 'lib/extra.sh' "$WORK/handoff.out" || fail "an out-of-plan change was not named"
+drop_worktrees
+handoff 4 tests
+grep -q 'tests/test_greet.sh' "$WORK/handoff.out" || fail "a test-file change in the implement phase was not named"
+drop_worktrees
+handoff 10 red
+[[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "a red gate after the session was not needs_frontier"
+drop_worktrees
+DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang
+grep -q 'limit' "$WORK/handoff.out" || fail "a hung session did not report its time limit"
+drop_worktrees
+handoff 3 crash
+drop_worktrees
+[[ -z "$(git branch --list 'handoff/*')" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
+  fail "handoff-clean --all left worktrees or branches behind"
+echo dirty >>lib/greet.sh
+handoff 2 good
+grep -q 'not clean' "$WORK/handoff.out" || fail "a dirty tree was not refused"
+reset_case
+
 # --- 12. lock and ledger --------------------------------------------------------
 [[ ! -e .agentic/delegate/lock ]] || fail "lock was left behind"
 [[ "$(wc -l <.agentic/delegate/ledger.jsonl | tr -d ' ')" -ge 9 ]] || fail "not every run reached the ledger"
