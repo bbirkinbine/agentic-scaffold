@@ -353,7 +353,11 @@ running; default to no. If yes:
 3. Run `qualify <name>` on each candidate and report the results.
 4. Leave `policy = "off"`. Switching to `"auto"` with
    `activation_approved = true` is a separate decision the human makes
-   after seeing the qualification results; even then, each run's
+   after seeing the qualification results: ask, and only on their yes run
+   `bash .agentic/delegate-run.sh activate` (it refuses without a qualified
+   candidate and prints the before and after; `deactivate` turns it off,
+   and the human can run either). Never activate on your own judgment.
+   Even then, each run's
    delegation mode (`none`, `files`, `handoff`) is chosen per run. The
    `handoff` mode and a fully local loop need Pi installed; `files` mode
    works from any client.

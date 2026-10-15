@@ -131,8 +131,11 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    pass|model-defect|packet-defect` scores the model and logs how many of
    the published lines review kept. Its record decides selection and
    demotion; `status` shows it.
-5. **Automate.** With `policy = "auto"` and `activation_approved = true`
-   in the project entry, `policy` prints `auto`. The human then picks a
+5. **Automate.** `activate` sets `policy = "auto"` and
+   `activation_approved = true` in this checkout's project entry (it
+   refuses without a qualified candidate); `deactivate` sets it back. An
+   agent runs either only on the human's explicit yes. Then `policy`
+   prints `auto`. The human then picks a
    delegation mode per run (`none`, `files`, or `handoff`; `/delegate` →
    "Delegation modes"), and the Implement step follows it.
 6. **Phase handoff.** `handoff <spec> --phase implement` gives the whole

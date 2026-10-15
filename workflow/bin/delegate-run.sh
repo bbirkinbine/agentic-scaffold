@@ -35,6 +35,11 @@
 #                            qualified candidate; otherwise prints `off: <why>`
 #                            and exits 1. The orchestrator checks this before
 #                            handing implementation to a local model.
+#   activate | deactivate    Set this checkout's [[project]] entry to
+#                            policy = "auto" with activation_approved = true
+#                            (or back to "off"). Run only on the human's
+#                            explicit yes; activate refuses unless a
+#                            candidate is qualified. Prints before/after.
 #   init [--key-env VAR] <base-url> ...
 #                            Print a draft profile from what each server's
 #                            /models lists: endpoints, one [[model]] per
@@ -139,7 +144,7 @@ TOOLCHAIN=.agentic/toolchain.sh
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,112p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,117p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -1485,6 +1490,73 @@ cmd_policy() {
   echo "auto (qualified candidates: $qualified)"
 }
 
+# project_index : the [[project]] occurrence number for this checkout, or empty.
+project_index() {
+  local here idx root
+  here="$(cd "$ROOT" && pwd -P)"
+  while IFS=$'\t' read -r idx root; do
+    [[ -n "$root" && -d "$root" ]] || continue
+    [[ "$(cd "$root" && pwd -P)" == "$here" ]] && { printf '%s\n' "$idx"; return 0; }
+  done <<<"$(awk -F'\t' '$1 == "project" && $3 == "root" { print $2 "\t" $4 }' "$PROFILE_TSV")"
+}
+
+# activate | deactivate : set this checkout's policy in the profile. Run only
+# on the human's explicit yes; activate refuses without a qualified candidate.
+cmd_set_policy() {
+  local want="$1" profile idx name qualified=""
+  shift
+  profile="$(default_profile)"
+  [[ "${1:-}" == --profile ]] && profile="${2:-}"
+  require_deps jq awk
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-policy.XXXXXX")" || exit 3
+  STATE="$WORK/state"
+  mkdir -p "$STATE"
+  trap cleanup EXIT
+  load_profile "$profile"
+  idx="$(project_index)"
+  [[ -n "$idx" ]] || refuse "no [[project]] entry for $ROOT in $profile; add one (delegate-run.sh init prints a draft)"
+  local policy approved
+  if [[ "$want" == auto ]]; then
+    while IFS= read -r name; do
+      [[ -n "$name" ]] || continue
+      if (
+        refuse() { exit 1; }
+        load_model "$name"
+        [[ "$(qualification_state "$name" "$FINGERPRINT")" == qualified ]]
+      ); then
+        qualified="${qualified:+$qualified, }$name"
+      fi
+    done <<<"$(toml_list "$(project_get candidates)")"
+    [[ -n "$qualified" ]] || refuse "no candidate in this checkout's [[project]] entry is qualified; run qualify first"
+    policy='"auto"'; approved=true
+  else
+    policy='"off"'; approved=false
+  fi
+  say "before: policy = $(project_get policy), activation_approved = $(project_get activation_approved)"
+  local tmp="$profile.delegate-run.$$"
+  awk -v idx="$idx" -v policy="$policy" -v approved="$approved" '
+    function close_block() {
+      if (inblock) {
+        if (!seen_p) print "policy = " policy
+        if (!seen_a) print "activation_approved = " approved
+      }
+      inblock = 0
+    }
+    /^[ \t]*\[\[project\]\]/ { close_block(); n++; if (n == idx) { inblock = 1; seen_p = 0; seen_a = 0 } print; next }
+    /^[ \t]*\[/ { close_block(); print; next }
+    inblock && /^[ \t]*policy[ \t]*=/ { print "policy = " policy; seen_p = 1; next }
+    inblock && /^[ \t]*activation_approved[ \t]*=/ { print "activation_approved = " approved; seen_a = 1; next }
+    { print }
+    END { close_block() }
+  ' "$profile" >"$tmp" && chmod "$(stat -f %Lp "$profile" 2>/dev/null || stat -c %a "$profile")" "$tmp" && mv -f "$tmp" "$profile" ||
+    { rm -f "$tmp"; infra "could not rewrite $profile"; }
+  load_profile "$profile"
+  say "after:  policy = $(project_get policy), activation_approved = $(project_get activation_approved)"
+  if [[ "$want" == auto ]]; then
+    say "qualified candidates: $qualified. Each run still picks its delegation mode (none, files, handoff)."
+  fi
+}
+
 cmd_reset() {
   local model="${1:-}" bucket="${2:-}"
   [[ -n "$model" && -n "$bucket" ]] || { say "usage: delegate-run.sh reset <model> <bucket>"; exit 2; }
@@ -1729,6 +1801,8 @@ case "${1:-}" in
   reset) shift; cmd_reset "$@" ;;
   handoff) shift; cmd_handoff "$@" ;;
   handoff-clean) shift; cmd_handoff_clean "$@" ;;
+  activate) shift; cmd_set_policy auto "$@" ;;
+  deactivate) shift; cmd_set_policy off "$@" ;;
   -h | --help | "") usage; [[ -n "${1:-}" ]] ;;
   *) say "unknown subcommand: $1 (run with --help)"; exit 2 ;;
 esac

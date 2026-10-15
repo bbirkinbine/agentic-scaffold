@@ -533,6 +533,21 @@ printf 'activation_approved = true\n' >>"$PROFILE"
 pol="$(runner policy 2>&1)" || fail "policy is not auto when approved with a qualified candidate: $pol"
 [[ "$pol" == "auto (qualified candidates: stub-coder)" ]] || fail "policy did not list qualified candidates: $pol"
 
+# activate / deactivate edit only this checkout's [[project]] entry.
+models_before="$(grep -c '^\[\[model\]\]' "$PROFILE")"
+runner deactivate >"$WORK/act.out" 2>&1 || { cat "$WORK/act.out" >&2; fail "deactivate failed"; }
+grep -q '^policy = "off"$' "$PROFILE" && grep -q '^activation_approved = false$' "$PROFILE" ||
+  fail "deactivate did not set policy off and approval false"
+runner policy >/dev/null 2>&1 && fail "policy still auto after deactivate"
+grep -q 'before: policy = auto' "$WORK/act.out" || fail "deactivate did not print the before state"
+runner activate >"$WORK/act.out" 2>&1 || { cat "$WORK/act.out" >&2; fail "activate failed"; }
+runner policy >/dev/null 2>&1 || fail "policy not auto after activate"
+[[ "$(grep -c '^activation_approved' "$PROFILE")" == 1 ]] || fail "activate duplicated activation_approved"
+[[ "$(grep -c '^\[\[model\]\]' "$PROFILE")" == "$models_before" ]] || fail "activate changed the model entries"
+sed 's/^candidates = .*/candidates = ["stub-coder-b"]/' "$PROFILE" >"$WORK/unqualified.toml"
+runner activate --profile "$WORK/unqualified.toml" >"$WORK/act.out" 2>&1 && fail "activate accepted a project with no qualified candidate"
+grep -q 'no candidate' "$WORK/act.out" || fail "activate refusal did not name the reason"
+
 # dead-coder looks qualified (its setup has a pass on record) but cannot be reached.
 dead_fp="$(runner status 2>&1 | sed -n 's/^dead-coder (.*, setup \([0-9a-f]*\)).*/\1/p')"
 [[ -n "$dead_fp" ]] || fail "status did not print dead-coder's setup"
