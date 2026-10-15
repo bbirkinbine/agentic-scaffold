@@ -164,7 +164,7 @@ candidates, and report its result as it printed it, including which model
 ran and why:
 
 - exit 0: the file is published; `/review-check` comes next, and after
-  `/review` record its verdict with `record-review` as `/review` describes;
+  `/review` record its verdict as "Review of delegated files" describes;
 - `needs_frontier` (exit 10): implement the file yourself without reading
   the local attempts;
 - any other exit: report the reason and stop.
@@ -174,9 +174,14 @@ is working or before `/review`, and do not commit anything.
 
 ## Delegation modes
 
-`policy` printing `auto` means the human approved local delegation for this
-checkout. Which kind, if any, is chosen per run, as a standing decision
-from `/unattended start` or the human's direct answer:
+Run `bash .agentic/delegate-run.sh policy`. Exit 1 (`off: <why>`) means no
+delegation for this checkout: implement yourself and do not ask about a
+mode. Exit 2 means delegation is set up but the runner cannot start (a
+missing dependency such as `jq`): tell the human what it printed and
+implement yourself; do not install anything. `policy` printing `auto`
+means the human approved local delegation for this checkout. Which kind, if
+any, is chosen per run, as a standing decision from `/unattended start` or
+the human's direct answer:
 
 - `none`: implement yourself. Also the answer when the session itself runs
   on a local model, since delegating to another local model only adds work.
@@ -185,6 +190,29 @@ from `/unattended start` or the human's direct answer:
 
 With no choice recorded, ask once at the implement step; never assume one
 from the policy alone.
+
+## Review of delegated files
+
+If the change set includes files that `.agentic/delegate-run.sh` published
+(`green` runs in `.agentic/delegate/ledger.jsonl` with no `review` record
+yet), pass the reviewer that list — run ID, target, and packet path for each — and ask it
+to tag every finding with the file it concerns and, for a delegated file,
+whether the cause is the file's own code or something its packet left out
+or contradicted. The reviewer still reviews the whole change set against
+the spec; the list only makes attribution explicit, so a gap in work that
+was never delegated is not read as a model failure.
+
+Once the final disposition is settled, the orchestrator — not the
+read-only reviewer — records each delegated file's outcome:
+`bash .agentic/delegate-run.sh record-review <run> <verdict>`. Use
+`model-defect` when a finding was a defect in the delegated file's own
+implementation, even if the orchestrator then fixed it; `packet-defect`
+when the cause was something the packet failed to quote or contradicted;
+otherwise `pass`, including when findings concerned other files or docs.
+Record once review's fixes are applied: the runner compares the file as
+published with the file as it is then and logs how many lines review kept,
+removed, and added. Tell the human the verdict and the lines the runner
+prints.
 
 ## Automatic mode
 
@@ -223,10 +251,17 @@ whichever client orchestrates, so Pi must be installed. Use it with
 delegation `handoff`, the plan approved, the spec `shipping`, and the tree
 committed:
 
-1. Run `bash .agentic/delegate-run.sh handoff <spec> --phase implement`
+1. Explain that a verified handoff is stored as a temporary commit on a
+   `handoff/<run>` branch, separate from the feature branch, and ask for
+   explicit current-chat authorization for that commit. Choosing delegation
+   mode `handoff` by itself is not commit authorization. If the human does
+   not authorize it, use `files` or `none` instead. Once authorized, run
+   `bash .agentic/delegate-run.sh handoff <spec> --allow-commit --phase implement`
    (or `--phase test-first+implement`), with `--model <name>` when the
-   human named one. The session runs headless; this can take an hour or
-   more. Do not edit the repository while it runs.
+   human named one. The runner refuses without `--allow-commit`; pass it only
+   for the authorization just obtained or recorded by `/unattended start`.
+   The session runs headless; this can take an hour or more. Do not edit the
+   repository while it runs.
 2. Act on the exit status:
    - 0: verified (full gate green, only plan files changed, no test file in
      an implement-only phase) and committed on `handoff/<run>`. Read the

@@ -33,8 +33,9 @@
 #                            checkout's [[project]] entry has policy = "auto",
 #                            activation_approved = true, and at least one
 #                            qualified candidate; otherwise prints `off: <why>`
-#                            and exits 1. The orchestrator checks this before
-#                            handing implementation to a local model.
+#                            and exits 1. With a profile but a missing
+#                            dependency, exits 2. The orchestrator checks this
+#                            before handing implementation to a local model.
 #   activate | deactivate    Set this checkout's [[project]] entry to
 #                            policy = "auto" with activation_approved = true
 #                            (or back to "off"). Run only on the human's
@@ -53,16 +54,20 @@
 #                            profile models and their qualification.
 #   status                   Each profile model's qualification and its
 #                            record per bucket in this project.
-#   reset <model> <bucket>   Clear a demotion; starts a fresh record.
-#   handoff <spec> [--phase implement|test-first+implement] [--model <name>]
+#   reset <model> <bucket>   Clear a demotion (small, medium, phase:implement,
+#                            phase:test-first+implement); starts a fresh record.
+#   handoff <spec> --allow-commit [--phase implement|test-first+implement]
+#                            [--model <name>]
 #                            Hand a whole phase of an approved spec to a
 #                            local agent session (Pi) in a new git worktree:
 #                            install, run the session headless on the
 #                            model, then verify the full gate and that only
 #                            the plan's files changed (and, for `implement`,
-#                            no test file). A verified run is committed on
-#                            its own branch `handoff/<run>` for the
-#                            orchestrator to review and merge; scored per
+#                            no test file). --allow-commit acknowledges the
+#                            human's explicit approval for the temporary
+#                            handoff-branch commit. A verified run is committed
+#                            on `handoff/<run>` for the orchestrator to review
+#                            and merge; scored per
 #                            phase like a run. See docs/local-phase-handoff.md.
 #   handoff-clean [<run-id> | --all]
 #                            List handoff worktrees, or remove one (or all)
@@ -86,8 +91,8 @@
 #   base_url = "http://<host>:<port>/v1"
 #   credential_env = "LOCAL_MODEL_TOKEN"   # optional; variable NAME, never the value
 #
-#   [[model]]                              # pi_model / pi_thinking: optional,
-#   name = "coder-a"                       # used by handoff (default <endpoint>/<model_id>)
+#   [[model]]                              # pi_thinking: optional for handoff;
+#   name = "coder-a"                       # provider/model come from this profile
 #   endpoint = "lan-gateway"
 #   model_id = "<id the server reports>"
 #   quant = "Q8_K"
@@ -421,6 +426,43 @@ load_model() {
     "${SHA[@]}" | cut -c1-16)"
 }
 
+# Qualification covers HTTP plumbing; handoff scores also identify the Pi
+# harness and the exact generated provider configuration, without any key.
+handoff_fingerprint() {
+  local config thinking
+  config="$(handoff_model_config)" || return 1
+  thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
+  FINGERPRINT="$(printf '%s\n' "$FINGERPRINT" "$HANDOFF_HARNESS" "$HANDOFF_HARNESS_VERSION" "$thinking" "$config" |
+    "${SHA[@]}" | cut -c1-16)"
+}
+
+handoff_model_config() {
+  local context thinking alias
+  context="$(profile_get model "$MODEL_NAME" context)"
+  context="${context:-32768}"
+  [[ "$context" =~ ^[1-9][0-9]*$ ]] || { say "model '$MODEL_NAME': context must be a positive integer"; return 1; }
+  alias="$(profile_get model "$MODEL_NAME" pi_model)"
+  [[ -z "$alias" || "$alias" == "$ENDPOINT_NAME/$MODEL_ID" ]] || {
+    say "model '$MODEL_NAME': remove pi_model; handoff uses its endpoint and model_id directly"; return 1;
+  }
+  thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
+  jq -S -c -n --arg provider "$ENDPOINT_NAME" --arg url "$BASE_URL" --arg id "$MODEL_ID" \
+    --arg key "${CRED_ENV:+\$$CRED_ENV}" --arg thinking "$thinking" --argjson context "$context" \
+    --argjson request "$(request_extra)" '
+    {providers: {($provider): {baseUrl: $url, api: "openai-completions",
+      apiKey: (if $key == "" then "agentic-local" else $key end),
+      models: [{id: $id, input: ["text"], contextWindow: $context,
+        reasoning: ($thinking != "" and $thinking != "off"),
+        samplingParams: $request}]}}}'
+}
+
+load_handoff_harness() {
+  HANDOFF_HARNESS="${DELEGATE_HANDOFF_HARNESS:-pi}"
+  command -v "$HANDOFF_HARNESS" >/dev/null 2>&1 || return 1
+  HANDOFF_HARNESS_VERSION="$("$HANDOFF_HARNESS" --version 2>/dev/null | head -n 1)"
+  [[ -n "$HANDOFF_HARNESS_VERSION" ]]
+}
+
 check_credential() {
   [[ -n "${CRED_ENV:-}" ]] || return 0
   [[ "$CRED_ENV" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || refuse "credential_env must be an environment variable name"
@@ -553,6 +595,7 @@ select_model() {
       refuse() { printf '%s\tbad\t-\t0\t0\t0\t0\t0\t1\tok\t0\t0\t%s\n' "$name" "$*"; exit 0; }
       load_model "$name"
       state="$(qualification_state "$name" "$FINGERPRINT")"
+      if [[ "$BUCKET" == phase:* ]]; then handoff_fingerprint || refuse "invalid handoff model configuration"; fi
       read -r n s pend def lo hi dem med <<<"$(score "$name" "$FINGERPRINT" "$BUCKET")"
       up=0
       [[ "$state" == qualified && "$dem" == ok ]] && reachable && up=1
@@ -590,6 +633,7 @@ select_model() {
   SELECTION_JSON="$(selection_json "$phase" "$chosen" "$runner_up")"
   load_model "$chosen"
   check_credential
+  if [[ "$BUCKET" == phase:* ]]; then handoff_fingerprint || refuse "invalid handoff model configuration"; fi
   QUALIFIED=qualified
   local line
   line="$(awk -F'\t' -v c="$chosen" '$1 == c { printf "%d scored runs, %d passed, lower bound %.2f", $4, $5, $8 }' "$STATE/candidates.tsv")"
@@ -803,8 +847,12 @@ cmd_run() {
   MODEL_NAME=""
   while (($#)); do
     case "$1" in
-      --model) MODEL_NAME="${2:-}"; shift 2 ;;
-      --profile) profile="${2:-}"; shift 2 ;;
+      --model)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--model requires a value"; exit 2; }
+        MODEL_NAME="$2"; shift 2 ;;
+      --profile)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+        profile="$2"; shift 2 ;;
       -h | --help) usage; exit 0 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) [[ -z "$packet" ]] || { say "one packet per run"; exit 2; }; packet="$1"; shift ;;
@@ -1195,7 +1243,9 @@ cmd_qualify() {
   profile="$(default_profile)"
   while (($#)); do
     case "$1" in
-      --profile) profile="${2:-}"; shift 2 ;;
+      --profile)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+        profile="$2"; shift 2 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) name="$1"; shift ;;
     esac
@@ -1301,15 +1351,20 @@ cmd_record_review() {
 }
 
 cmd_status() {
-  local profile name state bucket
+  local profile name state bucket has_handoff=0
   profile="$(default_profile)"
-  [[ "${1:-}" == --profile ]] && profile="${2:-}"
+  if [[ "${1:-}" == --profile ]]; then
+    (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+    profile="$2"; shift 2
+  fi
+  (($# == 0)) || { say "usage: delegate-run.sh status [--profile <path>]"; exit 2; }
   require_deps jq awk
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-status.XXXXXX")" || exit 3
   STATE="$WORK/state"
   mkdir -p "$STATE"
   trap cleanup EXIT
   load_profile "$profile"
+  load_handoff_harness && has_handoff=1
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     load_model "$name"
@@ -1318,6 +1373,11 @@ cmd_status() {
     for bucket in small medium; do
       printf '  %s\n' "$(describe_score "$name" "$FINGERPRINT" "$bucket")"
     done
+    if [[ "$has_handoff" == 1 ]] && handoff_fingerprint; then
+      for bucket in phase:implement phase:test-first+implement; do
+        printf '  %s\n' "$(describe_score "$name" "$FINGERPRINT" "$bucket")"
+      done
+    fi
   done <<<"$(profile_models)"
 }
 
@@ -1326,8 +1386,12 @@ cmd_init() {
   profile="$(default_profile)"
   while (($#)); do
     case "$1" in
-      --key-env) key_env="${2:-}"; shift 2 ;;
-      --profile) profile="${2:-}"; shift 2 ;;
+      --key-env)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--key-env requires a value"; exit 2; }
+        key_env="$2"; shift 2 ;;
+      --profile)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+        profile="$2"; shift 2 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *)
         [[ "$1" =~ ^https?://[^[:space:]]+$ ]] || { say "not an http(s) base URL: $1"; exit 2; }
@@ -1408,7 +1472,11 @@ cmd_init() {
 cmd_discover() {
   local profile endpoint id name listing found candidates
   profile="$(default_profile)"
-  [[ "${1:-}" == --profile ]] && profile="${2:-}"
+  if [[ "${1:-}" == --profile ]]; then
+    (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+    profile="$2"; shift 2
+  fi
+  (($# == 0)) || { say "usage: delegate-run.sh discover [--profile <path>]"; exit 2; }
   require_deps curl jq awk
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-discover.XXXXXX")" || exit 3
   STATE="$WORK/state"
@@ -1463,9 +1531,14 @@ cmd_discover() {
 cmd_policy() {
   local profile policy approved name qualified=""
   profile="$(default_profile)"
-  [[ "${1:-}" == --profile ]] && profile="${2:-}"
-  require_deps jq awk
+  if [[ "${1:-}" == --profile ]]; then
+    (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+    profile="$2"; shift 2
+  fi
+  (($# == 0)) || { say "usage: delegate-run.sh policy [--profile <path>]"; exit 2; }
+  # No profile means delegation is off; say so without needing jq.
   [[ -f "$profile" ]] || { echo "off: no profile at $profile"; exit 1; }
+  require_deps jq awk
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-policy.XXXXXX")" || exit 3
   STATE="$WORK/state"
   mkdir -p "$STATE"
@@ -1506,7 +1579,11 @@ cmd_set_policy() {
   local want="$1" profile idx name qualified=""
   shift
   profile="$(default_profile)"
-  [[ "${1:-}" == --profile ]] && profile="${2:-}"
+  if [[ "${1:-}" == --profile ]]; then
+    (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+    profile="$2"; shift 2
+  fi
+  (($# == 0)) || { say "usage: delegate-run.sh activate|deactivate [--profile <path>]"; exit 2; }
   require_deps jq awk
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-policy.XXXXXX")" || exit 3
   STATE="$WORK/state"
@@ -1548,7 +1625,14 @@ cmd_set_policy() {
     inblock && /^[ \t]*activation_approved[ \t]*=/ { print "activation_approved = " approved; seen_a = 1; next }
     { print }
     END { close_block() }
-  ' "$profile" >"$tmp" && chmod "$(stat -f %Lp "$profile" 2>/dev/null || stat -c %a "$profile")" "$tmp" && mv -f "$tmp" "$profile" ||
+  ' "$profile" >"$tmp" || { rm -f "$tmp"; infra "could not stage updated profile"; }
+  # A failed stat may still write stdout (GNU stat -f does). Keep only the
+  # successful invocation's output before handing permissions to chmod.
+  local permissions
+  if ! permissions="$(stat -c %a "$profile" 2>/dev/null)"; then
+    permissions="$(stat -f %Lp "$profile" 2>/dev/null)" || { rm -f "$tmp"; infra "could not read profile permissions"; }
+  fi
+  chmod "$permissions" "$tmp" && mv -f "$tmp" "$profile" ||
     { rm -f "$tmp"; infra "could not rewrite $profile"; }
   load_profile "$profile"
   say "after:  policy = $(project_get policy), activation_approved = $(project_get activation_approved)"
@@ -1560,7 +1644,7 @@ cmd_set_policy() {
 cmd_reset() {
   local model="${1:-}" bucket="${2:-}"
   [[ -n "$model" && -n "$bucket" ]] || { say "usage: delegate-run.sh reset <model> <bucket>"; exit 2; }
-  case "$bucket" in small | medium) ;; *) say "unknown bucket: $bucket"; exit 2 ;; esac
+  case "$bucket" in small | medium | phase:implement | phase:test-first+implement) ;; *) say "unknown bucket: $bucket"; exit 2 ;; esac
   require_deps jq
   mkdir -p "$DELEGATE_DIR"
   jq -c -n --arg ts "$(now_utc)" --arg model "$model" --arg bucket "$bucket" \
@@ -1599,28 +1683,77 @@ Run $phases, following AGENTS.md. Rules:
 PROMPT
 }
 
+# Audit the complete final tree against the starting commit, including
+# staged, unstaged, deleted, and untracked files. Run before and after the
+# gate: verifiers can write files too. A session must not move HEAD.
+audit_handoff() {
+  local wt="$1" spec="$2" phase="$3" branch="$4" result_dir="$5" f
+  [[ "$(git -C "$wt" rev-parse HEAD)" == "$SNAPSHOT_SHA" &&
+    "$(git -C "$wt" symbolic-ref -q HEAD)" == "refs/heads/$branch" ]] ||
+    integrity "the session or verifier committed or changed branches (worktree kept at $wt)"
+  {
+    git -C "$wt" diff --name-only --no-renames -z "$SNAPSHOT_SHA" -- || infra "could not diff handoff changes"
+    git -C "$wt" ls-files --others --exclude-standard -z || infra "could not list untracked handoff changes"
+  } >"$STATE/changed.nul"
+  : >"$STATE/changed"
+  while IFS= read -r -d '' f; do
+    [[ "$f" != *$'\n'* ]] || integrity "a changed path contains a newline"
+    printf '%s\n' "$f" >>"$STATE/changed"
+  done <"$STATE/changed.nul"
+  LC_ALL=C sort -u "$STATE/changed" >"$STATE/changed.sorted"
+  mv "$STATE/changed.sorted" "$STATE/changed"
+  : >"$STATE/outside"
+  : >"$STATE/tests-touched"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    [[ "$f" == "$spec" || "$f" == docs/specs/README.md ]] && continue
+    grep -qxF "$f" "$STATE/plan-files" || printf '%s\n' "$f" >>"$STATE/outside"
+    if [[ "$phase" == implement ]] && is_test_path "$f"; then printf '%s\n' "$f" >>"$STATE/tests-touched"; fi
+  done <"$STATE/changed"
+  jq -n --arg wt "$wt" --arg branch "$branch" --arg phase "$phase" --arg harness "$HANDOFF_HARNESS" \
+    --arg harness_version "$HANDOFF_HARNESS_VERSION" --arg pi_model "$ENDPOINT_NAME/$MODEL_ID" \
+    --rawfile changed "$STATE/changed" --rawfile outside "$STATE/outside" --rawfile tests "$STATE/tests-touched" \
+    '{worktree: $wt, branch: $branch, phase: $phase, harness: $harness, harness_version: $harness_version,
+      pi_model: $pi_model, changed: ($changed | split("\n") | map(select(. != ""))),
+      outside_plan: ($outside | split("\n") | map(select(. != ""))),
+      test_files_changed: ($tests | split("\n") | map(select(. != "")))}' >"$result_dir/handoff.json"
+  [[ -s "$STATE/outside" ]] && integrity "changes outside the plan's files: $(tr '\n' ' ' <"$STATE/outside")(worktree kept at $wt)"
+  [[ -s "$STATE/tests-touched" ]] && integrity "the implement phase changed test files: $(tr '\n' ' ' <"$STATE/tests-touched")(worktree kept at $wt)"
+  return 0
+}
+
 cmd_handoff() {
-  local spec="" phase=implement profile
+  local spec="" phase=implement profile allow_commit=0
   profile="$(default_profile)"
   MODEL_NAME=""
   while (($#)); do
     case "$1" in
-      --phase) phase="${2:-}"; shift 2 ;;
-      --model) MODEL_NAME="${2:-}"; shift 2 ;;
-      --profile) profile="${2:-}"; shift 2 ;;
+      --phase)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--phase requires a value"; exit 2; }
+        phase="$2"; shift 2 ;;
+      --model)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--model requires a value"; exit 2; }
+        MODEL_NAME="$2"; shift 2 ;;
+      --profile)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
+        profile="$2"; shift 2 ;;
+      --allow-commit) allow_commit=1; shift ;;
       -h | --help) usage; exit 0 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) [[ -z "$spec" ]] || { say "one spec per handoff"; exit 2; }; spec="$1"; shift ;;
     esac
   done
-  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> [--phase implement|test-first+implement] [--model <name>]"; exit 2; }
+  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> --allow-commit [--phase implement|test-first+implement] [--model <name>]"; exit 2; }
   case "$phase" in implement | test-first+implement) ;; *) say "unknown phase: $phase"; exit 2 ;; esac
+  [[ "$allow_commit" == 1 ]] || {
+    say "refused: handoff creates a temporary commit on handoff/<run>; obtain explicit current-chat commit approval, then pass --allow-commit"
+    exit 2
+  }
   MODE=manual
   [[ -n "$MODEL_NAME" ]] || MODE=selected
   require_deps git jq awk perl curl
 
-  local harness="${DELEGATE_HANDOFF_HARNESS:-pi}"
-  command -v "$harness" >/dev/null 2>&1 || { say "agent harness not found: $harness"; exit 2; }
+  load_handoff_harness || { say "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}"; exit 2; }
   git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
 
   mkdir -p "$DELEGATE_DIR/results"
@@ -1657,16 +1790,15 @@ cmd_handoff() {
     QUALIFIED="$(qualification_state "$MODEL_NAME" "$FINGERPRINT")"
     [[ "$QUALIFIED" == qualified ]] ||
       refuse "model '$MODEL_NAME' is $QUALIFIED for its current setup; run: delegate-run.sh qualify $MODEL_NAME"
+    handoff_fingerprint || refuse "invalid handoff model configuration"
+    [[ "$(score "$MODEL_NAME" "$FINGERPRINT" "$BUCKET" | cut -d' ' -f7)" != demoted ]] ||
+      say "warning: '$MODEL_NAME' is demoted for $BUCKET tasks; this manual run is still scored"
   else
     select_model
   fi
-  local pi_model pi_thinking harness_version
-  pi_model="$(profile_get model "$MODEL_NAME" pi_model)"
-  pi_model="${pi_model:-$ENDPOINT_NAME/$MODEL_ID}"
+  local pi_model pi_thinking
+  pi_model="$ENDPOINT_NAME/$MODEL_ID"
   pi_thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
-  harness_version="$("$harness" --version 2>/dev/null | head -n 1)"
-  # The harness is part of the setup: a new harness version starts a new record.
-  FINGERPRINT="$(printf '%s\n' "$FINGERPRINT" "$harness" "$harness_version" "$pi_thinking" | "${SHA[@]}" | cut -c1-16)"
 
   # -- worktree
   local base wt branch
@@ -1674,12 +1806,13 @@ cmd_handoff() {
   mkdir -p "$base" || infra "could not create $base"
   wt="$base/$RUN_ID"
   branch="handoff/$RUN_ID"
-  git -C "$ROOT" worktree add -q -b "$branch" "$wt" HEAD >"$STATE/worktree.log" 2>&1 ||
+  SNAPSHOT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+  git -C "$ROOT" worktree add -q -b "$branch" "$wt" "$SNAPSHOT_SHA" >"$STATE/worktree.log" 2>&1 ||
     infra "could not create the worktree: $(bounded_tail "$STATE/worktree.log")"
   TREE="$wt"
-  SNAPSHOT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
   local result_dir="$DELEGATE_DIR/results/$RUN_ID"
-  mkdir -p "$result_dir/session"
+  mkdir -p "$result_dir/session" "$result_dir/pi-agent"
+  handoff_model_config >"$result_dir/pi-agent/models.json" || refuse "invalid handoff model configuration"
   say "worktree: $wt (branch $branch)"
 
   verify_cmd bash "$TOOLCHAIN" install >"$result_dir/install.log" 2>&1 ||
@@ -1693,44 +1826,27 @@ cmd_handoff() {
 
   # -- session
   handoff_prompt "$spec" "$phase" >"$result_dir/prompt.md"
-  local -a hargs=(-p --approve --model "$pi_model" --session-dir "$result_dir/session" --mode json)
+  local -a hargs=(-p --approve --provider "$ENDPOINT_NAME" --model "$MODEL_ID" --session-dir "$result_dir/session" --mode json)
   [[ -n "$pi_thinking" ]] && hargs+=(--thinking "$pi_thinking")
-  local -a envkeep=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb)
+  local -a envkeep=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb PI_CODING_AGENT_DIR="$result_dir/pi-agent")
   [[ -n "${TMPDIR:-}" ]] && envkeep+=(TMPDIR="$TMPDIR")
   [[ -n "${CRED_ENV:-}" ]] && envkeep+=("$CRED_ENV=${!CRED_ENV}")
   local limit="${DELEGATE_HANDOFF_TIMEOUT:-14400}" started rc=0
   started="$(date +%s)"
-  say "session: $harness on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"
-  (cd "$wt" && STEP_TIMEOUT="$limit" bounded env -i "${envkeep[@]}" "$harness" "${hargs[@]}" "$(cat "$result_dir/prompt.md")") \
+  say "session: $HANDOFF_HARNESS on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"
+  (cd "$wt" && STEP_TIMEOUT="$limit" bounded env -i "${envkeep[@]}" "$HANDOFF_HARNESS" "${hargs[@]}" "$(cat "$result_dir/prompt.md")") \
     >"$result_dir/harness.log" 2>&1 || rc=$?
   record_attempt 1 session "harness exit $rc" "$(($(date +%s) - started))"
   ((rc == 124)) && infra "the session hit its ${limit}s limit; worktree kept at $wt"
   ((rc == 0)) || infra "the harness exited $rc: $(bounded_tail "$result_dir/harness.log" | tail -n 5)"
 
   # -- verify, independently of what the session said
-  git -C "$wt" status --porcelain=v1 -uall | awk '{ p = substr($0, 4); sub(/.* -> /, "", p); print p }' |
-    LC_ALL=C sort -u >"$STATE/changed"
-  : >"$STATE/outside"
-  : >"$STATE/tests-touched"
-  local f
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
-    [[ "$f" == "$spec" || "$f" == docs/specs/README.md ]] && continue
-    grep -qxF "$f" "$STATE/plan-files" || printf '%s\n' "$f" >>"$STATE/outside"
-    if [[ "$phase" == implement ]] && is_test_path "$f"; then printf '%s\n' "$f" >>"$STATE/tests-touched"; fi
-  done <"$STATE/changed"
-  jq -n --arg wt "$wt" --arg branch "$branch" --arg phase "$phase" --arg harness "$harness" \
-    --arg harness_version "$harness_version" --arg pi_model "$pi_model" \
-    --rawfile changed "$STATE/changed" --rawfile outside "$STATE/outside" --rawfile tests "$STATE/tests-touched" \
-    '{worktree: $wt, branch: $branch, phase: $phase, harness: $harness, harness_version: $harness_version,
-      pi_model: $pi_model, changed: ($changed | split("\n") | map(select(. != ""))),
-      outside_plan: ($outside | split("\n") | map(select(. != ""))),
-      test_files_changed: ($tests | split("\n") | map(select(. != "")))}' >"$result_dir/handoff.json"
+  audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
   [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
-  [[ -s "$STATE/outside" ]] && integrity "changes outside the plan's files: $(tr '\n' ' ' <"$STATE/outside")(worktree kept at $wt)"
-  [[ -s "$STATE/tests-touched" ]] && integrity "the implement phase changed test files: $(tr '\n' ' ' <"$STATE/tests-touched")(worktree kept at $wt)"
-
-  if ! verify_cmd bash "$TOOLCHAIN" gate >"$result_dir/gate.log" 2>&1; then
+  local gate_status=0
+  verify_cmd bash "$TOOLCHAIN" gate >"$result_dir/gate.log" 2>&1 || gate_status=$?
+  audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
+  if ((gate_status != 0)); then
     OUTCOME=needs_frontier
     REASON="the session ended with the gate red: $(bounded_tail "$result_dir/gate.log" | tail -n 5 | tr '\n' ' ')"
     say "needs_frontier: $REASON"

@@ -35,18 +35,23 @@ Procedure:
    is load-bearing: a one-line mention gives later specs nothing to
    trace, and "original, not a copy" drifts into "not like the
    reference". Do step 4 before writing.
-4. **Reference behavior** — the one section you draft from your own
-   knowledge, because the human named the source and decides every
-   line. List the recognizable rules, features, and behaviors a user of
-   the reference would expect, concretely enough to test (for a game:
-   each enemy's rule, timers, scoring values; for a tool: the commands,
-   formats, and conventions users rely on). Mark each `must`, `later`,
-   or `won't` with your best guess, and list separately what must not
-   be copied (artwork, audio, code, trademarks, data tables the human
-   does not want reproduced). Show it in one batch and ask the human to
-   correct the marks; record only what they confirm. Following a
-   reference's rules and copying its assets are separate decisions;
-   keep them apart.
+4. **Reference behavior** — ask which edition, version, or observed
+   system the human means, then retrieve authoritative sources for the
+   behaviors whose correctness depends on that reference. Prefer official
+   documentation; when only observable behavior or secondary documentation
+   exists, label it empirical or secondary instead of presenting it as
+   authoritative. Never reconstruct rules, timers, scoring values, commands,
+   formats, or conventions from model memory. If a claim cannot be sourced,
+   put it in `## Open questions` or restate it as an original behavior the
+   human deliberately chooses. List the sourced, recognizable behaviors
+   concretely enough to test, cite each row, and mark each `must`, `later`,
+   or `won't` with your best guess. List separately what must not be copied
+   (artwork, audio, code, trademarks, or protected data). Show the inventory
+   in one batch and ask the human to correct the marks; record only what they
+   confirm. Following verified behavior and copying protected expression are
+   separate decisions; keep them apart. Record every cited source with URL,
+   retrieval date, and license/status under `## External references`, using
+   the provenance categories in `docs/specs/README.md`.
 5. After the last answer, write the file from the answers, keeping the
    human's voice. Skeleton below. Stop after writing; surface the path
    and do NOT continue into `/spec` or `/plan`.
@@ -110,11 +115,19 @@ alternative not being competed with.>
 
 Reference: <what the product should resemble, and how closely>
 
-| Item | Expected behavior | Mark | Spec |
-| --- | --- | --- | --- |
-| <R1> | <the rule as a user of the reference knows it> | must / later / won't | <NNNN once a spec covers it> |
+| Item | Expected behavior | Source | Mark | Spec |
+| --- | --- | --- | --- | --- |
+| <R1> | <the verified or explicitly original behavior> | <S1, empirical, or original> | must / later / won't | <NNNN once a spec covers it> |
 
 Not copied: <assets, code, trademarks, or data the human ruled out>
+
+## External references
+
+<Only when Reference behavior cites outside authority or observed behavior.
+For each S-number: source name, URL or observation record, retrieval/capture
+date, license/status, and authoritative / secondary / empirical. A feature
+spec that implements the item repeats the applicable source in its own
+External references section.>
 
 ## Roadmap pointers
 

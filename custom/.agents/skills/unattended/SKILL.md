@@ -47,7 +47,11 @@ Run after the plan is approved and persisted, before test-first.
      than its counts). Ask the delegation mode for this run: `none`, `files`
      (one file per call), or `handoff` (implementation, or test-first plus
      implementation, to a local session; `/delegate` → "Delegation modes").
-     Default `none` when this session itself runs on a local model.
+     A verified `handoff` is preserved as a temporary commit on its isolated
+     `handoff/<run>` branch, so ask separately whether those temporary commits
+     are authorized; choosing the mode alone is not commit approval. If they
+     decline, choose `files` or `none`. Default `none` when this session itself
+     runs on a local model.
 2. Ask them in one batch, each naming the spec or plan line it affects and
    offering your best-guess default so "defaults are fine" is a complete
    answer. Ask only what the spec, plan, and `AGENTS.md` do not already
@@ -59,8 +63,10 @@ Run after the plan is approved and persisted, before test-first.
 4. Ask for standing consent explicitly and record it under `## Standing
    decisions` as one line: unattended shipping authorized through
    "ready to merge" (branch green, review clean, uncommitted), or through
-   commits on the feature branch if the human grants that. Never push or
-   merge.
+   commits on the feature branch if the human grants that. If `handoff` was
+   selected, record its separate authorization for temporary commits on
+   `handoff/<run>` branches; without that exact authorization, handoff is not
+   available even when feature-branch commits are allowed. Never push or merge.
 5. Print the kickoff instruction the human can leave running, then stop.
 
 ## During the run — auto-answering

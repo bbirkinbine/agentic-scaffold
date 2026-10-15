@@ -69,7 +69,22 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(float(delay.read_text()))
         status_file = body.with_suffix(".status")
         status = int(status_file.read_text()) if status_file.exists() else 200
-        self.reply(status, body.read_bytes())
+        if status == 200 and json.loads(request).get("stream"):
+            # Pi speaks streaming chat completions; exercise real client
+            # provider plumbing with the same deterministic response queue.
+            message = json.loads(body.read_bytes())["choices"][0]
+            chunks = [
+                {"choices": [{"index": 0, "delta": message["message"], "finish_reason": None}]},
+                {"choices": [{"index": 0, "delta": {}, "finish_reason": message["finish_reason"]}]},
+            ]
+            payload = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Content-Length", str(len(payload.encode())))
+            self.end_headers()
+            self.wfile.write(payload.encode())
+        else:
+            self.reply(status, body.read_bytes())
 
 
 server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

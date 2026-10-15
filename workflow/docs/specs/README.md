@@ -342,10 +342,12 @@ file, reserved number `0000`, covering:
 - **Constraints and assumptions** — platform, licensing, budget,
   "solo-maintained"; the facts a planner must not design against.
 - **Reference behavior** (only when the product should resemble
-  something) — the reference's recognizable rules, each marked `must`,
-  `later`, or `won't` by the human, plus what must not be copied.
-  Feature specs name the items they cover, so "like the arcade game"
-  is traced rather than remembered.
+  something) — the reference's recognizable rules, each tied to a declared
+  authoritative, secondary, empirical, or explicitly original source and
+  marked `must`, `later`, or `won't` by the human, plus what must not be
+  copied. Model memory is not a source. Feature specs name the items they
+  cover and repeat the applicable provenance in their own `## External
+  references`, so "like the arcade game" is traced rather than remembered.
 - **Roadmap pointers** — links to the feature specs and open work items
   that currently serve the direction. A list of links, not a plan;
   the backlog stays the backlog.

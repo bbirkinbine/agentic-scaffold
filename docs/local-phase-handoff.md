@@ -5,12 +5,25 @@
 Differences from the draft below: dependencies come from the stack's own
 `toolchain.sh install` in the worktree; a verified run is committed on its
 `handoff/<run>` branch so the orchestrator can review and `git merge
---squash` it; `handoff-clean` removes worktrees and branches; the scope
-audit also allows the spec itself and the regenerated `docs/specs/README.md`;
+--squash` it; the runner requires `--allow-commit` after explicit human
+approval for that temporary commit; `handoff-clean` removes worktrees and
+branches; the scope audit also allows the spec itself and the regenerated
+`docs/specs/README.md`;
 the implement phase's test-file rule is a path heuristic (`tests/`,
 `__tests__/`, `spec/`, `*.test.*`, `*.spec.*`, `test_*`). Extends
 [`docs/local-delegate-runner.md`](local-delegate-runner.md); reuses its
 profile, ledger, qualification, and policy.
+
+Review fixes (2026-10-15): scope checks cover the complete tree against the
+starting commit, run both before and after the gate, and reject a session or
+verifier that commits or changes branches. Pi receives a per-run
+`PI_CODING_AGENT_DIR` with a generated `models.json` binding the profile's
+endpoint, model ID, context, request settings, and credential variable name
+(never its value). No global Pi provider setup is required. An old `pi_model`
+alias is accepted only when it matches `<endpoint>/<model_id>`; a different
+alias is refused. Phase selection and recording share the harness/configuration
+fingerprint, and `status` and `reset` include both phase buckets. These fixes
+have regression coverage; an authenticated real-model phase trial remains open.
 
 ## Problem
 
@@ -63,14 +76,17 @@ A subcommand of the existing runner, so profile parsing, model selection,
 fingerprints, the ledger, and `policy` are reused:
 
 ```
-.agentic/delegate-run.sh handoff <spec-path> [--phase implement|test-first+implement]
-                                             [--model <name>] [--harness pi]
+.agentic/delegate-run.sh handoff <spec-path> --allow-commit
+                                             [--phase implement|test-first+implement]
+                                             [--model <name>]
 ```
 
-1. **Refuse** unless: the spec's status is `shipping` with an
-   `## Approved implementation plan`; the tree is clean; `toolchain.sh
-   ready` passes; and, for `--phase implement`, the focused tests exist and
-   are red.
+1. **Refuse** unless: the human explicitly approved the temporary commit
+   on `handoff/<run>` and the caller acknowledged it with `--allow-commit`;
+   the spec's status is `shipping` with an `## Approved implementation plan`;
+   the tree is clean; `toolchain.sh ready` passes; and, for `--phase
+   implement`, the focused tests exist and are red. Choosing `handoff` mode
+   alone is not commit authorization.
 2. **Worktree.** `git worktree add` on a new branch `handoff/<run-id>` from
    `HEAD`, outside the checkout (`$TMPDIR/agentic-handoff/<run-id>`).
    Dependencies the gate needs are made available (see open questions);
@@ -80,7 +96,8 @@ fingerprints, the ledger, and `policy` are reused:
    wall-clock limit (`handoff_timeout_seconds`, default 4 h):
 
    ```
-   pi -p --approve --model <provider>/<model_id> --thinking <level> \
+   PI_CODING_AGENT_DIR=<result-dir>/pi-agent \
+   pi -p --approve --provider <endpoint> --model <model_id> --thinking <level> \
       --session-dir <result-dir>/session --mode json \
       "<handoff prompt>"
    ```
@@ -92,11 +109,14 @@ fingerprints, the ledger, and `policy` are reused:
    `## Phase handoff` note in the spec.
 4. **Verify in the worktree,** independently of the session's claims:
    - the full gate passes (`toolchain.sh` all steps);
-   - every changed or added path is in the plan's `## Files to touch` or the
-     spec itself; anything else fails the run;
-   - for `--phase implement`, no test file changed (hash comparison with
-     the starting commit); for `test-first+implement`, test files are
-     allowed and reported.
+   - the session and verifier kept HEAD and the worktree branch unchanged;
+   - every changed, deleted, or added path, staged or unstaged, is in the
+     plan's `## Files to touch`, the spec itself, or its generated dashboard;
+     anything else fails the run;
+   - for `--phase implement`, no test path changed against the starting
+     commit; for `test-first+implement`, test files are allowed and reported;
+   - scope and test checks run before and after the gate, so verifier writes
+     cannot enter the final commit without being audited.
 5. **Record and hand back.** Write `results/<run-id>/result.json` and one
    ledger line: mode `handoff`, phase, model, fingerprint (harness name and
    version included), wall time, gate outcome, scope outcome, and the
@@ -118,8 +138,10 @@ The runner never merges, commits to the feature branch, or pushes.
   and the spec's plan is approved, offer the handoff, run it, and continue
   with review on exit 0; on exit 10 read the session's handoff note and
   either fix with the frontier model or re-hand with a short hint.
-- `/unattended start` asks which phases go local and which model, recorded
-  as standing decisions.
+- `/unattended start` asks which phases go local and which model, and asks
+  separately for authority to create temporary `handoff/<run>` commits. It
+  records both as standing decisions; without the commit authority it uses
+  `files` or `none`.
 - Any orchestrator client can call it: Claude Code, Codex, and Pi only run
   a shell command. Only the local session itself needs Pi.
 
@@ -129,6 +151,9 @@ The same probation rules as the single-file runner, keyed by a new bucket
 `phase:<phase>` instead of file size. A review verdict scores the handoff
 run as a whole. The harness and its version join the fingerprint, so a Pi
 upgrade starts a fresh record, as a runtime change does today.
+`status` shows phase scores for the installed harness (or
+`DELEGATE_HANDOFF_HARNESS` override); `reset <model> phase:implement` and
+`reset <model> phase:test-first+implement` clear the respective demotion.
 
 ## Acceptance
 

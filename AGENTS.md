@@ -212,7 +212,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-14)
+## Current state (updated 2026-10-15)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -271,11 +271,20 @@ Open:
   [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md): `handoff`
   (v1, smoke-tested with a stub harness, no real-model run yet) hands a
   whole phase to a headless local Pi session in a git worktree; the runner
-  verifies the gate and plan scope, commits on `handoff/<run>`, and the
-  frontier orchestrator reviews and squash-merges; `handoff-clean` removes
-  the worktree. Built after a local model (GLM-5.3) ran the full loop well
-  with tools. Delegation is now an explicit per-run mode (`none`, `files`,
-  `handoff`) rather than implied by `policy = "auto"`. The single-file
+  verifies the gate and plan scope, and—only after explicit human approval
+  acknowledged with `--allow-commit`—commits on `handoff/<run>` for the
+  frontier orchestrator to review and squash-merge; `handoff-clean` removes
+  the worktree. Review fixes bind an isolated Pi provider to the machine
+  profile, audit scope and test paths against the starting commit before
+  and after the gate, reject session/verifier commits and branch changes,
+  and use one harness/configuration fingerprint for phase selection and
+  scoring (`status` and `reset` include phase buckets). Bootstrap migrates
+  the delegation ignore entry without replacing project rules; activation
+  handles both BSD and GNU stat. Regression coverage includes these paths;
+  real-model handoff evidence remains open. Built after a local model
+  (GLM-5.3) ran the full loop well with tools. Delegation is now an explicit
+  per-run mode (`none`, `files`, `handoff`) rather than implied by
+  `policy = "auto"`. The single-file
   runner's scratch copy omitted ignored dependencies (`node_modules`), so
   its TypeScript typecheck and test steps were likely never verified in
   the trials; it now runs `toolchain.sh install` there (not yet exercised

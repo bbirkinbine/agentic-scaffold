@@ -122,6 +122,13 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   delegate either way; the handoff session itself, and a fully local loop,
   run in Pi.
 
+Local delegation remains optional: without an approved machine profile,
+frontier-only workflows need no local server or Pi handoff session. Full-profile
+installation and `--update` add the `.agentic/delegate/` ignore entry when
+missing, preserving the project's other ignore rules. Handoff generates an
+isolated Pi provider from the selected profile endpoint and model; it does not
+require a matching provider in the user's Pi configuration.
+
 `python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run
 `scripts/render-client-surfaces.sh`.

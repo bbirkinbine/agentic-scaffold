@@ -138,12 +138,23 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    prints `auto`. The human then picks a
    delegation mode per run (`none`, `files`, or `handoff`; `/delegate` →
    "Delegation modes"), and the Implement step follows it.
-6. **Phase handoff.** `handoff <spec> --phase implement` gives the whole
-   implement phase (or `test-first+implement`) to a local agent session in
-   a git worktree, verifies the gate and the plan's file scope, and commits
-   the result on `handoff/<run>` for review and a squash merge;
+6. **Phase handoff.** After the human explicitly authorizes its temporary
+   handoff-branch commit, `handoff <spec> --allow-commit --phase implement`
+   gives the whole implement phase (or `test-first+implement`) to a local
+   agent session in a git worktree, verifies the gate and the plan's file
+   scope, and commits the result on `handoff/<run>` for review and a squash
+   merge. Choosing `handoff` mode alone is not commit authorization; the
+   runner refuses without the acknowledgement flag.
    `handoff-clean` removes it afterwards
    (design: `docs/local-phase-handoff.md` in agentic-scaffold).
+   The runner generates an isolated Pi provider from the selected machine
+   profile; no matching global Pi provider is needed. It passes only the
+   credential variable the profile names and stores that variable's name in
+   the generated configuration. Scope and test-file checks compare against
+   the starting commit before and after the gate; session commits and branch
+   changes fail the run. `status` includes phase records for the installed
+   harness, and `reset <model> phase:implement` (or
+   `phase:test-first+implement`) clears a phase demotion.
 
 Packets, results, and the ledger stay in the gitignored
 `.agentic/delegate/`. In `files` mode the local model sees only the

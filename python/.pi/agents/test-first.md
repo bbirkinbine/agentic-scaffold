@@ -24,7 +24,7 @@ Your job in one task:
 2. Read `AGENTS.md` → the stack's code-conventions rule → "Test-first" for this stack's test runner, fixture conventions, and what an expected red looks like.
 3. Read existing tests in the same area to match style and fixtures.
 4. Write tests that describe the desired behavior — they MUST FAIL right now (no implementation yet).
-5. Run the focused tests with `.agentic/toolchain.sh test <target>`. Confirm they fail with the *expected* failure mode for this stack (the missing function, attribute, or export; a not-implemented stub; a behavior-level assertion) — not an import typo, a broken fixture, or a collection error.
+5. Run the focused tests with `.agentic/toolchain.sh test <target>`. Confirm they fail with an *expected* failure mode named by this stack's Test-first rule (the missing planned module, function, attribute, or export; a not-implemented stub; a behavior-level assertion) — not an import typo, a broken fixture, or any collection error the stack rule does not explicitly allow.
 6. Return: the test file paths you wrote, the failing-test output, and a one-line summary per test of what behavior it pins down.
 
 Rules:

@@ -51,6 +51,57 @@ bash "$REPO_DIR/custom/bootstrap.sh" --full >/dev/null
 cmp -s .agentic/delegate-run.sh "$REPO_DIR/workflow/bin/delegate-run.sh" ||
   fail "installed runner differs from workflow/bin/delegate-run.sh"
 
+# Frontier-only projects must not need jq or a local profile.
+mkdir -p "$WORK/no-jq-bin"
+for dep in dirname date; do ln -s "$(command -v "$dep")" "$WORK/no-jq-bin/$dep"; done
+got=0
+PATH="$WORK/no-jq-bin" /bin/bash .agentic/delegate-run.sh policy --profile "$WORK/absent.toml" >"$WORK/no-profile.out" 2>&1 || got=$?
+[[ "$got" == 1 ]] && grep -q '^off: no profile' "$WORK/no-profile.out" || fail "no-profile policy needs local dependencies"
+
+# Options that require a value must fail promptly instead of looping on a
+# failed `shift 2`.
+python3 - <<'PY'
+import subprocess
+
+runner = ".agentic/delegate-run.sh"
+cases = [
+    ["run", "packet", "--model"],
+    ["qualify", "model", "--profile"],
+    ["init", "--key-env"],
+    ["handoff", "spec", "--phase"],
+    ["status", "--profile"],
+    ["discover", "--profile"],
+    ["policy", "--profile"],
+    ["activate", "--profile"],
+]
+for args in cases:
+    try:
+        result = subprocess.run(
+            ["bash", runner, *args], capture_output=True, text=True, timeout=2
+        )
+    except subprocess.TimeoutExpired as error:
+        raise SystemExit(f"option parser hung: {' '.join(args)}") from error
+    output = result.stdout + result.stderr
+    if result.returncode != 2 or "requires a value" not in output:
+        raise SystemExit(
+            f"bad missing-option result for {' '.join(args)}: "
+            f"exit {result.returncode}, output {output!r}"
+        )
+PY
+
+# An existing project owns .gitignore. Updating adds only the new runtime
+# entry, preserving custom content and remaining idempotent.
+sed '/^\.agentic\/delegate\/$/d' .gitignore >"$WORK/ignore.before"
+printf '\n# Project-specific rule\nlocal-output/\n' >>"$WORK/ignore.before"
+cp "$WORK/ignore.before" .gitignore
+bash "$REPO_DIR/custom/bootstrap.sh" --update >/dev/null
+git check-ignore -q .agentic/delegate/packets/probe.md || fail "--update did not ignore delegation state"
+head -n "$(wc -l <"$WORK/ignore.before" | tr -d ' ')" .gitignore >"$WORK/ignore.prefix"
+cmp -s "$WORK/ignore.before" "$WORK/ignore.prefix" || fail "--update changed existing ignore rules"
+cp .gitignore "$WORK/ignore.after"
+bash "$REPO_DIR/custom/bootstrap.sh" --update >/dev/null
+cmp -s .gitignore "$WORK/ignore.after" || fail "the delegation ignore migration is not idempotent"
+
 # --- a small shell project with an active gate ---------------------------------
 python3 - <<'PY'
 import re
@@ -76,6 +127,15 @@ for name, body in fills.items():
     if n != 1:
         raise SystemExit(f"fill: no single template line for {name}")
 text = text.replace("TC_CONFIGURED=0", "TC_CONFIGURED=1", 1)
+# Model a verifier that writes after the session's first scope audit.
+text = text.replace('gate() {', '''gate() {
+  if [[ -f .agentic/delegate/gate-write ]]; then
+    case "$(cat .agentic/delegate/gate-write)" in
+      outside) echo x >lib/gate-extra.sh ;;
+      tests) echo 'exit 0' >tests/test_greet.sh ;;
+      commit) git add -A; git commit -qm 'unexpected verifier commit' ;;
+    esac
+  fi''', 1)
 path.write_text(text)
 PY
 mkdir -p lib tests
@@ -544,6 +604,24 @@ runner activate >"$WORK/act.out" 2>&1 || { cat "$WORK/act.out" >&2; fail "activa
 runner policy >/dev/null 2>&1 || fail "policy not auto after activate"
 [[ "$(grep -c '^activation_approved' "$PROFILE")" == 1 ]] || fail "activate duplicated activation_approved"
 [[ "$(grep -c '^\[\[model\]\]' "$PROFILE")" == "$models_before" ]] || fail "activate changed the model entries"
+
+# Exercise both stat dialects, including failed commands that emit stdout.
+mkdir -p "$WORK/stat-bin"
+cat >"$WORK/stat-bin/stat" <<'SH'
+#!/usr/bin/env bash
+case "$STAT_DIALECT:$1" in
+  gnu:-c | bsd:-f) echo 600 ;;
+  *) echo 'failed stat output must not reach chmod'; exit 1 ;;
+esac
+SH
+chmod +x "$WORK/stat-bin/stat"
+chmod 600 "$PROFILE"
+for dialect in bsd gnu; do
+  STAT_DIALECT="$dialect" PATH="$WORK/stat-bin:$PATH" runner deactivate >/dev/null 2>&1 || fail "$dialect stat deactivate failed"
+  STAT_DIALECT="$dialect" PATH="$WORK/stat-bin:$PATH" runner activate >/dev/null 2>&1 || fail "$dialect stat activate failed"
+done
+[[ "$(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$PROFILE")" == 0o600 ]] ||
+  fail "policy update changed profile permissions"
 sed 's/^candidates = .*/candidates = ["stub-coder-b"]/' "$PROFILE" >"$WORK/unqualified.toml"
 runner activate --profile "$WORK/unqualified.toml" >"$WORK/act.out" 2>&1 && fail "activate accepted a project with no qualified candidate"
 grep -q 'no candidate' "$WORK/act.out" || fail "activate refusal did not name the reason"
@@ -637,6 +715,10 @@ case "\$(cat "$WORK/harness-mode")" in
   good) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
   outside) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo x >lib/extra.sh ;;
   tests) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo 'exit 0' >tests/test_greet.sh ;;
+  committed-tests) echo 'exit 0' >tests/test_greet.sh; git add tests/test_greet.sh; git commit -qm 'unexpected test commit'; printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
+  committed-outside) echo x >lib/committed-extra.sh; git add lib/committed-extra.sh; git commit -qm 'unexpected outside commit' ;;
+  branch) git checkout -q -b unexpected-handoff-branch ;;
+  gate-*) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; mkdir -p .agentic/delegate; printf '%s\n' "\$(cat "$WORK/harness-mode" | sed 's/^gate-//')" >.agentic/delegate/gate-write ;;
   red) printf '%s\n' 'greet() { echo "bye \$1"; }' >lib/greet.sh ;;
   hang) sleep 30 ;;
   crash) exit 7 ;;
@@ -648,10 +730,18 @@ handoff() {
   local want="$1" mode="$2" got=0
   echo "$mode" >"$WORK/harness-mode"
   DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" HANDOFF_SMOKE_SECRET=leak \
-    bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
+    bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --allow-commit \
+      --model "${HANDOFF_MODEL:-stub-coder}" >"$WORK/handoff.out" 2>&1 || got=$?
   [[ "$got" == "$want" ]] || { cat "$WORK/handoff.out" >&2; fail "handoff $mode: expected exit $want, got $got"; }
 }
 drop_worktrees() { runner handoff-clean --all >/dev/null 2>&1; return 0; }
+
+# The runner cannot infer commit authority from the selected delegation mode.
+got=0
+DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
+  runner handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q -- '--allow-commit' "$WORK/handoff.out" || fail "handoff did not require explicit commit acknowledgement"
+[[ "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] || fail "refused handoff created a worktree"
 
 handoff 0 good
 branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)"
@@ -659,10 +749,28 @@ branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)
 [[ "$(git show "$branch:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "the handoff branch does not hold the session's work"
 greet_is "$(cat "$WORK/greet.baseline")" || fail "a handoff changed the main working tree"
 [[ "$(last_result | jq -r .bucket)" == phase:implement ]] || fail "handoff was not recorded under its phase bucket"
-grep -q 'stub/stub-model' "$WORK/harness-args" || fail "the harness was not given <endpoint>/<model_id>"
+grep -q '^stub$' "$WORK/harness-args" && grep -q '^stub-model$' "$WORK/harness-args" || fail "the harness was not given the profile provider/model"
 grep -q '^--approve$' "$WORK/harness-args" || fail "the harness was not run with --approve"
 if grep -q HANDOFF_SMOKE_SECRET "$WORK/harness-env"; then fail "the session inherited an unlisted environment variable"; fi
 run_id="$(last_result | jq -r .run)"
+agent_dir="$(sed -n 's/^PI_CODING_AGENT_DIR=//p' "$WORK/harness-env")"
+[[ "$agent_dir" == "$WORK/project/.agentic/delegate/results/$run_id/pi-agent" ]] || fail "handoff did not isolate Pi configuration"
+jq -e --arg url "http://127.0.0.1:$PORT/v1" \
+  '.providers.stub | .baseUrl == $url and .api == "openai-completions" and .apiKey == "$STUB_TOKEN" and .models[0].id == "stub-model" and .models[0].samplingParams.temperature == 0.2' \
+  "$agent_dir/models.json" >/dev/null || fail "Pi provider does not match the selected profile model"
+! grep -q "$STUB_TOKEN" "$agent_dir/models.json" || fail "Pi provider file contains the credential value"
+if command -v pi >/dev/null 2>&1; then
+  # No real model: prove Pi itself resolves this isolated provider and sends
+  # the selected model and credential to the loopback stub.
+  reset_case
+  respond 01 OK
+  (cd "$WORK" && PI_CODING_AGENT_DIR="$agent_dir" pi --offline --no-extensions --no-mcp --no-skills \
+    --no-context-files --no-prompt-templates --no-session --no-approve \
+    --provider stub --model stub-model -p 'Reply OK without tools.') >"$WORK/pi-provider.out" 2>&1 ||
+    { cat "$WORK/pi-provider.out" >&2; fail "Pi could not use the generated provider"; }
+  jq -e '.model == "stub-model" and .temperature == 0.2' "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings"
+  [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer $STUB_TOKEN" ]] || fail "Pi did not resolve the credential variable"
+fi
 runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept a handoff run"
 runner handoff-clean | grep -q "${run_id}" || fail "handoff-clean did not list the kept worktree"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "handoff-clean could not remove one run"
@@ -674,6 +782,44 @@ grep -q 'lib/extra.sh' "$WORK/handoff.out" || fail "an out-of-plan change was no
 drop_worktrees
 handoff 4 tests
 grep -q 'tests/test_greet.sh' "$WORK/handoff.out" || fail "a test-file change in the implement phase was not named"
+drop_worktrees
+for mode in committed-tests committed-outside gate-outside gate-tests gate-commit; do
+  handoff 4 "$mode"
+  drop_worktrees
+done
+# A branch switch is rejected too; remove only this fixture's extra branch.
+handoff 4 branch
+wt="$(git worktree list --porcelain | sed -n '\|^worktree .*handoffs/|s/^worktree //p' | head -n 1)"
+git -C "$wt" checkout -q "handoff/$(last_result | jq -r .run)"
+git branch -D unexpected-handoff-branch >/dev/null
+drop_worktrees
+
+# Handoff scoring uses the same fingerprint during selection, status, and
+# review. A failed model is skipped, phase reset restores it, and a harness
+# version change starts a fresh phase record without revoking HTTP plumbing.
+handoff 0 good
+run_id="$(last_result | jq -r .run)"
+runner record-review "$run_id" model-defect >/dev/null 2>&1
+DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
+grep -q 'phase:implement:.*DEMOTED' "$WORK/phase-status" || fail "status lost the handoff demotion"
+drop_worktrees
+echo good >"$WORK/harness-mode"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
+  runner handoff docs/specs/0002-greet.md --allow-commit >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "selected handoff failed"; }
+[[ "$(selected)" == 'explore stub-coder-b' ]] || fail "selection reused a phase-demoted model"
+drop_worktrees
+runner reset stub-coder phase:implement >/dev/null 2>&1 || fail "phase reset failed"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
+grep -q 'phase:implement: 0/0 passed' "$WORK/phase-status" || fail "phase reset did not clear the record"
+runner reset stub-coder phase:test-first+implement >/dev/null 2>&1 || fail "combined phase reset failed"
+handoff 0 good
+runner record-review "$(last_result | jq -r .run)" model-defect >/dev/null 2>&1
+drop_worktrees
+sed 's/stub-harness 1.0/stub-harness 2.0/' "$HARNESS" >"$WORK/harness-new"
+cat "$WORK/harness-new" >"$HARNESS"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
+  runner handoff docs/specs/0002-greet.md --allow-commit >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "new harness handoff failed"; }
+[[ "$(selected)" == 'explore stub-coder' ]] || fail "a new harness did not start a fresh phase record"
 drop_worktrees
 handoff 10 red
 [[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "a red gate after the session was not needs_frontier"
