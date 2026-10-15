@@ -169,7 +169,9 @@ is already obvious.
     findings, resyncs any affected docs, reruns the complete gate, and asks a
     fresh reviewer to verify the fixes and inspect their delta. A substantial
     fix gets a full review again. Repeat until no must-fix finding remains;
-    `[ask-user]` is a hard stop for your decision. A rerun of lint/tests alone
+    `[ask-user]` is a hard stop for your decision, except in an unattended
+    run with standing consent, where `/unattended` answers and logs it for
+    you to reconcile when you are back. A rerun of lint/tests alone
     does not close a semantic finding.
 11. **Final checkpoint, then commit and open the PR.** The agent reports the
     spec, complete changed-file set, red → green evidence, latest gate, review

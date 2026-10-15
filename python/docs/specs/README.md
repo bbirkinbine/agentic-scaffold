@@ -299,6 +299,31 @@ If a decision was load-bearing enough to redo the original spec, do
 that instead — `Status: superseded-by-NNNN` and a new spec. This
 section is for the small stuff.
 
+### `## Standing decisions` and `## Unattended decisions`
+
+Only for unattended runs (`/unattended`). `/unattended start` writes the
+human's up-front answers and the standing consent to `## Standing
+decisions`; the run treats them as the human's answers. Each decision the
+run makes on the human's behalf is appended to `## Unattended decisions`
+with its alternatives, reason, files, and how to reverse it, and
+`/unattended reconcile` marks each `kept` or `overridden` when the human is back.
+
+```markdown
+## Standing decisions
+
+- Baseline: commits up to abc1234 are accepted; do not redo or review them
+  as new (asked 2026-10-14).
+- Manual browser check: defer to the morning (asked 2026-10-14).
+- Unattended shipping authorized through "ready to merge"; no commits.
+
+## Unattended decisions
+
+- **Q:** Should pause also freeze the HUD timer? **Chose:** yes.
+  **Alternatives:** keep the timer running. **Why:** the spec pauses "the
+  game". **Files:** src/game-state.ts. **Reverse:** drop the timer guard in
+  `tick()`. — kept
+```
+
 ## The product spec — `0000-product.md`
 
 Feature specs answer "what is this unit of work?"; the product spec
@@ -316,6 +341,13 @@ file, reserved number `0000`, covering:
   feature specs don't relitigate them one at a time.
 - **Constraints and assumptions** — platform, licensing, budget,
   "solo-maintained"; the facts a planner must not design against.
+- **Reference behavior** (only when the product should resemble
+  something) — the reference's recognizable rules, each tied to a declared
+  authoritative, secondary, empirical, or explicitly original source and
+  marked `must`, `later`, or `won't` by the human, plus what must not be
+  copied. Model memory is not a source. Feature specs name the items they
+  cover and repeat the applicable provenance in their own `## External
+  references`, so "like the arcade game" is traced rather than remembered.
 - **Roadmap pointers** — links to the feature specs and open work items
   that currently serve the direction. A list of links, not a plan;
   the backlog stays the backlog.

@@ -30,6 +30,7 @@ python/
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .agentic/
 │   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/test/gate; the one file naming the tools
+│   ├── delegate-run.sh                    # --full: qualify local models, run a /delegate packet, verify, publish, score
 │   └── hooks/                             # shared hook implementations used by all clients
 ├── .agents/
 │   └── skills/                            # Codex workflow + reusable repository skills
@@ -61,7 +62,8 @@ python/
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
 │   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
 │   │   ├── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
-│   │   └── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
+│   │   ├── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
+│   │   └── unattended.md                  # /unattended — ask decisions up front, then reconcile an unattended run's choices
 │   └── skills/
 │       ├── python-module-split/
 │       │   └── SKILL.md                   # Auto-invoked when a .py file ≥ 300 lines
@@ -150,7 +152,7 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 | --- | --- | --- |
 | `--minimal` | Small repos that want the core loop without the full doctrine surface | `AGENTS.md` + `CLAUDE.md`, `WORKFLOW.md`, pyproject, pre-commit, CI, shared format/safety hooks, Claude/Codex/Pi configuration, specs convention, core commands/skills/prompts, and all clients' roles |
 | `--core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
-| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product, local-executor), opt-in reviewer command stubs, `/delegate`, and the inert Claude PR-review workflow example |
+| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product, local-executor), opt-in reviewer command stubs, `/delegate` with the local delegate runner, `/unattended`, and the inert Claude PR-review workflow example |
 
 Options compose with profiles:
 
@@ -265,6 +267,8 @@ as `$<name>`; for example, `/plan` maps to `$plan`.
 | Test-first | `test-first` subagent (Claude Markdown / Codex TOML adapters) | `/test-first [spec-path]` |
 | Analyze (optional consistency check) | Fresh read-only `analyzer` cross-check: every success criterion covered by a test, no undeclared scope, standing rules honored | `/analyze [spec-path]` |
 | Implement | Main client session (`AGENTS.md`; Claude imports it through `CLAUDE.md`) | — |
+| Implement (local delegation, `--full`, opt-in) | With the machine profile's `policy = "auto"`, eligible one-file plan steps go to a qualified local model through `.agentic/delegate-run.sh`, which verifies each file in a scratch copy and publishes only a passing one; setup is in `docs/project-types.md` | `/delegate` |
+| Unattended run (`--full`, optional) | Before you leave, the agent asks every foreseeable decision at once and records your consent; the run answers the rest for you and logs each; on return (or mid-run) you keep or override each logged decision | `/unattended start` · `/unattended reconcile` |
 | Per-edit quality | Client PostToolUse wiring calls `.agentic/hooks/format-after-edit.sh`; `--strict-hooks` also runs ruff check + mypy | — |
 | Local quality gate (pre-review) | ruff lint + format + mypy + pytest, refuses pass on failure | `/review-check` |
 | Turn-end gate (default; `--no-stop-gate` removes it) | Shared Stop hook (`.agentic/hooks/gate-on-stop.sh`) blocks finishing a turn while ruff/mypy/pytest are red and `src/` has pending changes | — |

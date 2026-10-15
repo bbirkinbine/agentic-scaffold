@@ -28,6 +28,15 @@ Steps:
      source.
    - **Non-goals that contradict the goal**, or obvious adjacent scope
      the spec neither claims nor excludes.
+   - **Reference drift** — when the product spec has a
+     `## Reference behavior` inventory: a non-goal or "original" claim
+     that excludes a `must` item without naming the later spec that
+     covers it, or covered items the success criteria do not pin.
+   - **Missing experience criteria** for anything a person will see or
+     use — what it should look and feel like, stated measurably where it
+     can be (dimensions, density, palette, layout, tone). "A clear,
+     functional prototype" is not a look; without these, the
+     implementation defaults to the smallest thing the tests accept.
 3. Ask the human about the findings — **one question at a time, highest
    leverage first, five questions maximum**. Each question must name the
    spec section it affects and offer your best-guess default so the

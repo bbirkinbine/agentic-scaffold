@@ -215,7 +215,7 @@ render_role() {
 }
 
 # Hooks: byte-identical copies of shared/hooks/ and workflow/hooks/, plus the
-# stack's gate runner. Kept byte-identical on purpose so the validator can
+# stack's gate runner and the workflow's delegate runner (workflow/bin/). Kept byte-identical on purpose so the validator can
 # cmp them and catch an edit made to the copy instead of the source; no
 # provenance header is stamped in.
 render_hooks() {
@@ -227,7 +227,9 @@ render_hooks() {
     cp "$source" "$build/.agentic/hooks/$(basename "$source")"
   done
   cp "$stack_dir/toolchain.sh" "$build/.agentic/toolchain.sh"
-  chmod +x "$build"/.agentic/hooks/*.sh "$build/.agentic/toolchain.sh"
+  cp "$WORKFLOW_DIR/bin/delegate-run.sh" "$build/.agentic/delegate-run.sh"
+  chmod +x "$build"/.agentic/hooks/*.sh "$build/.agentic/toolchain.sh" \
+    "$build/.agentic/delegate-run.sh"
 }
 
 render_client_config() {

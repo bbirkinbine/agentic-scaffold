@@ -53,6 +53,8 @@ Project-owned files, laid down once and never overwritten by `--update`:
 stacks; here the scaffold cannot know the tools, CI setup, or ecosystems). There is no
 starter layout and no dependency-audit job; `ci.yml` and `dependabot.yml`
 say where to add the project's ecosystem; updates preserve those additions.
+Full-profile installation and updates append the delegation runtime ignore
+entry to `.gitignore` when missing, without replacing existing rules.
 
 The contract's Stack, How-to-run, and Test-first sections are placeholders
 the founding session fills. "Not chosen yet; spec NNNN chooses it" is a

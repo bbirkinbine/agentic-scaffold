@@ -43,3 +43,6 @@ new complete semantic change set. A focused re-review must verify each claimed
 resolution and inspect the fix delta for regressions; if the fix materially
 changed design, behavior, or scope, run a full review instead. Do not treat a
 green mechanical gate as resolution of a semantic finding.
+
+If `.agentic/delegate/ledger.jsonl` exists, also follow `/delegate` →
+"Review of delegated files".

@@ -15,10 +15,17 @@ whether it succeeded.**
 That is not a general principle about model quality. It follows from three
 facts, in order:
 
-1. On the independently-run Terminal-Bench 2.0 leaderboard, open-weight
-   models that fit in 72 GB of VRAM score roughly **25%** on autonomous
-   agentic coding tasks, against roughly **85%** for current frontier
-   models. Most local attempts at an agentic task fail.
+1. Local models fail agentic tasks often enough that failure must be
+   planned for. As of 2026-08 the comparison this doc started from put
+   open-weight models that fit in 72 GB of VRAM at roughly 25% on the
+   Terminal-Bench 2.0 agentic coding benchmark against roughly 85% for
+   frontier models; those figures were never pinned to a source and are
+   kept only as dated history. By 2026-10 a 27B open-weight model's vendor
+   reported about 59% on the same benchmark — self-reported, at full
+   precision, with long context, generous token budgets, and multi-hour
+   timeouts, not a quantized workstation setup. Published scores are a
+   prior about what to try, not evidence about your setup; your own
+   recorded runs are.
 2. A high failure rate is only affordable when detection is automatic and
    free.
 3. This scaffolding already owns automatic detection. `/test-first` writes
@@ -36,8 +43,8 @@ eyeballing the diff.
 | Tier | The job | Model class | Verdict |
 | --- | --- | --- | --- |
 | **1 — inline autocomplete (FIM)** | Complete the line you are typing | 1.5B–7B **base** model | Works. Unrelated to this loop; wire it up and forget it |
-| **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | 27B–120B instruct | Viable *only* behind a green gate |
-| **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Does not work. Do not design around it |
+| **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | instruct, typically 27B and up | Viable *only* behind a green gate |
+| **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Unproven on local hardware. Measure it before designing around it |
 
 Tier 1 notes worth carrying: use a **base** model, not an Instruct
 variant — chat tuning suppresses fill-in-the-middle, and model vendors say
@@ -53,27 +60,118 @@ implementation model should never be the same process.
 | `/test-first` | No | The tests *are* the oracle. Never delegate the grader |
 | Implement | **Yes, conditionally** | The only phase with mechanical pass/fail |
 | `/review-check` | n/a | Deterministic already — the stack's gate through `.agentic/toolchain.sh` |
-| `/review`, `/review-adversarial` | No | This is the rung that catches "gate green, feature wrong." A 25%-agentic model is the wrong judge |
+| `/review`, `/review-adversarial` | No | This is the rung that catches "gate green, feature wrong." The model that wrote the code, or one weaker than the orchestrator, is the wrong judge |
 
 ## Conditions on the implement phase
 
 All six, or don't delegate:
 
-1. **One file.** Multi-file refactors are the named failure in every
-   negative field report.
-2. **Single shot, not an agentic loop.** Ask for a complete file back. The
-   loop is where the 25% lives; the single bounded edit is where the ~40%
-   lives.
-3. **Tests exist and fail before the call.** No oracle, no delegation.
+1. **One file per call.** A plan that touches several files is delegated
+   as a sequence of one-file calls in dependency order, each quoting the
+   signatures of files already landed. The multi-file failure in field
+   reports is the agentic refactor, where the model navigates and edits
+   many files with tools (Tier 3); a change that only works as a
+   simultaneous multi-file edit stays with the frontier model. Returning
+   several files from one call is a separate, unmeasured task shape: do not
+   assume it from a one-file success rate.
+2. **Single shot, not an agentic loop.** Ask for a complete file back.
+   The edit-test-fix loop still happens, but the runner owns it: it runs
+   the tests and sends the failures back with the next request, so the
+   model never has to emit a tool call — the step where local setups most
+   often break (see below).
+3. **Tests for the file exist and fail before the call.** No oracle, no
+   delegation.
 4. **Capped retries, then escalate to the frontier model.** The cap matters
    more than its value; three is a reasonable start.
 5. **Prefer whole-file output over diffs.** The same model on the same
    problems has scored 2x differently on format alone. Diff generation is a
    separate skill from coding and weak models are bad at it.
-6. **Pin the quadruple** — model, quant, runtime version, harness version.
+6. **Pin the quadruple** — model, quant, runtime version, harness version —
+   plus the request settings (reasoning mode or thinking level, sampling).
+   The same weights with reasoning on and off are different executors.
    Local tool-calling breaks on serialization mismatches between model,
    runtime and harness far more often than on reasoning, and every one of
    those layers ships breaking changes.
+
+A local executor does what the tests and the packet demand and little more:
+where the spec leaves a choice open, it tends to pick the smallest thing
+the tests accept. In a trial on a Pac-Man-inspired game, a frontier model
+given the same spec built a 15×11 maze in arcade colors; the local model
+built a 7×7 loop with white corridors, and both passed. So pin intent where
+the executor can't miss it: in tests where it is measurable (sizes, counts,
+constants), and as concrete decisions in the packet where it is not.
+Files that are mostly presentation (rendering, styles, copy) are where a
+weaker model's judgment shows most; keep them with the frontier model
+unless tests pin their look.
+
+## Running it: `.agentic/delegate-run.sh`
+
+`--full` installs a runner that does the loop above without pasting. It
+needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
+
+1. **Profile.** Describe your inference servers and models in
+   `~/.config/agentic/local-models.toml`, outside the repository.
+   `bash .agentic/delegate-run.sh init <base-url> ...` prints a draft from
+   what each server lists; review it and save it yourself
+   (`--help` shows the format). Set
+   `max_tokens` in a model's `request` high enough for a whole file plus
+   any reasoning, and `timeout_seconds` long enough for one call to swap
+   and load the model, think, and reply — a model that connects but runs
+   past it is scored as failing, not excused as a server problem. A server key is named by `credential_env`, never written
+   into the file. `discover` lists what each server serves.
+2. **Qualify.** `qualify <model>` sends one known-answer file about the
+   size of a real task and grades the reply exactly. It needs no project
+   fixture. Any change to the model's setup (weights, quantization,
+   runtime, request settings, server) needs a new pass.
+3. **Run.** `/delegate` writes a packet under `.agentic/delegate/packets/`;
+   `run <packet> --model <name>` sends it, verifies the reply in a scratch
+   copy of the workspace, and publishes only a passing file. Without
+   `--model`, it selects from the project's `[[project]]` candidates.
+4. **Review and record.** After `/review`, `record-review <run>
+   pass|model-defect|packet-defect` scores the model and logs how many of
+   the published lines review kept. Its record decides selection and
+   demotion; `status` shows it.
+5. **Automate.** `activate` sets `policy = "auto"` and
+   `activation_approved = true` in this checkout's project entry (it
+   refuses without a qualified candidate); `deactivate` sets it back. An
+   agent runs either only on the human's explicit yes. Then `policy`
+   prints `auto`. The human then picks a
+   delegation mode per run (`none`, `files`, or `handoff`; `/delegate` →
+   "Delegation modes"), and the Implement step follows it.
+6. **Phase handoff.** After the human explicitly authorizes its temporary
+   handoff-branch commit, `handoff <spec> --allow-commit --phase implement`
+   gives the whole implement phase (or `test-first+implement`) to a local
+   agent session in a git worktree, verifies the gate and the plan's file
+   scope, and commits the result on `handoff/<run>` for review and a squash
+   merge. Choosing `handoff` mode alone is not commit authorization; the
+   runner refuses without the acknowledgement flag.
+   `handoff-clean` removes it afterwards
+   (design: `docs/local-phase-handoff.md` in agentic-scaffold).
+   The runner generates an isolated Pi provider from the selected machine
+   profile; no matching global Pi provider is needed. It passes only the
+   credential variable the profile names and stores that variable's name in
+   the generated configuration. Scope and test-file checks compare against
+   the starting commit before and after the gate; session commits and branch
+   changes fail the run. `status` includes phase records for the installed
+   harness, and `reset <model> phase:implement` (or
+   `phase:test-first+implement`) clears a phase demotion.
+
+Packets, results, and the ledger stay in the gitignored
+`.agentic/delegate/`. In `files` mode the local model sees only the
+packet: no conversation, spec, repository, or tools. In `handoff` mode it
+works in its own worktree with the repository and tools.
+
+### Which clients can do what
+
+| Role | Claude Code | Codex CLI | Pi |
+|---|---|---|---|
+| Orchestrate with a frontier model and delegate locally (`files` or `handoff`) | yes | yes | yes |
+| `files` mode (plain HTTP calls to the model server; no agent harness) | yes | yes | yes |
+| `handoff` session (the local agent itself) | runs Pi | runs Pi | yes |
+| A local model orchestrating the whole loop | not wired by this scaffold | not wired by this scaffold | yes, with a model that handles long tool use |
+
+So local delegation works under any of the three clients; only the
+handoff session and a fully local loop need Pi installed.
 
 ## What breaks, and it is not what you expect
 
@@ -110,7 +208,10 @@ as one sets up a disappointment.
 - A controlled comparison — same tasks, frontier-only versus frontier-plan
   plus local-execute, with quality and token numbers. No such measurement is
   published as of 2026-08. Running one on your own repo would be novel.
-- An open-weight model fitting 72 GB scoring above ~35% on an independent
-  agentic leaderboard. That would move Tier 3 from "no" to "measure it."
+- Your own recorded runs showing a tool-using harness beating the
+  single-shot runner on the same packets. Published agentic scores have
+  already passed the level this doc once used as its trigger, but only as
+  vendor-reported numbers on setups unlike a local one; a comparison on your
+  own tasks is the evidence that would move Tier 3.
 - Harness-side convergence on one tool-call serialization, which would
   retire most of the failure list above.

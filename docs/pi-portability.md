@@ -12,13 +12,21 @@ workflow commands and roles, `.agentic` shell hooks, and stack toolchain runner.
 Every child role explicitly loads the child-only lifecycle entry point, so
 sensitive reads remain guarded in read-only roles and writer roles retain
 Bash/edit/write guards without inheriting the parent settlement gate.
-Token-free Pi 1.0.4 RPC validation confirms the minimal profile exposes five
-project prompts, five project skills, and three project roles, with zero
-package roles competing with them.
+Token-free Pi 1.2.0 RPC validation (baseline moved from 1.0.4 on
+2026-10-14) confirms the minimal profile exposes five project prompts, five
+project skills, and three project roles, with zero package roles competing
+with them.
 The adapter is provider-neutral: it never names or selects an LLM. Pi may use a
 hosted Claude or Codex-family model, another supported provider, or a local
 model; capability and tool-use quality vary by model, but the repository
 contract and executable gate do not.
+
+“Local-model evidence” in this document means a tool-capable local model
+orchestrating the complete workflow through Pi. It is separate from the
+bounded delegate design in
+[`local-delegate-runner.md`](local-delegate-runner.md), where a hosted
+frontier orchestrator sends one file to a local model with no tool access.
+Each path needs its own acceptance evidence.
 
 ## Known gaps
 

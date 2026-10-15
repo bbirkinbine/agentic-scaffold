@@ -224,8 +224,9 @@ Read top-down: everything in a tier includes the tiers above it.
   `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`,
   `docs/local-executor.md`
 - **Workflows (`--full` only):** Claude and Pi `/security`, `/performance`,
-  `/eval`, `/delegate` and matching Codex `$` skills (the first three are
-  stubs — each requires its opt-in agent, below)
+  `/eval`, `/delegate`, `/unattended` and matching Codex `$` skills (the
+  first three are stubs — each requires its opt-in agent, below), plus the
+  `.agentic/delegate-run.sh` local delegate runner that `/delegate` uses
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
 ### Added by `--strict-hooks` (any profile)
@@ -270,7 +271,8 @@ and Pi; Codex uses the same name as `$<name>`.
 | `/security` (`security-reviewer`) | App-sec-only review | The diff touches a trust boundary (section 6) | full + opt-in agent |
 | `/performance` (`performance-reviewer`) | Perf-only review | The diff touches a hot path (section 6) | full + opt-in agent |
 | `/eval` (`evaluator`) | Authors/runs an LLM output-quality eval | The product ships an LLM/AI surface (section 6) | full + opt-in agent |
-| `/delegate` | Builds a self-contained handoff packet for a weaker/local executor | Handing one already-tested file to a local model ([`local-executor.md`](local-executor.md)) | full |
+| `/unattended` | `start` asks every foreseeable decision up front and records standing consent; `reconcile` reviews the decisions an unattended run made on the human's behalf | Leaving one feature to run unattended (overnight, a day away) to "ready to merge" ([`parallel-agents.md`](parallel-agents.md)) | full |
+| `/delegate` | Hands work to a local model through `.agentic/delegate-run.sh`: one tested file per call (`files`) or a whole phase to a local session in a worktree (`handoff`), in the mode the human picks per run | Local implementation with frontier verification and review ([`local-executor.md`](local-executor.md)) | full |
 
 Two hard rules survive every profile: **CI is the gate you cannot skip**,
 and **you write the commit message** — the agent never commits for you.
@@ -333,6 +335,32 @@ copy all three files and add a one-line mention in `AGENTS.md`.
 | A product LLM/AI surface (summarizer, RAG, chatbot, agent trajectory, NL classifier) | `evaluator` + `/eval`; build to the [`llm-product.md`](llm-product.md) conventions | Deterministic product — tests suffice | [`evals.md`](evals.md) · [`llm-product.md`](llm-product.md) |
 | A large, long-lived repo where the agent re-maps structure every session | `serena` MCP | Fresh or small repo — grep is enough | [`serena-setup.md`](serena-setup.md) |
 | Two+ features independent at the file level, or a long unattended run | Worktrees / completion ladder | You are at the keyboard on one feature | [`parallel-agents.md`](parallel-agents.md) |
+| A local inference server (Ollama, llama.cpp, llama-swap, vLLM, LM Studio) you want to write bounded, tested files | `--full` + the setup below | No server, or no wish to delegate | [`local-executor.md`](local-executor.md) |
+
+**Local delegation setup (optional, `--full`).** Ask whether the human
+wants local models to implement eligible files and whether a server is
+running; default to no. If yes:
+
+1. Run `bash .agentic/delegate-run.sh init <base-url> ...` with each server
+   the human names (`--key-env VAR` before a URL whose server needs a key;
+   never accept the key itself). It prints a draft profile and writes
+   nothing; with an existing profile it prints only what is missing.
+2. Show the draft. The human confirms each kept model's `quant` and
+   `runtime`, deletes models they will not use, and orders `candidates`.
+   Save it to `~/.config/agentic/local-models.toml` only after they approve,
+   merging into an existing file rather than replacing it. It never goes in
+   the repository.
+3. Run `qualify <name>` on each candidate and report the results.
+4. Leave `policy = "off"`. Switching to `"auto"` with
+   `activation_approved = true` is a separate decision the human makes
+   after seeing the qualification results: ask, and only on their yes run
+   `bash .agentic/delegate-run.sh activate` (it refuses without a qualified
+   candidate and prints the before and after; `deactivate` turns it off,
+   and the human can run either). Never activate on your own judgment.
+   Even then, each run's
+   delegation mode (`none`, `files`, `handoff`) is chosen per run. The
+   `handoff` mode and a fully local loop need Pi installed; `files` mode
+   works from any client.
 
 `evals.md`, `llm-product.md`, `serena-setup.md`, `parallel-agents.md`, and
 `local-executor.md` install with `--full` or `--advanced-docs`. The optional agents themselves are always

@@ -99,6 +99,9 @@ to keep wide searches or noisy output out of the main context.
 | Need full test output, a wide survey, or doc fetches | A focused subagent |
 | Implementation needs files outside the approved plan, or Trivial/Small work outgrows its size row | Stop and ask the human first; re-size (Medium runs `/plan`) |
 
+Subagents run on the session's model: pass no model override to a subagent
+or workflow unless the human names a model for that subagent.
+
 Re-read the spec at phase boundaries and after context drift. Write a phase
 handoff before changing sessions. Verify claims outside the gate (for example,
 migrations or file comparisons) with a concrete check.
@@ -124,7 +127,9 @@ review invalidate the spec. Never commit without approval.
 Review findings are `[auto-fix]`, `[no-op]`, or `[ask-user]`. Apply
 `[auto-fix]`, sync docs, rerun the complete gate, and obtain a fresh focused
 review (full review for substantial fixes) until clear. Surface `[ask-user]`
-verbatim and stop unless the human explicitly authorized unattended shipping.
+verbatim and stop unless the human explicitly authorized unattended shipping;
+with that consent recorded in the spec's `## Standing decisions`, answer and
+log it as `/unattended` describes.
 
 - **Spec:** Before non-trivial work, create `docs/specs/NNNN-<feature>.md`
   with goal, criteria, non-goals, and external references. Use `/scope-check`
@@ -141,7 +146,9 @@ verbatim and stop unless the human explicitly authorized unattended shipping.
   test to confirm the expected failure. If installed, run `/analyze` before
   coding.
 - **Implement:** Be on a feature branch; write the minimum passing code. For
-  external-authority values, follow "External-reference provenance."
+  external-authority values, follow "External-reference provenance." If
+  `/delegate` is installed, it says when this run delegates; otherwise
+  implement yourself.
 - **Docs:** Before review, correct affected docs. Change README only for pitch,
   installation, or user-facing changes. Add a doc only for standing guidance
   that fits no existing doc or docstring. Mark the spec `shipped` and
@@ -380,8 +387,12 @@ the session.
   `tests/conftest.py`; the test-first phase may edit those and `tests/`, nothing
   else.
 - An expected red is `AttributeError` or `ImportError` on the missing symbol,
-  `NotImplementedError` from a stub, or a behavior-level `AssertionError`. A
-  `SyntaxError`, a fixture error, or a collection error is not a red; it is a
-  broken test.
+  `NotImplementedError` from a stub, or a behavior-level `AssertionError`.
+  For a module the approved plan creates, `ModuleNotFoundError` naming that
+  planned module is also an expected red, even though pytest reports it at
+  collection: it fails for exactly the missing implementation, so do not
+  create empty module shells to avoid it. A `SyntaxError`, a fixture error,
+  or any other collection error (including an import of a module the plan
+  does not create) is not a red; it is a broken test.
 
 <!-- agentic-scaffold:standing-rules:end -->

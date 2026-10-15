@@ -114,6 +114,20 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   and implementation record; [`docs/pi-portability.md`](docs/pi-portability.md)
   — remaining evidence and containment gaps. The earlier Codex adapter record
   is in [`docs/codex-portability.md`](docs/codex-portability.md).
+- [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) — design,
+  safety boundaries, and acceptance contract for bounded local-model
+  delegation; its status header records the current implementation state.
+  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) hands a whole
+  phase to a local session. A Claude Code or Codex orchestrator can
+  delegate either way; the handoff session itself, and a fully local loop,
+  run in Pi.
+
+Local delegation remains optional: without an approved machine profile,
+frontier-only workflows need no local server or Pi handoff session. Full-profile
+installation and `--update` add the `.agentic/delegate/` ignore entry when
+missing, preserving the project's other ignore rules. Handoff generates an
+isolated Pi provider from the selected profile endpoint and model; it does not
+require a matching provider in the user's Pi configuration.
 
 `python/`, `typescript/`, and `custom/` are rendered from `workflow/` and
 `stacks/<name>/`; edit the sources and run

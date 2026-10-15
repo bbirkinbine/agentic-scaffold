@@ -39,6 +39,12 @@ Procedure:
      or correct it. Do NOT invent facts, citations, or
      `## External references` provenance that did not come from the
      discussion — an unknown is an open question, not a fabricated answer.
+     When `docs/specs/0000-product.md` has a `## Reference behavior`
+     inventory, name the items this spec covers in `## Goal` and add the
+     spec number to their rows. A non-goal may defer a `must` item to a
+     named later spec but never drop it, and "not copied" limits assets,
+     not rules; an exclusion that would contradict the inventory is a
+     question for the human.
    - **Skeleton mode — when there is no prior discussion to draw on:**
      write the placeholder skeleton below for the human to fill in.
 

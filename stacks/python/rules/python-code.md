@@ -28,6 +28,10 @@ paths:
   `tests/conftest.py`; the test-first phase may edit those and `tests/`, nothing
   else.
 - An expected red is `AttributeError` or `ImportError` on the missing symbol,
-  `NotImplementedError` from a stub, or a behavior-level `AssertionError`. A
-  `SyntaxError`, a fixture error, or a collection error is not a red; it is a
-  broken test.
+  `NotImplementedError` from a stub, or a behavior-level `AssertionError`.
+  For a module the approved plan creates, `ModuleNotFoundError` naming that
+  planned module is also an expected red, even though pytest reports it at
+  collection: it fails for exactly the missing implementation, so do not
+  create empty module shells to avoid it. A `SyntaxError`, a fixture error,
+  or any other collection error (including an import of a module the plan
+  does not create) is not a red; it is a broken test.

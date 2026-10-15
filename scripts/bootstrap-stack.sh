@@ -86,7 +86,8 @@
 #   - full or --advanced-docs: docs/parallel-agents.md,
 #     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
 #     docs/llm-product.md, docs/local-executor.md.
-#   - full only: command stubs for security / performance / eval / delegate
+#   - full only: command stubs for security / performance / eval / delegate,
+#     the .agentic/delegate-run.sh local delegate runner,
 #     and the inert Claude PR-review workflow example.
 #
 # What it also creates (only if absent):
@@ -1143,6 +1144,12 @@ sync .claude/commands/review.md
 sync .agents/skills/review/SKILL.md
 sync .pi/prompts/review.md
 sync docs/specs/README.md
+# The template's spec dashboard is empty; regenerate this project's so an
+# update never wipes the list of specs.
+if [[ -f "$DST_DIR/.agentic/hooks/specs-status.sh" ]]; then
+  (cd "$DST_DIR" && bash .agentic/hooks/specs-status.sh) >/dev/null 2>&1 ||
+    echo "  WARNING: could not regenerate docs/specs/README.md; run .agentic/hooks/specs-status.sh"
+fi
 sync docs/project-types.md
 sync docs/codex-cli.md
 sync docs/pi-agent.md
@@ -1202,6 +1209,12 @@ if [[ "$EFFECTIVE_ADVANCED_DOCS" == 1 ]]; then
 fi
 
 if [[ "$PROFILE" == full ]]; then
+  # Project-owned .gitignore is never replaced. Migrate just this runtime
+  # entry when installing the runner into an older or customized project.
+  if ! grep -qxF '.agentic/delegate/' "$DST_DIR/.gitignore"; then
+    printf '\n# Local delegation packets, results, and machine-specific state.\n.agentic/delegate/\n' >>"$DST_DIR/.gitignore"
+    echo "  added: .agentic/delegate/ ignore entry"
+  fi
   sync .claude/commands/security.md
   sync .agents/skills/security/SKILL.md
   sync .pi/prompts/security.md
@@ -1214,6 +1227,10 @@ if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/delegate.md
   sync .agents/skills/delegate/SKILL.md
   sync .pi/prompts/delegate.md
+  sync .claude/commands/unattended.md
+  sync .agents/skills/unattended/SKILL.md
+  sync .pi/prompts/unattended.md
+  sync .agentic/delegate-run.sh
   sync .github/workflows/claude-review.yml.example
 fi
 
@@ -1266,6 +1283,10 @@ prune_profile_transition() {
     .claude/commands/delegate.md
     .agents/skills/delegate/SKILL.md
     .pi/prompts/delegate.md
+    .claude/commands/unattended.md
+    .agents/skills/unattended/SKILL.md
+    .pi/prompts/unattended.md
+    .agentic/delegate-run.sh
     .github/workflows/claude-review.yml.example
   )
   local advanced_files=(

@@ -39,7 +39,8 @@ engines. No secrets, no internal hostnames, no work-related context.
 Markdown templates plus bash and one project-local Pi TypeScript adapter
 (the generic bootstrap, the shared stack bootstrap body
 `scripts/bootstrap-stack.sh`, client-neutral hook sources under
-`shared/hooks/` and `workflow/hooks/`, the Pi adapter under `shared/pi/`,
+`shared/hooks/` and `workflow/hooks/`, the local delegate runner under
+`workflow/bin/`, the Pi adapter under `shared/pi/`,
 one gate runner per stack under
 `stacks/<name>/toolchain.sh`, and validation under `scripts/`). No build or
 deploy target — files here are consumed by copy into new repos, and smoke
@@ -128,14 +129,15 @@ apply to this repo itself, not just to repos bootstrapped from it.
 
 ```bash
 bash scripts/render-client-surfaces.sh   # after any change under workflow/, shared/, or stacks/
-bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
-shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
+bash -n scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh workflow/bin/*.sh stacks/*/toolchain.sh stacks/*/stack.sh
+shellcheck --severity=warning scripts/*.sh generic/bootstrap.sh shared/hooks/*.sh workflow/hooks/*.sh workflow/bin/*.sh stacks/*/toolchain.sh stacks/*/stack.sh python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 bash scripts/validate-codex-adapters.sh
 bash scripts/validate-pi-adapters.sh
 bash scripts/smoke-test-generic.sh
 bash scripts/smoke-test.sh <minimal|core|full> [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-typescript.sh [--strict-hooks|--no-stop-gate]
 bash scripts/smoke-test-custom.sh
+bash scripts/smoke-test-delegate.sh
 ```
 
 `scripts/smoke-test.sh` bootstraps a Python profile into a temp dir,
@@ -149,6 +151,10 @@ toolchain, proves the gate and Stop hook then work, and proves `--update`
 leaves the project-owned runner, CI workflow, and Dependabot config alone.
 It also exercises generic-to-custom migration and ensures broken active
 runners fail CI, edit/Stop hooks, and the custom pre-commit entries.
+`scripts/smoke-test-delegate.sh` drives `.agentic/delegate-run.sh` against
+a stub OpenAI-compatible server (`scripts/delegate-stub-server.py`) in a
+filled custom project; it needs `curl`, `jq`, and `python3` and makes no
+network call beyond 127.0.0.1.
 `scripts/smoke-test-generic.sh` covers the stack-neutral flavor, including
 the branch warning on a repository with no commits. CI
 (`.github/workflows/ci.yml`) runs the shell checks plus every
@@ -206,7 +212,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-06)
+## Current state (updated 2026-10-15)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -243,16 +249,70 @@ Open:
   Pi cannot append the existing reminder to default compaction, and neither
   project trust nor role allowlists are OS containment; see
   `docs/pi-portability.md`.
-- Revisit local execution with Codex CLI as orchestrator and a pinned local
-  model as bounded coder. Keep one canonical scaffold: send the local model a
-  self-contained `/delegate` packet, deny direct worktree/tool access, and add
-  an adapter only after model/quantization/runtime-specific evaluation. Start
-  with Qwen3.8-27B dense and Qwen3.6-35B-A3B.
-- `docs/influences.md` records the provenance row for
-  `python/docs/local-executor.md` without URLs or a retrieval date. The
-  Terminal-Bench 2.0 figures in that doc are live leaderboard values the
-  argument rests on; pin a source or soften the claim. Independent of the
-  local-execution item and much cheaper.
+- Local execution has a draft spec and a working runner:
+  `workflow/bin/delegate-run.sh` (installed as `.agentic/delegate-run.sh`
+  with `--full`) qualifies a model with a plumbing check, discovers what
+  each endpoint serves, runs one packet against a named or selected
+  qualified model, verifies it in a scratch copy, publishes only a passing
+  file, and scores and demotes models from the ledger with `record-review`;
+  with `policy = "auto"` the Implement step hands eligible plan files to it
+  through `/delegate` → "Automatic mode". Smoke-tested against a stub
+  server. Two trials on 2026-10-14 in a TypeScript consumer project ran
+  six packets through one local model: four published on the first
+  attempt, one failed three times (test-framework code placed in a source
+  file), and review found a packet that contradicted its plan and a
+  delegated maze far smaller and plainer than a frontier model built from
+  the same spec. Packet traceability, frontier-decided choices, and
+  intent-pinning tests followed from those. A third trial published all
+  four packets across two models; from it the runner sizes a new file by
+  the packet's `expected_lines`, refuses a bucket labelled smaller than its
+  counts, and keeps each published file so `record-review` logs how much
+  of it review kept. Frontier-token savings are still unmeasured.
+  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md): `handoff`
+  (v1, smoke-tested with a stub harness, no real-model run yet) hands a
+  whole phase to a headless local Pi session in a git worktree; the runner
+  verifies the gate and plan scope, and—only after explicit human approval
+  acknowledged with `--allow-commit`—commits on `handoff/<run>` for the
+  frontier orchestrator to review and squash-merge; `handoff-clean` removes
+  the worktree. Review fixes bind an isolated Pi provider to the machine
+  profile, audit scope and test paths against the starting commit before
+  and after the gate, reject session/verifier commits and branch changes,
+  and use one harness/configuration fingerprint for phase selection and
+  scoring (`status` and `reset` include phase buckets). Bootstrap migrates
+  the delegation ignore entry without replacing project rules; activation
+  handles both BSD and GNU stat. Regression coverage includes these paths;
+  real-model handoff evidence remains open. Built after a local model
+  (GLM-5.3) ran the full loop well with tools. Delegation is now an explicit
+  per-run mode (`none`, `files`, `handoff`) rather than implied by
+  `policy = "auto"`. The single-file
+  runner's scratch copy omitted ignored dependencies (`node_modules`), so
+  its TypeScript typecheck and test steps were likely never verified in
+  the trials; it now runs `toolchain.sh install` there (not yet exercised
+  on a real TypeScript run). `init` drafts the machine profile from each server's
+  model list and `project-types.md` carries the founding setup. Coupled
+  packets and optional `calibrate` remain.
+  [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
+  stack-neutral runner that sends a self-contained `/delegate` packet to a
+  pinned local model with no tool access and verifies the result. A model
+  qualifies with one plumbing check, then takes real tasks on probation:
+  selection explores new candidates, ranks by recorded outcomes on the
+  project's own tasks, and demotion drops a model the evidence shows
+  failing. Quality rests on the gate and review, not on that evidence. The
+  frontier model stays orchestrator. Candidates are discovered from the
+  machine's inference endpoints (`GET /v1/models`); model size never
+  decides. Scaffold files still name no model.
+- `/unattended` (`--full`) prepares one feature to run with nobody
+  watching (overnight or a day away): `start` asks every foreseeable
+  decision up front and records standing consent in the spec, the run
+  answers remaining `[ask-user]` findings on the human's behalf and logs
+  them under `## Unattended decisions`, and `reconcile` keeps or overrides
+  each on return. Not yet exercised in a real run.
+- `docs/influences.md` now pins the Terminal-Bench 2.0 and tool-calling
+  sources behind `workflow/docs/local-executor.md` (retrieved 2026-10-14)
+  and keeps the unsourced 2026-08 figures only as dated history. Still
+  missing: the per-harness defect reports (Cline, Roo Code, OpenCode, the
+  Qwen CLI, llama.cpp, Ollama) behind that doc's serialization failure
+  list. Independent of the local-execution item and much cheaper.
 - The portability plan is not complete by its own definition. Hook and
   execpolicy enforcement is verified live against Codex CLI 0.146.0
   (`scripts/acceptance-codex-live.sh`; evidence in

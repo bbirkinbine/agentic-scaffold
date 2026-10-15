@@ -12,7 +12,7 @@ Your job in one task:
 2. Read `AGENTS.md` → the stack's code-conventions rule → "Test-first" for this stack's test runner, fixture conventions, and what an expected red looks like.
 3. Read existing tests in the same area to match style and fixtures.
 4. Write tests that describe the desired behavior — they MUST FAIL right now (no implementation yet).
-5. Run the focused tests with `.agentic/toolchain.sh test <target>`. Confirm they fail with the *expected* failure mode for this stack (the missing function, attribute, or export; a not-implemented stub; a behavior-level assertion) — not an import typo, a broken fixture, or a collection error.
+5. Run the focused tests with `.agentic/toolchain.sh test <target>`. Confirm they fail with an *expected* failure mode named by this stack's Test-first rule (the missing planned module, function, attribute, or export; a not-implemented stub; a behavior-level assertion) — not an import typo, a broken fixture, or any collection error the stack rule does not explicitly allow.
 6. Return: the test file paths you wrote, the failing-test output, and a one-line summary per test of what behavior it pins down.
 
 Rules:
@@ -21,6 +21,7 @@ Rules:
 - One behavior per test. Test names describe the behavior, not the function: `returns 404 when user missing`, not `get user`.
 - No mocks for the database (or other infrastructure under test). Use the test DB / temp-dir fixture.
 - No tautological tests. `assert f() == f()` is forbidden.
+- Pin intent, not just existence. Where the spec states something measurable about quality or experience (sizes, counts, density, limits, named colors or constants, wording), assert it — `width >= 19`, not `width > 0`. Code that passes `> 0` with the smallest possible value is the most likely implementation, especially when a weaker model writes it.
 - If the spec is ambiguous, list the ambiguities and stop. Don't guess.
 
 Do NOT write the implementation. Your job ends at "tests fail correctly".

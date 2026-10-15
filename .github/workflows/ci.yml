@@ -39,7 +39,7 @@ jobs:
         run: |
           bash -n scripts/*.sh
           bash -n generic/bootstrap.sh
-          bash -n shared/hooks/*.sh workflow/hooks/*.sh
+          bash -n shared/hooks/*.sh workflow/hooks/*.sh workflow/bin/*.sh
           bash -n stacks/*/toolchain.sh stacks/*/stack.sh
           bash -n python/bootstrap.sh typescript/bootstrap.sh custom/bootstrap.sh
 
@@ -52,6 +52,7 @@ jobs:
             generic/bootstrap.sh \
             shared/hooks/*.sh \
             workflow/hooks/*.sh \
+            workflow/bin/*.sh \
             stacks/*/toolchain.sh \
             stacks/*/stack.sh \
             python/bootstrap.sh \
@@ -62,9 +63,9 @@ jobs:
       # Codex or Pi. Keep these versions aligned with the portability docs.
       - name: Install pinned client validation baselines
         run: |
-          npm install --global @openai/codex@0.146.0 @earendil-works/pi-coding-agent@1.0.4
+          npm install --global @openai/codex@0.146.0 @earendil-works/pi-coding-agent@1.2.0
           test "$(codex --version)" = "codex-cli 0.146.0"
-          test "$(pi --version)" = "1.0.4"
+          test "$(pi --version)" = "1.2.0"
 
       - name: Validate shared sources and client adapters
         run: |
@@ -86,6 +87,10 @@ jobs:
 
       - name: Bootstrap a custom-stack project, fill its runner, run its gate
         run: bash scripts/smoke-test-custom.sh
+
+      # Same job so the required check name stays unchanged.
+      - name: Drive the local delegate runner against a stub model server
+        run: bash scripts/smoke-test-delegate.sh
 
   typescript-smoke:
     runs-on: ubuntu-latest
