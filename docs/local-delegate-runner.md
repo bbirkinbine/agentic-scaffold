@@ -1,12 +1,13 @@
 # Local Delegate Runner
 
 **Status:** draft; first slice implemented
-**Last updated:** 2026-10-14
+**Last updated:** 2026-10-15
 
 **Implemented.** `workflow/bin/delegate-run.sh` (installed as
 `.agentic/delegate-run.sh` with `--full`) provides `init`, `qualify`, `discover`,
-`policy`, `run <packet> [--model <name>]`, `record-review`, `status`, and
-`reset`. The contract's Implement step and `/delegate` → "Automatic mode"
+`policy`, `run <packet> [--model <name>] [--progress quiet|summary]`,
+`record-review`, `status`, and `reset`. The contract's Implement step and
+`/delegate` → "Automatic mode"
 hand eligible plan files to the runner when `policy` prints `auto`, and
 `/review` records verdicts with `record-review`.
 Without `--model`, `run` selects from the checkout's `[[project]]`
@@ -24,8 +25,10 @@ filter 2); each verifier command runs under a per-step timeout
 (`DELEGATE_STEP_TIMEOUT`, default 900 seconds) in its own process group,
 and `run` refuses without `perl`, which provides that watchdog; every run
 ends with a summary of wall time, attempts, and which gate steps passed or
-could not verify the file; `/delegate` traces each spec and plan
-requirement on the target into the packet and refuses a packet that
+could not verify the file; long model calls emit elapsed-time heartbeats in
+interactive terminals, with `--progress quiet|summary` available to override
+that default; `/delegate` traces each spec and plan requirement on the target
+into the packet and refuses a packet that
 contradicts the plan, while the runner assembles the packet's mechanical
 sections (format 2), and `/review` tags findings by delegated file;
 the post-execution audit covers unignored files only, because ignored
@@ -452,8 +455,10 @@ are recorded separately from model-quality failures; they are not scored
 and do not trigger an unbounded transport retry.
 
 `timeout_seconds` limits each model call, not the task, and covers queueing,
-any model swap and load, all reasoning, and the reply; the call is not
-streamed, so the runner cannot tell long thinking from a stall. A call that
+any model swap and load, all reasoning, and the reply. The call is not
+streamed, so the runner cannot tell long thinking from a stall; summary mode
+therefore reports only that the curl process is still waiting and how long it
+has waited, not that inference is making forward progress. A call that
 connected and then ran past the limit is the model's setup being too slow
 for its limit, not a server failure: the run ends with `needs_frontier`
 without retrying (a retry would most likely time out again), the attempt is
@@ -461,6 +466,15 @@ recorded as `timeout`, and the run is scored as a failure, so a model that
 habitually thinks past its limit is demoted like any other failing one. A
 call that never connected stays an unscored infrastructure failure. In
 `qualify`, a timeout on either request fails the qualification.
+
+Progress is `summary` when stderr is a terminal and `quiet` when redirected;
+`--progress quiet|summary` overrides it. Summary mode prints the run ID and
+ignored result directory before the model call, emits a heartbeat every 15
+seconds (overrideable with `DELEGATE_PROGRESS_INTERVAL`), and names extraction,
+verification, and publication stages. Progress goes to stderr and does not
+change result JSON, ledger records, retry accounting, or exit status. The same
+behavior applies to Small and Medium packets; tasks outside those supported
+buckets are still refused rather than given a different progress path.
 
 `needs_frontier` is a machine-readable result printed with a prominent
 notice naming the reason and the packet path. The runner does no model

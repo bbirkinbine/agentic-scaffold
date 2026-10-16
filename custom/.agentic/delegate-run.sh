@@ -17,7 +17,7 @@
 #                            pass before `run` will use it; any change to its
 #                            setup (model, quant, runtime, request settings,
 #                            endpoint, runner version) needs a new pass.
-#   run <packet> [--model <name>]
+#   run <packet> [--model <name>] [--progress quiet|summary]
 #                            Send <packet> to the named model, or without
 #                            --model to the model selected from this
 #                            project's [[project]] candidates. Up to three
@@ -57,7 +57,7 @@
 #   reset <model> <bucket>   Clear a demotion (small, medium, phase:implement,
 #                            phase:test-first+implement); starts a fresh record.
 #   handoff <spec> --allow-commit [--phase implement|test-first+implement]
-#                            [--model <name>]
+#                            [--model <name>] [--progress quiet|summary]
 #                            Hand a whole phase of an approved spec to a
 #                            local agent session (Pi) in a new git worktree:
 #                            install, run the session headless on the
@@ -120,6 +120,10 @@
 #
 # Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
 # sha256sum or shasum.
+#
+# Progress is `summary` when stderr is a terminal and `quiet` otherwise.
+# DELEGATE_PROGRESS_INTERVAL changes the 15-second heartbeat interval; it is
+# primarily useful for deterministic smoke tests.
 
 set -uo pipefail
 
@@ -141,15 +145,195 @@ MEDIUM_LINES=300
 MEDIUM_CONTRACTS=15
 DIAG_LINES=120
 DIAG_BYTES=12000
+PROGRESS_MODE=quiet
+PROGRESS_INTERVAL="${DELEGATE_PROGRESS_INTERVAL:-15}"
+PROGRESS_PID=""
+PROGRESS_DONE=""
+PROGRESS_PID_FILE=""
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 3
 DELEGATE_DIR="$ROOT/.agentic/delegate"
 TOOLCHAIN=.agentic/toolchain.sh
 
 say() { printf 'delegate-run: %s\n' "$*" >&2; }
+progress() { [[ "$PROGRESS_MODE" == summary ]] && say "progress: $*"; return 0; }
+
+configure_progress() {
+  local requested="${1:-}"
+  if [[ -n "$requested" ]]; then
+    case "$requested" in quiet | summary) PROGRESS_MODE="$requested" ;; *) say "unknown progress mode: $requested (quiet or summary)"; exit 2 ;; esac
+  elif [[ -t 2 ]]; then
+    PROGRESS_MODE=summary
+  else
+    PROGRESS_MODE=quiet
+  fi
+  [[ "$PROGRESS_INTERVAL" =~ ^[1-9][0-9]*$ ]] || { say "DELEGATE_PROGRESS_INTERVAL must be a positive whole number"; exit 2; }
+}
+
+stop_progress_sidecar() {
+  if [[ -n "$PROGRESS_PID" ]]; then
+    kill "$PROGRESS_PID" 2>/dev/null || true
+    wait "$PROGRESS_PID" 2>/dev/null || true
+    PROGRESS_PID=""
+  fi
+  [[ -n "$PROGRESS_PID_FILE" ]] && rm -f "$PROGRESS_PID_FILE"
+  PROGRESS_PID_FILE=""
+}
+
+start_heartbeat() {
+  local label="$1" started
+  [[ "$PROGRESS_MODE" == summary ]] || return 0
+  stop_progress_sidecar
+  started="$(date +%s)"
+  # One signal-aware process owns the timer; stopping it never waits for a
+  # child `sleep` to finish and therefore cannot inflate model-call timing.
+  perl -e '
+    $SIG{TERM} = sub { exit 0 };
+    my ($interval, $label, $started) = @ARGV;
+    while (1) {
+      select undef, undef, undef, $interval;
+      my $elapsed = time - $started;
+      print STDERR "delegate-run: progress: $label — ${elapsed}s elapsed\n";
+    }
+  ' "$PROGRESS_INTERVAL" "$label" "$started" &
+  PROGRESS_PID=$!
+}
+
+# Keep summaries bounded and remove credential-shaped assignments before they
+# reach the terminal. Raw Pi events remain in the ignored result directory.
+bounded_progress_field() {
+  printf '%s' "$1" | perl -MEncode=encode -CS -e '
+    local $/;
+    $_ = <STDIN> // "";
+    s/[\r\n\t]/ /g;
+    s/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/?/g;
+    s/\b([A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|API[_-]?KEY)[A-Za-z0-9_]*=)(?:"[^"]*"|\047[^\047]*\047|\S+)/${1}[REDACTED]/ig;
+    s/(Authorization:\s*(?:Bearer\s+)?)(\S+)/${1}[REDACTED]/ig;
+    if (length(encode("UTF-8", $_)) <= 160) { print; exit 0 }
+    my $out = "";
+    for my $char (split //) {
+      last if length(encode("UTF-8", $out . $char)) > 157;
+      $out .= $char;
+    }
+    print $out, "...";
+  '
+}
+
+render_pi_event() {
+  local line="$1" type tool detail failed duration attempt maximum reason
+  type="$(jq -r '.type // empty' <<<"$line" 2>/dev/null)" || return 0
+  case "$type" in
+    agent_start) progress "agent started" ;;
+    agent_settled) progress "agent settled" ;;
+    turn_start) progress "turn started" ;;
+    tool_execution_start)
+      tool="$(jq -r '.toolName // "unknown"' <<<"$line")"
+      case "$tool" in
+        read | edit | write) detail="$(jq -r '.args.path // .args.file_path // .args.filePath // empty' <<<"$line")" ;;
+        bash) detail="$(jq -r '.args.command // empty' <<<"$line")" ;;
+        *) detail="" ;;
+      esac
+      tool="$(bounded_progress_field "$tool")"
+      if [[ -n "$detail" ]]; then
+        progress "tool start: $tool — $(bounded_progress_field "$detail")"
+      else
+        progress "tool start: $tool"
+      fi
+      ;;
+    tool_execution_end)
+      tool="$(jq -r '.toolName // "unknown"' <<<"$line")"
+      failed="$(jq -r 'if .isError == true then "failed" else "passed" end' <<<"$line")"
+      duration="$(jq -r 'if (.durationMs | type) == "number" then " (" + (.durationMs | tostring) + "ms)" else "" end' <<<"$line")"
+      progress "tool end: $(bounded_progress_field "$tool") — $failed$duration"
+      ;;
+    auto_retry_start)
+      attempt="$(jq -r 'if (.attempt | type) == "number" then (.attempt | tostring) else "?" end' <<<"$line")"
+      maximum="$(jq -r 'if (.maxAttempts | type) == "number" then (.maxAttempts | tostring) else "?" end' <<<"$line")"
+      progress "retry $attempt/$maximum scheduled"
+      ;;
+    auto_retry_end)
+      attempt="$(jq -r 'if (.attempt | type) == "number" then (.attempt | tostring) else "?" end' <<<"$line")"
+      failed="$(jq -r 'if .success == true then "succeeded" else "failed" end' <<<"$line")"
+      progress "retry $attempt $failed"
+      ;;
+    compaction_start)
+      reason="$(jq -r '.reason // "unknown"' <<<"$line")"
+      progress "compaction started ($(bounded_progress_field "$reason"))"
+      ;;
+    compaction_end)
+      reason="$(jq -r '.reason // "unknown"' <<<"$line")"
+      progress "compaction ended ($(bounded_progress_field "$reason"))"
+      ;;
+    message_end)
+      reason="$(jq -r '.message.stopReason // empty' <<<"$line")"
+      [[ "$reason" == error || "$reason" == aborted ]] && progress "assistant message ended: $reason"
+      ;;
+  esac
+  return 0
+}
+
+watch_pi_events() {
+  local events="$1" done_file="$2" started="$3" line now next pending=""
+  exec 9<"$events"
+  next=$((started + PROGRESS_INTERVAL))
+  while :; do
+    line=""
+    if IFS= read -r line <&9; then
+      render_pi_event "$pending$line"
+      pending=""
+      continue
+    fi
+    # `read` advances a regular-file descriptor even when EOF arrives before
+    # LF. Keep that fragment and prepend it when the writer completes the line.
+    pending+="$line"
+    if [[ -e "$done_file" ]]; then
+      # The harness closed the file before creating this marker, but it may
+      # have appended after our previous EOF read. Drain once more before exit.
+      while :; do
+        line=""
+        if IFS= read -r line <&9; then
+          render_pi_event "$pending$line"
+          pending=""
+        else
+          pending+="$line"
+          break
+        fi
+      done
+      break
+    fi
+    now="$(date +%s)"
+    if ((now >= next)); then
+      progress "session running — $((now - started))s elapsed"
+      next=$((now + PROGRESS_INTERVAL))
+    fi
+    sleep 0.2
+  done
+  exec 9<&-
+}
+
+start_pi_event_watcher() {
+  local events="$1" started="$2" pid_file="$3"
+  [[ "$PROGRESS_MODE" == summary ]] || return 0
+  PROGRESS_DONE="$STATE/progress.done"
+  PROGRESS_PID_FILE="$pid_file"
+  rm -f "$PROGRESS_DONE" "$PROGRESS_PID_FILE"
+  watch_pi_events "$events" "$PROGRESS_DONE" "$started" &
+  PROGRESS_PID=$!
+  printf '%s\n' "$PROGRESS_PID" >"$PROGRESS_PID_FILE"
+}
+
+finish_pi_event_watcher() {
+  [[ -n "$PROGRESS_PID" ]] || return 0
+  : >"$PROGRESS_DONE"
+  wait "$PROGRESS_PID" 2>/dev/null || true
+  PROGRESS_PID=""
+  rm -f "$PROGRESS_PID_FILE"
+  PROGRESS_PID_FILE=""
+  PROGRESS_DONE=""
+}
 
 usage() {
-  sed -n '2,117p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ---- exit paths --------------------------------------------------------------
@@ -685,22 +869,27 @@ request_retry() {
 # failure exits through infra() and is not scored.
 call_model() {
   local label="$1" req="$2"
-  local resp="$STATE/$label.response.json" err="$STATE/$label.curl.err"
-  local out curl_status=0 code
+  local resp="$STATE/$label.response.json" err="$STATE/$label.curl.err" meta="$STATE/$label.curl.meta"
+  local out curl_status=0 code detail
+  detail="${label#attempt-}"
+  [[ "$label" == attempt-* ]] && detail="attempt $detail/$MAX_ATTEMPTS"
+  start_heartbeat "generating — $detail"
   if [[ -n "${CRED_ENV:-}" ]]; then
     # The header comes through a file descriptor so the credential never
     # appears in a process argument list.
-    out="$(curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
+    curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
       -H 'Content-Type: application/json' \
       -H @<(printf 'Authorization: Bearer %s\n' "${!CRED_ENV}") \
       --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total} %{time_connect}' \
-      "$BASE_URL/chat/completions" 2>"$err")" || curl_status=$?
+      "$BASE_URL/chat/completions" >"$meta" 2>"$err" || curl_status=$?
   else
-    out="$(curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
+    curl -sS --connect-timeout 10 --max-time "$TIMEOUT" \
       -H 'Content-Type: application/json' \
       --data-binary @"$req" -o "$resp" -w '%{http_code} %{time_total} %{time_connect}' \
-      "$BASE_URL/chat/completions" 2>"$err")" || curl_status=$?
+      "$BASE_URL/chat/completions" >"$meta" 2>"$err" || curl_status=$?
   fi
+  stop_progress_sidecar
+  out="$(cat "$meta" 2>/dev/null)"
   local connect
   read -r code CALL_SECONDS connect <<<"$out"
   if [[ "$curl_status" == 28 ]] && awk -v c="${connect:-0}" 'BEGIN { exit !(c > 0) }'; then
@@ -715,6 +904,7 @@ call_model() {
   fi
   jq -e 'type == "object"' "$resp" >/dev/null 2>&1 ||
     infra "endpoint '$ENDPOINT_NAME' returned malformed JSON"
+  progress "response received — ${CALL_SECONDS}s"
 }
 
 # extract_candidate <label> : writes $STATE/candidate; on a format problem
@@ -834,6 +1024,7 @@ print_summary() {
 }
 
 cleanup() {
+  stop_progress_sidecar
   [[ -n "$WORK" && "${DELEGATE_KEEP_SCRATCH:-0}" != 1 ]] && rm -rf "$WORK"
   [[ "$LOCKED" == 1 ]] && rmdir "$DELEGATE_DIR/lock" 2>/dev/null
   return 0
@@ -842,7 +1033,7 @@ cleanup() {
 # ---- run ----------------------------------------------------------------------
 
 cmd_run() {
-  local packet="" profile
+  local packet="" profile progress_mode=""
   profile="$(default_profile)"
   MODEL_NAME=""
   while (($#)); do
@@ -853,12 +1044,16 @@ cmd_run() {
       --profile)
         (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
         profile="$2"; shift 2 ;;
+      --progress)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--progress requires a value"; exit 2; }
+        progress_mode="$2"; shift 2 ;;
       -h | --help) usage; exit 0 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) [[ -z "$packet" ]] || { say "one packet per run"; exit 2; }; packet="$1"; shift ;;
     esac
   done
-  [[ -n "$packet" ]] || { say "usage: delegate-run.sh run <packet> [--model <name>]"; exit 2; }
+  [[ -n "$packet" ]] || { say "usage: delegate-run.sh run <packet> [--model <name>] [--progress quiet|summary]"; exit 2; }
+  configure_progress "$progress_mode"
   MODE=manual
   [[ -n "$MODEL_NAME" ]] || MODE=selected
 
@@ -956,6 +1151,8 @@ cmd_run() {
     MODE=selected
     select_model
   fi
+  mkdir -p "$DELEGATE_DIR/results/$RUN_ID"
+  progress "run $RUN_ID — '$MODEL_NAME', $BUCKET; logs: ${DELEGATE_DIR#"$ROOT"/}/results/$RUN_ID/"
 
   # -- snapshot the workspace (tracked + unignored untracked, minus delegation state)
   list_files "$ROOT" >"$STATE/files.nul"
@@ -1044,6 +1241,7 @@ cmd_run() {
       say "packet: $PACKET_REL"
       finish 10
     fi
+    progress "extracting candidate"
     if ! reason="$(extract_candidate "attempt-$n")"; then
       elapsed=$(($(date +%s) - started))
       printf '%s\n' "$reason" >"$STATE/last-diagnostics.txt"
@@ -1065,10 +1263,13 @@ cmd_run() {
     cp "$STATE/candidate" "$STATE/previous-candidate"
 
     status=0
+    progress "verifying — format"
     verify_cmd bash "$TOOLCHAIN" format >"$STATE/attempt-$n.format.log" 2>&1 || status=$?
     local focused=0 regressed="" still_red="" step
     if [[ "$status" == 0 ]]; then
+      progress "verifying — focused tests"
       verify_cmd bash "$TOOLCHAIN" test "${test_args[@]}" >"$STATE/attempt-$n.focused.log" 2>&1 || focused=$?
+      progress "verifying — gate steps"
       run_steps "attempt-$n"
       LAST_STEPS="$STATE/attempt-$n.steps"
       for step in $GATE_STEPS; do
@@ -1147,6 +1348,7 @@ cmd_run() {
   no_symlink_path "$ROOT" "$TARGET" || integrity "workspace target path '$TARGET' passes through a symlink"
   mkdir -p "$(dirname "$ROOT/$TARGET")"
   local tmp="$ROOT/$TARGET.delegate-run.$$"
+  progress "publishing — $TARGET"
   cp "$TREE/$TARGET" "$tmp" || infra "could not stage the candidate in the workspace"
   [[ -x "$ROOT/$TARGET" ]] && chmod +x "$tmp"
   mv -f "$tmp" "$ROOT/$TARGET" || infra "could not publish the candidate"
@@ -1723,7 +1925,7 @@ audit_handoff() {
 }
 
 cmd_handoff() {
-  local spec="" phase=implement profile allow_commit=0
+  local spec="" phase=implement profile allow_commit=0 progress_mode=""
   profile="$(default_profile)"
   MODEL_NAME=""
   while (($#)); do
@@ -1737,13 +1939,17 @@ cmd_handoff() {
       --profile)
         (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
         profile="$2"; shift 2 ;;
+      --progress)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--progress requires a value"; exit 2; }
+        progress_mode="$2"; shift 2 ;;
       --allow-commit) allow_commit=1; shift ;;
       -h | --help) usage; exit 0 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) [[ -z "$spec" ]] || { say "one spec per handoff"; exit 2; }; spec="$1"; shift ;;
     esac
   done
-  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> --allow-commit [--phase implement|test-first+implement] [--model <name>]"; exit 2; }
+  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> --allow-commit [--phase implement|test-first+implement] [--model <name>] [--progress quiet|summary]"; exit 2; }
+  configure_progress "$progress_mode"
   case "$phase" in implement | test-first+implement) ;; *) say "unknown phase: $phase"; exit 2 ;; esac
   [[ "$allow_commit" == 1 ]] || {
     say "refused: handoff creates a temporary commit on handoff/<run>; obtain explicit current-chat commit approval, then pass --allow-commit"
@@ -1812,6 +2018,7 @@ cmd_handoff() {
   TREE="$wt"
   local result_dir="$DELEGATE_DIR/results/$RUN_ID"
   mkdir -p "$result_dir/session" "$result_dir/pi-agent"
+  progress "handoff $RUN_ID — '$MODEL_NAME', $BUCKET; logs: ${result_dir#"$ROOT"/}/"
   handoff_model_config >"$result_dir/pi-agent/models.json" || refuse "invalid handoff model configuration"
   say "worktree: $wt (branch $branch)"
 
@@ -1834,16 +2041,25 @@ cmd_handoff() {
   local limit="${DELEGATE_HANDOFF_TIMEOUT:-14400}" started rc=0
   started="$(date +%s)"
   say "session: $HANDOFF_HARNESS on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"
+  : >"$result_dir/harness.events.jsonl"
+  : >"$result_dir/harness.log"
+  start_pi_event_watcher "$result_dir/harness.events.jsonl" "$started" "$result_dir/progress-renderer.pid"
   (cd "$wt" && STEP_TIMEOUT="$limit" bounded env -i "${envkeep[@]}" "$HANDOFF_HARNESS" "${hargs[@]}" "$(cat "$result_dir/prompt.md")") \
-    >"$result_dir/harness.log" 2>&1 || rc=$?
+    >"$result_dir/harness.events.jsonl" 2>"$result_dir/harness.log" || rc=$?
+  finish_pi_event_watcher
   record_attempt 1 session "harness exit $rc" "$(($(date +%s) - started))"
   ((rc == 124)) && infra "the session hit its ${limit}s limit; worktree kept at $wt"
-  ((rc == 0)) || infra "the harness exited $rc: $(bounded_tail "$result_dir/harness.log" | tail -n 5)"
+  local harness_diag
+  harness_diag="$(bounded_tail "$result_dir/harness.log" | tail -n 5)"
+  [[ -n "$harness_diag" ]] || harness_diag="no stderr; see ${result_dir#"$ROOT"/}/harness.events.jsonl"
+  ((rc == 0)) || infra "the harness exited $rc: $harness_diag"
 
   # -- verify, independently of what the session said
+  progress "independently verifying — plan scope"
   audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
   [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
   local gate_status=0
+  progress "independently verifying — full gate"
   verify_cmd bash "$TOOLCHAIN" gate >"$result_dir/gate.log" 2>&1 || gate_status=$?
   audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
   if ((gate_status != 0)); then
