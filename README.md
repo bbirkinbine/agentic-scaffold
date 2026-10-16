@@ -120,7 +120,9 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) hands a whole
   phase to a local session, and
   [`docs/delegated-progress.md`](docs/delegated-progress.md) specifies its
-  bounded live progress. A Claude Code or Codex orchestrator can
+  bounded live progress, and
+  [`docs/resumable-handoff.md`](docs/resumable-handoff.md) drafts recoverable
+  long-running sessions. A Claude Code or Codex orchestrator can
   delegate either way; the handoff session itself, and a fully local loop,
   run in Pi.
 
