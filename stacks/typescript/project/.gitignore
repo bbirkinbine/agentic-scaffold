@@ -32,6 +32,12 @@ CLAUDE.local.md
 # Per-run and machine-specific; never committed.
 .agentic/delegate/
 
+# Pi project packages — Pi installs the packages named in .pi/settings.json
+# (pi-subagents) here on first start and writes a .gitignore inside that
+# un-ignores itself. Ignore the whole directory so a fresh checkout or a
+# handoff worktree stays clean after Pi runs.
+.pi/npm/
+
 # OS / editor cruft
 .DS_Store
 *.swp

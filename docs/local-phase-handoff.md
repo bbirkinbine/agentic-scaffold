@@ -26,6 +26,18 @@ alias is refused. Phase selection and recording share the harness/configuration
 fingerprint, and `status` and `reset` include both phase buckets. These fixes
 have regression coverage; an authenticated real-model phase trial remains open.
 
+Pi package fixes (2026-10-15), found by the
+[resumable-handoff](resumable-handoff.md) RPC spike: a real Pi start in a
+stack project installs `pi-subagents` into `.pi/npm/` and leaves a
+self-unignoring `.pi/npm/.gitignore`, which the scope audit would have stopped
+on. Stack `.gitignore` files now ignore `.pi/npm/` (`--update` migrates it), the
+runner copies the checkout's installed `.pi/npm/` into the worktree, and Pi's
+npm cache lives in the run directory (Codex's sandbox denies `~/.npm`). The
+hard limit's `KILL` also reaches process groups the session's tools created;
+before, a tool command that outlived Pi's `TERM` handling was orphaned. Where
+`ps` is denied (Codex's macOS sandbox), only the session's own group is
+signalled.
+
 ## Problem
 
 The single-file runner sends a local model one packet with no tools and

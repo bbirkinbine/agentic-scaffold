@@ -103,12 +103,14 @@ help="$(bash .agentic/delegate-run.sh --help)"
   fail "runner help omitted the progress interface"
 
 # An existing project owns .gitignore. Updating adds only the new runtime
-# entry, preserving custom content and remaining idempotent.
-sed '/^\.agentic\/delegate\/$/d' .gitignore >"$WORK/ignore.before"
+# entries, preserving custom content and remaining idempotent.
+git check-ignore -q .pi/npm/.gitignore || fail "a fresh project does not ignore Pi's package directory"
+sed '/^\.agentic\/delegate\/$/d; /^\.pi\/npm\/$/d' .gitignore >"$WORK/ignore.before"
 printf '\n# Project-specific rule\nlocal-output/\n' >>"$WORK/ignore.before"
 cp "$WORK/ignore.before" .gitignore
 bash "$REPO_DIR/custom/bootstrap.sh" --update >/dev/null
 git check-ignore -q .agentic/delegate/packets/probe.md || fail "--update did not ignore delegation state"
+git check-ignore -q .pi/npm/.gitignore || fail "--update did not ignore Pi's package directory"
 head -n "$(wc -l <"$WORK/ignore.before" | tr -d ' ')" .gitignore >"$WORK/ignore.prefix"
 cmp -s "$WORK/ignore.before" "$WORK/ignore.prefix" || fail "--update changed existing ignore rules"
 cp .gitignore "$WORK/ignore.after"
@@ -755,7 +757,9 @@ cat >"$HARNESS" <<SH
 env >"$WORK/harness-env"
 printf '%s\n' "\$@" >"$WORK/harness-args"
 case "\$(cat "$WORK/harness-mode")" in
-  good) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
+  good)
+    [[ -e .pi/npm/seed-marker ]] && : >"$WORK/harness-seeded"
+    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
   progress)
     printf '%s\n' '{"type":"agent_start"}'
     for _ in \$(seq 1 50); do
@@ -799,6 +803,13 @@ case "\$(cat "$WORK/harness-mode")" in
   gate-*) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; mkdir -p .agentic/delegate; printf '%s\n' "\$(cat "$WORK/harness-mode" | sed 's/^gate-//')" >.agentic/delegate/gate-write ;;
   red) printf '%s\n' 'greet() { echo "bye \$1"; }' >lib/greet.sh ;;
   hang) sleep 30 ;;
+  hang-tool)
+    # Like Pi: a tool command in its own process group, and a harness that
+    # does not exit on TERM. Only a KILL aimed at that group stops the tool.
+    trap '' TERM
+    perl -e 'setpgrp(0, 0); exec "sleep", "300"' &
+    echo "\$!" >"$WORK/tool.pid"
+    sleep 30 ;;
   crash) exit 7 ;;
 esac
 printf '%s\n' '### After handoff' 'Implemented greet.' >>docs/specs/0002-greet.md
@@ -869,7 +880,10 @@ grep -qF 'agent_start' ".agentic/delegate/results/$run_id/harness.events.jsonl" 
   fail "renderer exit lost the raw event stream"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the renderer-exit handoff"
 
+mkdir -p .pi/npm && : >.pi/npm/seed-marker
+rm -f "$WORK/harness-seeded"
 handoff 0 good
+[[ -e "$WORK/harness-seeded" ]] || fail "the handoff worktree did not receive the checkout's Pi packages"
 branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)"
 [[ -n "$branch" ]] || fail "a verified handoff left no handoff branch"
 [[ "$(git show "$branch:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "the handoff branch does not hold the session's work"
@@ -881,6 +895,8 @@ if grep -q HANDOFF_SMOKE_SECRET "$WORK/harness-env"; then fail "the session inhe
 run_id="$(last_result | jq -r .run)"
 agent_dir="$(sed -n 's/^PI_CODING_AGENT_DIR=//p' "$WORK/harness-env")"
 [[ "$agent_dir" == "$WORK/project/.agentic/delegate/results/$run_id/pi-agent" ]] || fail "handoff did not isolate Pi configuration"
+grep -qxF "npm_config_cache=$WORK/project/.agentic/delegate/results/$run_id/npm-cache" "$WORK/harness-env" ||
+  fail "the session's npm cache is not inside the run directory"
 jq -e --arg url "http://127.0.0.1:$PORT/v1" \
   '.providers.stub | .baseUrl == $url and .api == "openai-completions" and .apiKey == "$STUB_TOKEN" and .models[0].id == "stub-model" and .models[0].samplingParams.temperature == 0.2' \
   "$agent_dir/models.json" >/dev/null || fail "Pi provider does not match the selected profile model"
@@ -896,6 +912,15 @@ if command -v pi >/dev/null 2>&1; then
     { cat "$WORK/pi-provider.out" >&2; fail "Pi could not use the generated provider"; }
   jq -e '.model == "stub-model" and .temperature == 0.2' "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings"
   [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer $STUB_TOKEN" ]] || fail "Pi did not resolve the credential variable"
+  # A real Pi start in this --full project installs the packages named in
+  # .pi/settings.json (network required). The tree must stay clean, or every
+  # handoff's scope audit would stop on Pi's own files.
+  reset_case
+  respond 01 OK
+  PI_CODING_AGENT_DIR="$agent_dir" npm_config_cache="$WORK/npm-cache" pi --approve --no-session \
+    --provider stub --model stub-model -p 'Reply OK without tools.' >"$WORK/pi-project.out" 2>&1 ||
+    { cat "$WORK/pi-project.out" >&2; fail "Pi could not start in the --full project"; }
+  [[ -z "$(git status --porcelain)" ]] || fail "a real Pi start left the project dirty: $(git status --porcelain)"
 fi
 runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept a handoff run"
 runner handoff-clean | grep -q "${run_id}" || fail "handoff-clean did not list the kept worktree"
@@ -954,6 +979,13 @@ DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang --progres
 grep -q 'progress: session running' "$WORK/handoff.out" || fail "a hung summary-mode handoff emitted no heartbeat"
 grep -q 'limit' "$WORK/handoff.out" || fail "a hung session did not report its time limit"
 [[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the timeout ledger outcome"
+drop_worktrees
+DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang-tool
+sleep 0.5
+if kill -0 "$(cat "$WORK/tool.pid")" 2>/dev/null; then
+  kill -KILL "$(cat "$WORK/tool.pid")"
+  fail "the session's hard limit left a tool process group running"
+fi
 drop_worktrees
 handoff 3 crash --progress summary
 [[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the crash ledger outcome"
