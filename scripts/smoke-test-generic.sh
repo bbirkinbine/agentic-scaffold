@@ -125,6 +125,20 @@ git -C "$branch_repo" switch -q -c chore/fixture
 [[ -z "$(branch_warning)" ]] || fail "branch warning fired on a feature branch"
 git -C "$branch_repo" switch -q --detach
 [[ -z "$(branch_warning)" ]] || fail "branch warning fired on a detached HEAD"
+# Uncommitted changes at session start warn on any branch (another writer may
+# be active), untracked files included; a clean tree stays silent.
+git -C "$branch_repo" switch -q chore/fixture
+echo edit >"$branch_repo/probe.txt"
+[[ "$(branch_warning)" == *"already has uncommitted changes"* ]] \
+  || fail "dirty-tree warning is silent on an uncommitted change"
+rm "$branch_repo/probe.txt"
+[[ -z "$(branch_warning)" ]] || fail "dirty-tree warning fired on a clean tree"
+# The founding session (no commits yet) is uncommitted by design: no warning.
+founding_repo="$WORK_DIR/founding-check"
+git init -q -b feature/founding "$founding_repo"
+echo scaffold >"$founding_repo/AGENTS.md"
+[[ -z "$(cd "$founding_repo" && bash "$fresh/.agentic/hooks/branch-check.sh")" ]] \
+  || fail "dirty-tree warning fired in a repository with no commits"
 
 printf '\nPROJECT-SPECIFIC CONTRACT SURVIVES\n' >>"$fresh/AGENTS.md"
 printf '\nPROJECT README SURVIVES\n' >>"$fresh/README.md"

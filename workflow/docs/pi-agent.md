@@ -55,7 +55,7 @@ therefore does not change the repository workflow.
 `.pi/extensions/agentic-hooks.ts` translates Pi lifecycle events to the
 shared shell hooks:
 
-- session start: branch warning;
+- session start: branch and uncommitted-changes warnings;
 - before shell execution: destructive-command and sensitive-file guard;
 - after `edit` or `write`: format and spec-dashboard hooks;
 - before final settlement: the default quality gate, with at most one

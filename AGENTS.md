@@ -102,6 +102,15 @@ asked, and never use `--force` without a direct ask.
 
 ---
 
+## One writing agent per checkout
+
+Only one session edits a checkout at a time. A second agent that will edit
+files starts in its own worktree on its own branch (`git worktree add
+../agentic-scaffold-<slug> -b <branch>`) and removes it after the PR merges.
+Two agents in one checkout mixed their edits on 2026-10-15 and took an hour to
+separate. When parallel branches both change rendered surfaces, resolve those
+conflicts by re-rendering, never by hand.
+
 ## Close-tasks ride in the PR they belong to
 
 Before opening or merging a PR, include every status and bookkeeping change
