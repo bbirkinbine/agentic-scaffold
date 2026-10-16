@@ -751,85 +751,167 @@ MD
 git add -A >/dev/null && git commit -qm "spec 0002"
 [[ -z "$(git status --porcelain)" ]] || fail "handoff setup left the tree dirty: $(git status --porcelain)"
 HARNESS="$WORK/stub-harness"
-cat >"$HARNESS" <<SH
-#!/usr/bin/env bash
-[[ "\${1:-}" == --version ]] && { echo "stub-harness 1.0"; exit 0; }
+# A stub Pi that speaks the RPC protocol: it answers get_state, prompt, steer,
+# clear_queue, and abort by id, streams events, and does each mode's work in
+# its working directory (the handoff worktree). Pi runs it under env -i, so
+# the smoke directory is baked in.
+printf '#!/usr/bin/env bash\nWORK=%q\n' "$WORK" >"$HARNESS"
+cat >>"$HARNESS" <<'SH'
+[[ "${1:-}" == --version ]] && { echo "stub-harness 1.0"; exit 0; }
 env >"$WORK/harness-env"
-printf '%s\n' "\$@" >"$WORK/harness-args"
-case "\$(cat "$WORK/harness-mode")" in
-  good)
-    [[ -e .pi/npm/seed-marker ]] && : >"$WORK/harness-seeded"
-    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
-  progress)
-    printf '%s\n' '{"type":"agent_start"}'
-    for _ in \$(seq 1 50); do
-      grep -qF 'progress: agent started' "$WORK/handoff.out" && break
-      sleep 0.1
-    done
-    grep -qF 'progress: agent started' "$WORK/handoff.out" || exit 8
-    printf '%s\n' \
-      '{"type":"turn_start"}' \
-      '{"type":"tool_execution_start","toolCallId":"read-1","toolName":"read","args":{"path":"lib/greet.sh"}}' \
-      '{"type":"tool_execution_end","toolCallId":"read-1","toolName":"read","result":{},"isError":false,"durationMs":7}' \
-      '{"type":"tool_execution_start","toolCallId":"write-1","toolName":"write","args":{"path":"lib/\u001b[31munsafe.sh"}}'
-    printf '%s' '{"type":"tool_execution_start","toolCallId":"split-1",'
-    sleep 0.3
-    printf '%s\n' '"toolName":"edit","args":{"path":"lib/split.sh"}}'
-    printf '%s\n' \
-      '{"type":"tool_execution_start","toolCallId":"bash-1","toolName":"bash","args":{"command":"TOKEN=bare-token PASSWORD=bare-password API_KEY=bare-api STUB_TOKEN=smoke-secret-value printf éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé END-OF-LONG-COMMAND"}}' \
-      '{"type":"tool_execution_end","toolCallId":"bash-1","toolName":"bash","result":{},"isError":true,"durationMs":12}' \
-      '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":2000,"errorMessage":"secret detail"}' \
-      '{"type":"auto_retry_end","success":true,"attempt":2}' \
-      '{"type":"compaction_start","reason":"threshold"}' \
-      '{"type":"compaction_end","reason":"threshold","result":{"summary":"private summary"},"aborted":false,"willRetry":false}' \
-      '{"type":"message_end","message":{"role":"assistant","content":"private assistant text","stopReason":"stop"}}' \
-      '{"type":"future_event","private":"do not render"}' \
-      'not-json' \
-      '{"type":"agent_settled","aborted":false}'
-    printf '%s\n' 'pi diagnostic' >&2
-    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh
-    ;;
-  renderer-exit)
-    result_dir="\$(dirname "\$PI_CODING_AGENT_DIR")"
-    kill "\$(cat "\$result_dir/progress-renderer.pid")"
-    printf '%s\n' '{"type":"agent_start"}'
-    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh
-    ;;
-  outside) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo x >lib/extra.sh ;;
-  tests) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo 'exit 0' >tests/test_greet.sh ;;
-  committed-tests) echo 'exit 0' >tests/test_greet.sh; git add tests/test_greet.sh; git commit -qm 'unexpected test commit'; printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
-  committed-outside) echo x >lib/committed-extra.sh; git add lib/committed-extra.sh; git commit -qm 'unexpected outside commit' ;;
-  branch) git checkout -q -b unexpected-handoff-branch ;;
-  gate-*) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; mkdir -p .agentic/delegate; printf '%s\n' "\$(cat "$WORK/harness-mode" | sed 's/^gate-//')" >.agentic/delegate/gate-write ;;
-  red) printf '%s\n' 'greet() { echo "bye \$1"; }' >lib/greet.sh ;;
-  hang) sleep 30 ;;
-  hang-tool)
-    # Like Pi: a tool command in its own process group, and a harness that
-    # does not exit on TERM. Only a KILL aimed at that group stops the tool.
-    trap '' TERM
-    perl -e 'setpgrp(0, 0); exec "sleep", "300"' &
-    echo "\$!" >"$WORK/tool.pid"
-    sleep 30 ;;
-  crash) exit 7 ;;
-esac
-printf '%s\n' '### After handoff' 'Implemented greet.' >>docs/specs/0002-greet.md
+printf '%s\n' "$@" >"$WORK/harness-args"
+mode="$(cat "$WORK/harness-mode")"
+session_dir="" session="" provider="" model="" resumed=0
+while (($#)); do
+  case "$1" in
+    --session-dir) session_dir="$2"; shift 2 ;;
+    --session) session="$2"; resumed=1; shift 2 ;;
+    --provider) provider="$2"; shift 2 ;;
+    --model) model="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$session" ]] || session="$session_dir/stub-session.jsonl"
+printf '%s\n' '{"type":"session","id":"stub-session"}' >>"$session"
+[[ "$resumed" == 1 ]] && echo resumed >>"$WORK/harness-resumes"
+[[ "$mode" == wrong-model ]] && model=other-model
+spec=docs/specs/0002-greet.md
+working=0 steered=0 ticks=0
+emit() { printf '%s\n' "$1"; }
+reply() {
+  emit "$(jq -c -n --arg id "$1" --arg c "$2" --argjson d "${3:-null}" \
+    '{id: $id, type: "response", command: $c, success: true} + (if $d == null then {} else {data: $d} end)')"
+}
+greet() { printf '%s\n' 'greet() { echo "hello $1"; }' >lib/greet.sh; }
+settle() { emit "{\"type\":\"agent_settled\",\"aborted\":${1:-false}}"; working=0; }
+complete() {
+  case "$mode" in
+    outside) greet; echo x >lib/extra.sh ;;
+    tests) greet; echo 'exit 0' >tests/test_greet.sh ;;
+    committed-tests) echo 'exit 0' >tests/test_greet.sh; git add tests/test_greet.sh; git commit -qm 'unexpected test commit'; greet ;;
+    committed-outside) echo x >lib/committed-extra.sh; git add lib/committed-extra.sh; git commit -qm 'unexpected outside commit' ;;
+    branch) git checkout -q -b unexpected-handoff-branch ;;
+    gate-*) greet; mkdir -p .agentic/delegate; printf '%s\n' "${mode#gate-}" >.agentic/delegate/gate-write ;;
+    red) printf '%s\n' 'greet() { echo "bye $1"; }' >lib/greet.sh ;;
+    *) [[ -e .pi/npm/seed-marker ]] && : >"$WORK/harness-seeded"; greet ;;
+  esac
+  printf '%s\n' '### After handoff' 'Implemented greet.' >>"$spec"
+  emit '{"type":"tool_execution_start","toolCallId":"w1","toolName":"write","args":{"path":"lib/greet.sh"}}'
+  emit '{"type":"tool_execution_end","toolCallId":"w1","toolName":"write","result":{},"isError":false,"durationMs":3}'
+  settle
+}
+progress_stream() {
+  for _ in $(seq 1 50); do
+    grep -qF 'progress: agent started' "$WORK/handoff.out" && break
+    sleep 0.1
+  done
+  grep -qF 'progress: agent started' "$WORK/handoff.out" || exit 8
+  printf '%s\n' \
+    '{"type":"turn_start"}' \
+    '{"type":"tool_execution_start","toolCallId":"read-1","toolName":"read","args":{"path":"lib/greet.sh"}}' \
+    '{"type":"tool_execution_end","toolCallId":"read-1","toolName":"read","result":{},"isError":false,"durationMs":7}' \
+    '{"type":"tool_execution_start","toolCallId":"write-1","toolName":"write","args":{"path":"lib/\u001b[31munsafe.sh"}}'
+  printf '%s' '{"type":"tool_execution_start","toolCallId":"split-1",'
+  sleep 0.3
+  printf '%s\n' '"toolName":"edit","args":{"path":"lib/split.sh"}}'
+  printf '%s\n' \
+    '{"type":"tool_execution_start","toolCallId":"bash-1","toolName":"bash","args":{"command":"TOKEN=bare-token PASSWORD=bare-password API_KEY=bare-api STUB_TOKEN=smoke-secret-value printf éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé END-OF-LONG-COMMAND"}}' \
+    '{"type":"tool_execution_end","toolCallId":"bash-1","toolName":"bash","result":{},"isError":true,"durationMs":12}' \
+    '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":2000,"errorMessage":"secret detail"}' \
+    '{"type":"auto_retry_end","success":true,"attempt":2}' \
+    '{"type":"compaction_start","reason":"threshold"}' \
+    '{"type":"compaction_end","reason":"threshold","result":{"summary":"private summary"},"aborted":false,"willRetry":false}' \
+    '{"type":"message_end","message":{"role":"assistant","content":"private assistant text","stopReason":"stop"}}' \
+    '{"type":"future_event","private":"do not render"}' \
+    'not-json'
+  printf '%s\n' 'pi diagnostic' >&2
+}
+start() {
+  emit '{"type":"agent_start"}'
+  working=1
+  case "$mode" in
+    crash) exit 7 ;;
+    progress) progress_stream; complete ;;
+    dialog) emit '{"type":"extension_ui_request","id":"dlg-1","method":"confirm","title":"Allow?","message":"Allow this tool?"}' ;;
+    hang) ;;
+    hang-tool)
+      # Like a wedged Pi: a tool command in its own process group, TERM
+      # ignored, abort never answered, and stdin EOF ignored.
+      trap '' TERM
+      perl -e 'setpgrp(0, 0); exec "sleep", "300"' &
+      echo "$!" >"$WORK/tool.pid"
+      emit '{"type":"tool_execution_start","toolCallId":"t1","toolName":"bash","args":{"command":"sleep 300"}}'
+      ;;
+    busy) ;;
+    checkpoint | retry-loop) ((resumed)) && complete ;;
+    *) complete ;;
+  esac
+}
+tick() {
+  ((working)) || return 0
+  ticks=$((ticks + 1))
+  case "$mode" in
+    busy)
+      emit '{"type":"tool_execution_update","toolCallId":"b1","toolName":"bash","partialResult":{}}'
+      ((ticks >= 6)) && complete
+      ;;
+    checkpoint) emit '{"type":"tool_execution_update","toolCallId":"c1","toolName":"bash","partialResult":{}}' ;;
+    retry-loop) emit '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":1000,"errorMessage":"overloaded"}' ;;
+  esac
+  if ((steered && working)) && [[ "$mode" == checkpoint || "$mode" == retry-loop ]]; then
+    printf '%s\n' '### Paused handoff' 'Paused at a checkpoint; greet is not written yet.' >>"$spec"
+    settle
+  fi
+}
+while :; do
+  line=""
+  if IFS= read -r -t 1 line; then
+    id="$(jq -r '.id // ""' <<<"$line" 2>/dev/null)"
+    case "$(jq -r '.type // ""' <<<"$line" 2>/dev/null)" in
+      get_state)
+        reply "$id" get_state "$(jq -c -n --arg p "$provider" --arg m "$model" --arg f "$session" \
+          '{model: {provider: $p, id: $m}, sessionFile: $f, sessionId: "stub-session", isStreaming: false}')"
+        ;;
+      prompt) reply "$id" prompt '{"disposition":"started"}'; start ;;
+      steer) reply "$id" steer '{"disposition":"queued"}'; steered=1; echo steer >>"$WORK/harness-steers" ;;
+      clear_queue) reply "$id" clear_queue '{"steering":[],"followUp":[]}' ;;
+      abort) [[ "$mode" == hang-tool ]] || { settle true; reply "$id" abort; } ;;
+      extension_ui_response)
+        printf '%s\n' "$line" >>"$WORK/harness-ui"
+        [[ "$mode" == dialog ]] && complete
+        ;;
+    esac
+  else
+    rc=$?
+    if ((rc <= 128)); then
+      [[ "$mode" == hang-tool ]] || exit 0
+      while :; do sleep 1; done
+    fi
+  fi
+  tick
+done
 SH
 chmod +x "$HARNESS"
+# handoff <exit> <mode> [args] : one attached (--foreground) handoff run.
 handoff() {
   local want="$1" mode="$2" got=0
   shift 2
   echo "$mode" >"$WORK/harness-mode"
   DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" HANDOFF_SMOKE_SECRET=leak \
-    bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --allow-commit \
+    bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --allow-commit --foreground \
       --model "${HANDOFF_MODEL:-stub-coder}" "$@" >"$WORK/handoff.out" 2>&1 || got=$?
   [[ "$got" == "$want" ]] || { cat "$WORK/handoff.out" >&2; fail "handoff $mode: expected exit $want, got $got"; }
 }
+# hrunner <args> : the runner with the stub harness and smoke handoff directory.
+hrunner() { DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" bash .agentic/delegate-run.sh "$@"; }
+handoff_run_id() { sed -n 's/^.*(branch handoff\/\(handoff-[A-Za-z0-9._-]*\)).*$/\1/p' "$1" | head -n 1; }
+state_of() { jq -r "$2" ".agentic/delegate/results/$1/state.json"; }
+run_records() { jq -c --arg r "$1" 'select((.type // "run") == "run" and .run == $r)' .agentic/delegate/ledger.jsonl | wc -l | tr -d ' '; }
 drop_worktrees() { runner handoff-clean --all >/dev/null 2>&1; return 0; }
 
 # The runner cannot infer commit authority from the selected delegation mode.
 got=0
-DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
-  runner handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
+hrunner handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
 [[ "$got" == 2 ]] && grep -q -- '--allow-commit' "$WORK/handoff.out" || fail "handoff did not require explicit commit acknowledgement"
 [[ "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] || fail "refused handoff created a worktree"
 
@@ -861,24 +943,17 @@ if len(detail.encode("utf-8")) > 160:
 PY
 run_id="$(last_result | jq -r .run)"
 run_dir=".agentic/delegate/results/$run_id"
-grep -qF 'not-json' "$run_dir/harness.events.jsonl" || fail "raw handoff events were not retained"
-grep -qF 'pi diagnostic' "$run_dir/harness.log" || fail "Pi stderr was not retained separately"
+grep -qF 'not-json' "$run_dir/segments/0001/events.jsonl" || fail "raw handoff events were not retained"
+grep -qF 'pi diagnostic' "$run_dir/segments/0001/harness.log" || fail "Pi stderr was not retained separately"
 [[ "$(last_result | jq -r .outcome)" == green ]] || fail "progress changed the handoff ledger outcome"
+[[ "$(state_of "$run_id" .state)" == green && "$(state_of "$run_id" '.segments | length')" == 1 ]] ||
+  fail "a green handoff did not record its final state and one segment"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the progress handoff"
 
 handoff 0 good --progress quiet
 if grep -q 'progress:' "$WORK/handoff.out"; then fail "quiet handoff emitted progress lines"; fi
 run_id="$(last_result | jq -r .run)"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the quiet handoff"
-
-# Killing the optional renderer cannot stop the harness, alter its exit status,
-# or prevent a green handoff from being audited and recorded.
-handoff 0 renderer-exit --progress summary
-[[ "$(last_result | jq -r .outcome)" == green ]] || fail "renderer exit changed the handoff outcome"
-run_id="$(last_result | jq -r .run)"
-grep -qF 'agent_start' ".agentic/delegate/results/$run_id/harness.events.jsonl" ||
-  fail "renderer exit lost the raw event stream"
-runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the renderer-exit handoff"
 
 mkdir -p .pi/npm && : >.pi/npm/seed-marker
 rm -f "$WORK/harness-seeded"
@@ -890,7 +965,7 @@ branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)
 greet_is "$(cat "$WORK/greet.baseline")" || fail "a handoff changed the main working tree"
 [[ "$(last_result | jq -r .bucket)" == phase:implement ]] || fail "handoff was not recorded under its phase bucket"
 grep -q '^stub$' "$WORK/harness-args" && grep -q '^stub-model$' "$WORK/harness-args" || fail "the harness was not given the profile provider/model"
-grep -q '^--approve$' "$WORK/harness-args" || fail "the harness was not run with --approve"
+grep -q '^--approve$' "$WORK/harness-args" && grep -q '^rpc$' "$WORK/harness-args" || fail "the harness was not run with --approve in RPC mode"
 if grep -q HANDOFF_SMOKE_SECRET "$WORK/harness-env"; then fail "the session inherited an unlisted environment variable"; fi
 run_id="$(last_result | jq -r .run)"
 agent_dir="$(sed -n 's/^PI_CODING_AGENT_DIR=//p' "$WORK/harness-env")"
@@ -901,27 +976,6 @@ jq -e --arg url "http://127.0.0.1:$PORT/v1" \
   '.providers.stub | .baseUrl == $url and .api == "openai-completions" and .apiKey == "$STUB_TOKEN" and .models[0].id == "stub-model" and .models[0].samplingParams.temperature == 0.2' \
   "$agent_dir/models.json" >/dev/null || fail "Pi provider does not match the selected profile model"
 ! grep -q "$STUB_TOKEN" "$agent_dir/models.json" || fail "Pi provider file contains the credential value"
-if command -v pi >/dev/null 2>&1; then
-  # No real model: prove Pi itself resolves this isolated provider and sends
-  # the selected model and credential to the loopback stub.
-  reset_case
-  respond 01 OK
-  (cd "$WORK" && PI_CODING_AGENT_DIR="$agent_dir" pi --offline --no-extensions --no-mcp --no-skills \
-    --no-context-files --no-prompt-templates --no-session --no-approve \
-    --provider stub --model stub-model -p 'Reply OK without tools.') >"$WORK/pi-provider.out" 2>&1 ||
-    { cat "$WORK/pi-provider.out" >&2; fail "Pi could not use the generated provider"; }
-  jq -e '.model == "stub-model" and .temperature == 0.2' "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings"
-  [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer $STUB_TOKEN" ]] || fail "Pi did not resolve the credential variable"
-  # A real Pi start in this --full project installs the packages named in
-  # .pi/settings.json (network required). The tree must stay clean, or every
-  # handoff's scope audit would stop on Pi's own files.
-  reset_case
-  respond 01 OK
-  PI_CODING_AGENT_DIR="$agent_dir" npm_config_cache="$WORK/npm-cache" pi --approve --no-session \
-    --provider stub --model stub-model -p 'Reply OK without tools.' >"$WORK/pi-project.out" 2>&1 ||
-    { cat "$WORK/pi-project.out" >&2; fail "Pi could not start in the --full project"; }
-  [[ -z "$(git status --porcelain)" ]] || fail "a real Pi start left the project dirty: $(git status --porcelain)"
-fi
 runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept a handoff run"
 runner handoff-clean | grep -q "${run_id}" || fail "handoff-clean did not list the kept worktree"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "handoff-clean could not remove one run"
@@ -955,8 +1009,7 @@ DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
 grep -q 'phase:implement:.*DEMOTED' "$WORK/phase-status" || fail "status lost the handoff demotion"
 drop_worktrees
 echo good >"$WORK/harness-mode"
-DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
-  runner handoff docs/specs/0002-greet.md --allow-commit >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "selected handoff failed"; }
+hrunner handoff docs/specs/0002-greet.md --allow-commit --foreground >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "selected handoff failed"; }
 [[ "$(selected)" == 'explore stub-coder-b' ]] || fail "selection reused a phase-demoted model"
 drop_worktrees
 runner reset stub-coder phase:implement >/dev/null 2>&1 || fail "phase reset failed"
@@ -968,28 +1021,212 @@ runner record-review "$(last_result | jq -r .run)" model-defect >/dev/null 2>&1
 drop_worktrees
 sed 's/stub-harness 1.0/stub-harness 2.0/' "$HARNESS" >"$WORK/harness-new"
 cat "$WORK/harness-new" >"$HARNESS"
-DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
-  runner handoff docs/specs/0002-greet.md --allow-commit >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "new harness handoff failed"; }
+hrunner handoff docs/specs/0002-greet.md --allow-commit --foreground >"$WORK/handoff.out" 2>&1 || { cat "$WORK/handoff.out" >&2; fail "new harness handoff failed"; }
 [[ "$(selected)" == 'explore stub-coder' ]] || fail "a new harness did not start a fresh phase record"
 drop_worktrees
 handoff 10 red
 [[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "a red gate after the session was not needs_frontier"
 drop_worktrees
-DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang --progress summary
-grep -q 'progress: session running' "$WORK/handoff.out" || fail "a hung summary-mode handoff emitted no heartbeat"
-grep -q 'limit' "$WORK/handoff.out" || fail "a hung session did not report its time limit"
-[[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the timeout ledger outcome"
-drop_worktrees
-DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang-tool
-sleep 0.5
-if kill -0 "$(cat "$WORK/tool.pid")" 2>/dev/null; then
-  kill -KILL "$(cat "$WORK/tool.pid")"
-  fail "the session's hard limit left a tool process group running"
-fi
-drop_worktrees
 handoff 3 crash --progress summary
 [[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the crash ledger outcome"
 drop_worktrees
+# An unknown model id does not fail Pi's startup; the runner compares the
+# model Pi resolved with the profile before prompting.
+handoff 3 wrong-model
+grep -q "resolved model 'stub/other-model'" "$WORK/handoff.out" || fail "a model mismatch was not reported"
+drop_worktrees
+
+# --- 13b. supervision: lease, checkpoint, pause, resume -------------------------
+export DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_ABORT_SECONDS=3 DELEGATE_HANDOFF_GRACE_SECONDS=3
+
+# Steady activity renews a short lease; the run completes without a pause.
+DELEGATE_HANDOFF_LEASE_SECONDS=2 handoff 0 busy --progress summary
+[[ ! -s "$WORK/harness-steers" ]] || fail "an active session was asked to checkpoint"
+drop_worktrees
+
+# A dialog is answered "cancelled" instead of blocking the session.
+rm -f "$WORK/harness-ui"
+handoff 0 dialog --progress summary
+jq -e 'select(.id == "dlg-1") | .cancelled == true' "$WORK/harness-ui" >/dev/null || fail "an extension dialog was not cancelled"
+grep -q 'cancelled an extension confirm dialog' "$WORK/handoff.out" || fail "the dialog cancel was not reported"
+drop_worktrees
+
+# Retries alone do not renew the lease: one recovery grace, then a checkpoint.
+rm -f "$WORK/harness-steers"
+DELEGATE_HANDOFF_LEASE_SECONDS=2 DELEGATE_HANDOFF_RECOVERY_SECONDS=2 handoff 11 retry-loop --progress summary
+grep -q 'lease extended 2s: retry or compaction recovery' "$WORK/handoff.out" || fail "recovery did not get one grace"
+grep -q 'requesting a checkpoint: no meaningful activity' "$WORK/handoff.out" || fail "a retry storm renewed the lease"
+[[ -s "$WORK/harness-steers" ]] || fail "the checkpoint was not sent as a steer"
+drop_worktrees
+
+# A silent session ignores the checkpoint; abort forces the pause. The old
+# hard-limit variable now sets the ceiling, with a warning.
+DELEGATE_HANDOFF_TIMEOUT=2 handoff 11 hang --progress summary
+grep -q 'DELEGATE_HANDOFF_TIMEOUT is deprecated' "$WORK/handoff.out" || fail "the legacy timeout gave no deprecation warning"
+grep -q 'the pause was forced' "$WORK/handoff.out" || fail "a forced pause was described as clean"
+run_id="$(handoff_run_id "$WORK/handoff.out")"
+[[ "$(state_of "$run_id" .state)" == paused && "$(state_of "$run_id" .forced)" == true ]] || fail "a forced pause was not recorded"
+[[ "$(run_records "$run_id")" == 0 ]] || fail "a pause was written to the ledger as an outcome"
+[[ -z "$(git -C "$WORK/handoffs/$run_id" log --oneline "$(git rev-parse HEAD)..HEAD")" ]] || fail "a pause created a commit"
+drop_worktrees
+
+# A wedged session: abort unanswered, TERM and EOF ignored, a tool in its own
+# process group. Signals end it, and the tool group is killed too.
+DELEGATE_HANDOFF_LEASE_SECONDS=2 handoff 11 hang-tool
+sleep 0.5
+if kill -0 "$(cat "$WORK/tool.pid")" 2>/dev/null; then
+  kill -KILL "$(cat "$WORK/tool.pid")"
+  fail "a forced pause left a tool process group running"
+fi
+drop_worktrees
+
+# Graceful pause at the absolute ceiling, then resume in the same worktree
+# and session to a single green outcome.
+rm -f "$WORK/harness-resumes"
+DELEGATE_HANDOFF_MAX_TOTAL_SECONDS=2 handoff 11 checkpoint --progress summary
+grep -q 'requesting a checkpoint: absolute ceiling' "$WORK/handoff.out" || fail "the ceiling did not request a checkpoint"
+grep -q 'settled at a checkpoint' "$WORK/handoff.out" || fail "a graceful pause was not reported as one"
+run_id="$(handoff_run_id "$WORK/handoff.out")"
+wt="$WORK/handoffs/$run_id"
+grep -q '^### Paused handoff' "$wt/docs/specs/0002-greet.md" || fail "the paused session wrote no pause note"
+got=0; hrunner handoff-status "$run_id" >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 11 ]] && grep -q '^state: paused' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "status did not report the pause"; }
+# Refusals leave the run paused: no commit authority, a spent ceiling, a
+# changed spec, and a changed harness.
+got=0; hrunner handoff-resume "$run_id" --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] || fail "resume did not require --allow-commit"
+got=0; hrunner handoff-resume "$run_id" --allow-commit --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'ceiling' "$WORK/resume.out" || { cat "$WORK/resume.out" >&2; fail "a spent ceiling did not refuse resume"; }
+echo '<!-- edited -->' >>docs/specs/0002-greet.md
+got=0; hrunner handoff-resume "$run_id" --allow-commit --max-total 600 --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'spec .* changed' "$WORK/resume.out" || { cat "$WORK/resume.out" >&2; fail "a changed spec did not refuse resume"; }
+git checkout -q -- docs/specs/0002-greet.md
+cp "$HARNESS" "$WORK/harness-saved"
+sed 's/stub-harness 2.0/stub-harness 3.0/' "$WORK/harness-saved" >"$HARNESS"
+got=0; hrunner handoff-resume "$run_id" --allow-commit --max-total 600 --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'fingerprint' "$WORK/resume.out" || { cat "$WORK/resume.out" >&2; fail "a changed harness did not refuse resume"; }
+cat "$WORK/harness-saved" >"$HARNESS"
+[[ "$(state_of "$run_id" .state)" == paused ]] || fail "a refused resume changed the paused state"
+got=0; hrunner handoff-resume "$run_id" --allow-commit --max-total 600 --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] || { cat "$WORK/resume.out" >&2; fail "resume did not finish green (exit $got)"; }
+[[ -s "$WORK/harness-resumes" ]] && grep -q '^--session$' "$WORK/harness-args" || fail "resume did not reopen the saved session"
+[[ "$(state_of "$run_id" '.segments | length')" == 2 && -s ".agentic/delegate/results/$run_id/segments/0002/events.jsonl" ]] ||
+  fail "resume did not record a second segment"
+[[ "$(run_records "$run_id")" == 1 && "$(last_result | jq -r '.attempts | length')" == 2 ]] ||
+  fail "a paused and resumed handoff did not produce one ledger outcome with both segments"
+[[ "$(git show "handoff/$run_id:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "the resumed work was not committed"
+runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept the resumed run id"
+drop_worktrees
+
+# Detached by default: launch returns at once; status waits token-free.
+echo good >"$WORK/harness-mode"
+got=0; hrunner handoff docs/specs/0002-greet.md --allow-commit --model stub-coder >"$WORK/launch.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] && grep -q 'launched handoff-' "$WORK/launch.out" || { cat "$WORK/launch.out" >&2; fail "detached launch failed"; }
+run_id="$(tail -n 1 "$WORK/launch.out")"
+got=0; hrunner handoff-status "$run_id" --wait 120 >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] && grep -q '^state: green' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "status --wait did not report the detached green run"; }
+drop_worktrees
+# A detached refusal is still synchronous.
+echo dirty >>lib/greet.sh
+got=0; hrunner handoff docs/specs/0002-greet.md --allow-commit --model stub-coder >"$WORK/launch.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'not clean' "$WORK/launch.out" || { cat "$WORK/launch.out" >&2; fail "a detached refusal was not reported synchronously"; }
+reset_case
+
+# Operator stop: a live detached run checkpoints and pauses on request.
+echo checkpoint >"$WORK/harness-mode"
+hrunner handoff docs/specs/0002-greet.md --allow-commit --model stub-coder >"$WORK/launch.out" 2>&1 || fail "stop-test launch failed"
+run_id="$(tail -n 1 "$WORK/launch.out")"
+for _ in $(seq 1 100); do [[ "$(state_of "$run_id" .state)" == running ]] && [[ -n "$(state_of "$run_id" '.live.pi_pid // empty')" ]] && break; sleep 0.2; done
+got=0; hrunner handoff-status "$run_id" --wait 1 >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 12 ]] && grep -q '^live segment 0001' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "status did not report a live run"; }
+hrunner handoff-stop "$run_id" >/dev/null 2>&1 || fail "handoff-stop failed"
+got=0; hrunner handoff-status "$run_id" --wait 60 >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 11 ]] && grep -q 'operator stop' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "an operator stop did not pause the run"; }
+drop_worktrees
+
+# Orphaned: the runner dies (SIGKILL). Pi sees EOF and exits, the lock is
+# left behind; status reports it, and resume takes the stale lock over.
+hrunner handoff docs/specs/0002-greet.md --allow-commit --model stub-coder >"$WORK/launch.out" 2>&1 || fail "orphan-test launch failed"
+run_id="$(tail -n 1 "$WORK/launch.out")"
+for _ in $(seq 1 100); do [[ -n "$(state_of "$run_id" '.live.pi_pid // empty')" ]] && break; sleep 0.2; done
+kill -KILL "$(state_of "$run_id" .runner_pid)"
+for _ in $(seq 1 50); do [[ -e ".agentic/delegate/results/$run_id/segments/0001/exit.status" ]] && break; sleep 0.2; done
+got=0; hrunner handoff-status "$run_id" >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 11 ]] && grep -q '^state: orphaned' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "status did not report the orphaned run"; }
+[[ -d .agentic/delegate/lock ]] || fail "the orphan test expected a stale lock"
+got=0; hrunner handoff-resume "$run_id" --allow-commit --foreground >"$WORK/resume.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] && grep -q 'taking over a stale lock' "$WORK/resume.out" || { cat "$WORK/resume.out" >&2; fail "an orphaned run did not resume green"; }
+drop_worktrees
+unset DELEGATE_PROGRESS_INTERVAL DELEGATE_HANDOFF_ABORT_SECONDS DELEGATE_HANDOFF_GRACE_SECONDS
+
+# --- 13c. the same through real Pi RPC (loopback stub, no real model) -----------
+# tool_call <NN> <tool> <args-json> : a queued streamed tool call.
+tool_call() {
+  jq -n --arg n "$2" --argjson a "$3" \
+    '{choices: [{index: 0, finish_reason: "tool_calls", message: {role: "assistant", content: null,
+      tool_calls: [{index: 0, id: "call_\($n)", type: "function", function: {name: $n, arguments: ($a | tojson)}}]}}]}' \
+    >"$QUEUE/$1.json"
+}
+if command -v pi >/dev/null 2>&1; then
+  # Pi resolves the isolated provider and sends the selected model and
+  # credential to the loopback stub. Print mode reads piped stdin, so each
+  # direct call gets /dev/null.
+  reset_case
+  respond 01 OK
+  (cd "$WORK" && PI_CODING_AGENT_DIR="$agent_dir" pi --offline --no-extensions --no-mcp --no-skills \
+    --no-context-files --no-prompt-templates --no-session --no-approve \
+    --provider stub --model stub-model -p 'Reply OK without tools.' </dev/null) >"$WORK/pi-provider.out" 2>&1 ||
+    { cat "$WORK/pi-provider.out" >&2; fail "Pi could not use the generated provider"; }
+  jq -e '.model == "stub-model" and .temperature == 0.2' "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings"
+  [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer $STUB_TOKEN" ]] || fail "Pi did not resolve the credential variable"
+  # A real Pi start in this --full project installs the packages named in
+  # .pi/settings.json (network required). The tree must stay clean, or every
+  # handoff's scope audit would stop on Pi's own files.
+  rm -rf .pi/npm
+  reset_case
+  respond 01 OK
+  PI_CODING_AGENT_DIR="$agent_dir" npm_config_cache="$WORK/npm-cache" pi --approve --no-session \
+    --provider stub --model stub-model -p 'Reply OK without tools.' </dev/null >"$WORK/pi-project.out" 2>&1 ||
+    { cat "$WORK/pi-project.out" >&2; fail "Pi could not start in the --full project"; }
+  [[ -z "$(git status --porcelain)" ]] || fail "a real Pi start left the project dirty: $(git status --porcelain)"
+
+  # A green phase through real Pi RPC: one write, one final answer.
+  reset_case
+  tool_call 01 write "$(jq -c -n '{path: "lib/greet.sh", content: "greet() { echo \"hello $1\"; }\n"}')"
+  respond 02 'Implemented greet.'
+  got=0
+  DELEGATE_HANDOFF_DIR="$WORK/handoffs" runner handoff docs/specs/0002-greet.md --allow-commit --foreground \
+    --model stub-coder >"$WORK/pi-handoff.out" 2>&1 || got=$?
+  [[ "$got" == 0 ]] || { cat "$WORK/pi-handoff.out" >&2; fail "a real-Pi handoff did not verify green (exit $got)"; }
+  run_id="$(last_result | jq -r .run)"
+  [[ "$(git show "handoff/$run_id:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "real Pi's write was not committed"
+  drop_worktrees
+
+  # Pause at the ceiling during a tool call: the steer reaches the next model
+  # request; Pi settles; resume reopens the session with its history.
+  reset_case
+  tool_call 01 bash '{"command":"sleep 4"}'
+  respond 02 'Paused; nothing written yet.'
+  tool_call 03 write "$(jq -c -n '{path: "lib/greet.sh", content: "greet() { echo \"hello $1\"; }\n"}')"
+  respond 04 'Implemented greet.'
+  got=0
+  DELEGATE_HANDOFF_DIR="$WORK/handoffs" DELEGATE_HANDOFF_MAX_TOTAL_SECONDS=2 runner handoff docs/specs/0002-greet.md \
+    --allow-commit --foreground --model stub-coder >"$WORK/pi-handoff.out" 2>&1 || got=$?
+  [[ "$got" == 11 ]] && grep -q 'settled at a checkpoint' "$WORK/pi-handoff.out" ||
+    { cat "$WORK/pi-handoff.out" >&2; fail "real Pi did not pause gracefully at the ceiling (exit $got)"; }
+  grep -q 'Checkpoint requested by the handoff supervisor' "$QUEUE/requests/02.json" || fail "the checkpoint steer did not reach the next model request"
+  run_id="$(handoff_run_id "$WORK/pi-handoff.out")"
+  got=0
+  DELEGATE_HANDOFF_DIR="$WORK/handoffs" runner handoff-resume "$run_id" --allow-commit --max-total 600 --foreground \
+    >"$WORK/pi-resume.out" 2>&1 || got=$?
+  [[ "$got" == 0 ]] || { cat "$WORK/pi-resume.out" >&2; fail "real Pi did not resume to green (exit $got)"; }
+  jq -e '[.messages[] | .content | tostring] | (any(test("isolated worktree")) and any(test("resuming a paused local handoff")))' \
+    "$QUEUE/requests/03.json" >/dev/null || fail "the resumed request lost the session history"
+  [[ "$(run_records "$run_id")" == 1 ]] || fail "real-Pi pause and resume did not produce one ledger outcome"
+  drop_worktrees
+elif [[ -n "${CI:-}" ]]; then
+  fail "pi is not installed; CI must run the real-Pi handoff checks"
+fi
 [[ -z "$(git branch --list 'handoff/*')" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
   fail "handoff-clean --all left worktrees or branches behind"
 echo dirty >>lib/greet.sh

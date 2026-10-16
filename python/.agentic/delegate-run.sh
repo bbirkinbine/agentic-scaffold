@@ -58,17 +58,37 @@
 #                            phase:test-first+implement); starts a fresh record.
 #   handoff <spec> --allow-commit [--phase implement|test-first+implement]
 #                            [--model <name>] [--progress quiet|summary]
+#                            [--foreground]
 #                            Hand a whole phase of an approved spec to a
-#                            local agent session (Pi) in a new git worktree:
-#                            install, run the session headless on the
-#                            model, then verify the full gate and that only
-#                            the plan's files changed (and, for `implement`,
-#                            no test file). --allow-commit acknowledges the
-#                            human's explicit approval for the temporary
-#                            handoff-branch commit. A verified run is committed
-#                            on `handoff/<run>` for the orchestrator to review
-#                            and merge; scored per
-#                            phase like a run. See docs/local-phase-handoff.md.
+#                            local agent session (Pi, RPC mode) in a new git
+#                            worktree: install, run the session headless on
+#                            the model, then verify the full gate and that
+#                            only the plan's files changed (and, for
+#                            `implement`, no test file). --allow-commit
+#                            acknowledges the human's explicit approval for
+#                            the temporary handoff-branch commit. A verified
+#                            run is committed on `handoff/<run>` for the
+#                            orchestrator to review and merge; scored per
+#                            phase like a run. By default it launches
+#                            detached, prints the run id, and exits 0 (2 if
+#                            refused); follow it with handoff-status --wait.
+#                            --foreground runs it attached and exits with the
+#                            outcome. The session is supervised by a
+#                            renewable inactivity lease, not a fixed limit;
+#                            see docs/local-phase-handoff.md and
+#                            docs/resumable-handoff.md.
+#   handoff-status <run-id> [--wait <seconds>]
+#                            Token-free status from local files. Waits up to
+#                            <seconds> for a final or paused state; exits
+#                            with that state's handoff code, or 12 while the
+#                            run is still going.
+#   handoff-resume <run-id> --allow-commit [--max-total <seconds>]
+#                            [--progress quiet|summary] [--foreground]
+#                            Continue a paused (or orphaned) handoff in the
+#                            same worktree and Pi session, after checking the
+#                            spec, plan, snapshot, branch, model fingerprint,
+#                            and scope. --max-total raises the ceiling.
+#   handoff-stop <run-id>    Ask a live handoff to checkpoint and pause.
 #   handoff-clean [<run-id> | --all]
 #                            List handoff worktrees, or remove one (or all)
 #                            with its handoff/ branch after merging or
@@ -114,9 +134,21 @@
 #   5   qualify: the model failed the plumbing check
 #   3   infrastructure failure: endpoint, transport, or verifier
 #   4   integrity stop: unexpected writes, or the workspace changed mid-run
-#   handoff: 0 verified and committed on handoff/<run>; 10 the session ended
-#   with the gate red; 4 out-of-plan or test-file changes; 3 harness crash,
-#   timeout, install, or worktree failure; 2 refused.
+#   handoff (--foreground, handoff-status, handoff-resume): 0 verified and
+#   committed on handoff/<run>; 10 the session ended with the gate red; 11
+#   paused and resumable (no gate, no commit); 4 out-of-plan or test-file
+#   changes; 3 harness, RPC, install, or worktree failure; 2 refused; 12
+#   (handoff-status only) still running when the wait ended.
+#
+# Handoff supervision: DELEGATE_HANDOFF_LEASE_SECONDS (default 3600) is the
+# inactivity lease, renewed by model or tool activity and new worktree
+# content; DELEGATE_HANDOFF_RECOVERY_SECONDS (900) extends it once during
+# retry or compaction recovery; DELEGATE_HANDOFF_GRACE_SECONDS (600) is how
+# long a checkpoint may take before abort; DELEGATE_HANDOFF_ABORT_SECONDS (60)
+# how long abort and shutdown may take before signals;
+# DELEGATE_HANDOFF_MAX_TOTAL_SECONDS
+# (unset) is an optional ceiling on active time across segments. The
+# deprecated DELEGATE_HANDOFF_TIMEOUT sets that ceiling.
 #
 # Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
 # sha256sum or shasum.
@@ -148,7 +180,6 @@ DIAG_BYTES=12000
 PROGRESS_MODE=quiet
 PROGRESS_INTERVAL="${DELEGATE_PROGRESS_INTERVAL:-15}"
 PROGRESS_PID=""
-PROGRESS_DONE=""
 PROGRESS_PID_FILE=""
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 3
@@ -270,66 +301,6 @@ render_pi_event() {
       ;;
   esac
   return 0
-}
-
-watch_pi_events() {
-  local events="$1" done_file="$2" started="$3" line now next pending=""
-  exec 9<"$events"
-  next=$((started + PROGRESS_INTERVAL))
-  while :; do
-    line=""
-    if IFS= read -r line <&9; then
-      render_pi_event "$pending$line"
-      pending=""
-      continue
-    fi
-    # `read` advances a regular-file descriptor even when EOF arrives before
-    # LF. Keep that fragment and prepend it when the writer completes the line.
-    pending+="$line"
-    if [[ -e "$done_file" ]]; then
-      # The harness closed the file before creating this marker, but it may
-      # have appended after our previous EOF read. Drain once more before exit.
-      while :; do
-        line=""
-        if IFS= read -r line <&9; then
-          render_pi_event "$pending$line"
-          pending=""
-        else
-          pending+="$line"
-          break
-        fi
-      done
-      break
-    fi
-    now="$(date +%s)"
-    if ((now >= next)); then
-      progress "session running — $((now - started))s elapsed"
-      next=$((now + PROGRESS_INTERVAL))
-    fi
-    sleep 0.2
-  done
-  exec 9<&-
-}
-
-start_pi_event_watcher() {
-  local events="$1" started="$2" pid_file="$3"
-  [[ "$PROGRESS_MODE" == summary ]] || return 0
-  PROGRESS_DONE="$STATE/progress.done"
-  PROGRESS_PID_FILE="$pid_file"
-  rm -f "$PROGRESS_DONE" "$PROGRESS_PID_FILE"
-  watch_pi_events "$events" "$PROGRESS_DONE" "$started" &
-  PROGRESS_PID=$!
-  printf '%s\n' "$PROGRESS_PID" >"$PROGRESS_PID_FILE"
-}
-
-finish_pi_event_watcher() {
-  [[ -n "$PROGRESS_PID" ]] || return 0
-  : >"$PROGRESS_DONE"
-  wait "$PROGRESS_PID" 2>/dev/null || true
-  PROGRESS_PID=""
-  rm -f "$PROGRESS_PID_FILE"
-  PROGRESS_PID_FILE=""
-  PROGRESS_DONE=""
 }
 
 usage() {
@@ -998,6 +969,10 @@ finish() {
   if [[ -n "${RUN_ID:-}" ]]; then
     result_dir="$DELEGATE_DIR/results/$RUN_ID"
     mkdir -p "$result_dir"
+    # A logical handoff's attempts are its session segments.
+    [[ "$RUN_ID" == handoff-* && -f "$result_dir/state.json" ]] &&
+      ATTEMPTS_JSON="$(jq -c '[.segments[] | {attempt: (.segment | tonumber), outcome: (.end // "incomplete"),
+        detail: (.reason // ""), seconds: (.seconds // 0)}]' "$result_dir/state.json" 2>/dev/null || echo '[]')"
     [[ -n "$STATE" && -f "$STATE/last-diagnostics.txt" ]] &&
       cp "$STATE/last-diagnostics.txt" "$result_dir/last-diagnostics.txt"
     # The exact first message the model received, for review attribution.
@@ -1026,6 +1001,11 @@ finish() {
         review: null}' \
       >"$result_dir/result.json"
     jq -c . "$result_dir/result.json" >>"$DELEGATE_DIR/ledger.jsonl"
+    if [[ "$RUN_ID" == handoff-* && -f "$result_dir/state.json" ]]; then
+      state_update '.state = $o | .reason = $r | .exit_status = $s | .finished_at = $now' \
+        --arg o "$OUTCOME" --arg r "$REASON" --argjson s "$status"
+    fi
+    launch_report "$OUTCOME" "$REASON" "$status"
     print_summary "$result_dir/result.json"
     say "result: ${result_dir#"$ROOT"/}/result.json (run id: $RUN_ID)"
     if [[ "$OUTCOME" == green || "$OUTCOME" == needs_frontier ]]; then
@@ -1055,7 +1035,10 @@ print_summary() {
 cleanup() {
   stop_progress_sidecar
   [[ -n "$WORK" && "${DELEGATE_KEEP_SCRATCH:-0}" != 1 ]] && rm -rf "$WORK"
-  [[ "$LOCKED" == 1 ]] && rmdir "$DELEGATE_DIR/lock" 2>/dev/null
+  if [[ "$LOCKED" == 1 ]]; then
+    rm -f "$DELEGATE_DIR/lock/owner"
+    rmdir "$DELEGATE_DIR/lock" 2>/dev/null
+  fi
   return 0
 }
 
@@ -1093,11 +1076,7 @@ cmd_run() {
   git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
 
   mkdir -p "$DELEGATE_DIR/results"
-  if ! mkdir "$DELEGATE_DIR/lock" 2>/dev/null; then
-    say "another run holds $DELEGATE_DIR/lock; remove it if no run is active"
-    exit 2
-  fi
-  LOCKED=1
+  take_lock || { lock_refusal; exit 2; }
   trap cleanup EXIT
 
   [[ -f "$packet" ]] || { say "packet not found: $packet"; exit 2; }
@@ -1883,9 +1862,318 @@ cmd_reset() {
   say "reset '$model' for $bucket tasks; its record starts fresh"
 }
 
+# ---- handoff: Pi RPC session control --------------------------------------------
+# One segment is one Pi process in RPC mode. The runner owns the only writer:
+#   runner fd 8 --FIFO--> Perl supervisor --pipe--> Pi stdin
+#   Pi stdout --> segments/NNNN/events.jsonl (a regular file: Pi never blocks)
+#   Pi stderr --> segments/NNNN/harness.log
+# Pi never reads the FIFO itself: Node misses FIFO EOF on macOS, and Codex's
+# macOS sandbox denies the /dev/fd paths Bash 3.2 process substitution needs.
+# The supervisor relays into a real pipe, closing it at FIFO EOF; puts Pi in
+# its own process group; records its pid; and writes its exit status
+# atomically (Bash 3.2 has no non-blocking wait, and kill -0 is true for a
+# zombie). Closing Pi's stdin during a run abandons the run, so the runner
+# closes it only after agent_settled or a completed abort. Never call rpc_*
+# inside $(...): the subshell would consume events from fd 9 and lose the
+# state it parsed. See docs/resumable-handoff.md.
+
+CHECKPOINT_MESSAGE='Checkpoint requested by the handoff supervisor. Do not start new implementation work. Finish only the operation in progress, inspect the worktree, append a concise "### Paused handoff" entry under "## Phase handoff" in the spec (what is done, what is next, anything left red), do not commit, and stop.'
+
+# descendant_groups <pid> : process groups of <pid>'s descendants other than
+# its own (Pi runs each tool command in one). Prints nothing where ps is
+# unavailable, as inside Codex's macOS sandbox.
+descendant_groups() {
+  ps -axo pid=,ppid=,pgid= 2>/dev/null | awk -v root="$1" '
+    { kids[$2] = kids[$2] " " $1; pg[$1] = $3 }
+    END {
+      q[1] = root; head = 1; tail = 1
+      while (head <= tail) {
+        p = q[head++]
+        if (seen[p]++) continue
+        if (p != root && pg[p] != "" && pg[p] != root) out[pg[p]] = 1
+        m = split(kids[p], k, " ")
+        for (i = 1; i <= m; i++) q[++tail] = k[i]
+      }
+      for (g in out) print g
+    }'
+}
+
+rpc_start() {
+  local cwd="$1"
+  shift
+  RPC_PENDING="" RPC_SETTLED=0 RPC_SETTLED_ABORTED=false RPC_SEQ=0 RPC_PID=""
+  RPC_LAST_ACTIVITY="$(date +%s)"
+  RPC_LAST_EVENT="" RPC_LAST_EVENT_AT="$RPC_LAST_ACTIVITY" RPC_ACTIVE_TOOL=""
+  RPC_RETRIES=0 RPC_COMPACTIONS=0 RPC_RECOVERING=0 RPC_DIALOGS=0
+  mkdir -p "$SEG_DIR/responses" || return 1
+  : >"$SEG_DIR/events.jsonl"
+  : >"$SEG_DIR/harness.log"
+  rm -f "$SEG_DIR/exit.status" "$SEG_DIR/pi.pid" "$SEG_DIR/cmd.fifo"
+  mkfifo "$SEG_DIR/cmd.fifo" || return 1
+  # O_RDWR: neither side's open blocks, even if the supervisor dies first.
+  exec 8<>"$SEG_DIR/cmd.fifo"
+  (cd "$cwd" && exec perl -MPOSIX=:sys_wait_h -e '
+      my ($status, $pidfile, $fifo) = splice @ARGV, 0, 3;
+      open my $in, "<", $fifo or die "fifo: $!";
+      pipe(my $r, my $w) or die "pipe: $!";
+      my $pid = fork() // die "fork: $!";
+      if ($pid == 0) {
+        close $w; close $in; open STDIN, "<&", $r or exit 127; close $r;
+        setpgrp(0, 0); exec { $ARGV[0] } @ARGV or exit 127;
+      }
+      close $r;
+      open my $f, ">", "$pidfile.tmp" or die; print $f "$pid\n"; close $f; rename "$pidfile.tmp", $pidfile;
+      $SIG{TERM} = sub { kill "TERM", -$pid };
+      $SIG{PIPE} = "IGNORE";
+      my ($done, $rc, $buf, $rin) = (0);
+      my $exit = sub { $? & 127 ? 128 + ($? & 127) : $? >> 8 };
+      while (!$done) {
+        vec($rin = "", fileno($in), 1) = 1;
+        if (select(my $rout = $rin, undef, undef, 0.5) > 0) {
+          my $n = sysread $in, $buf, 65536;
+          if (!defined $n) { next if $!{EINTR}; last }
+          last if $n == 0;
+          syswrite $w, $buf;
+        }
+        if (waitpid($pid, WNOHANG) == $pid) { $done = 1; $rc = $exit->() }
+      }
+      close $w;
+      unless ($done) { 1 while waitpid($pid, 0) == -1 && $!{EINTR}; $rc = $exit->() }
+      open $f, ">", "$status.tmp" or die; print $f "$rc\n"; close $f; rename "$status.tmp", $status;
+      exit $rc;
+    ' "$SEG_DIR/exit.status" "$SEG_DIR/pi.pid" "$SEG_DIR/cmd.fifo" "$@") \
+    <&- >"$SEG_DIR/events.jsonl" 2>"$SEG_DIR/harness.log" 8>&- 9>&- &
+  exec 9<"$SEG_DIR/events.jsonl"
+  while [[ ! -s "$SEG_DIR/pi.pid" && ! -e "$SEG_DIR/exit.status" ]]; do sleep 0.05; done
+  RPC_PID="$(cat "$SEG_DIR/pi.pid" 2>/dev/null)"
+  [[ -n "$RPC_PID" ]]
+}
+
+rpc_alive() { [[ -n "${SEG_DIR:-}" && ! -e "$SEG_DIR/exit.status" ]]; }
+
+# rpc_send <json object> : adds an id, sets RPC_ID.
+rpc_send() {
+  local rec
+  RPC_SEQ=$((RPC_SEQ + 1))
+  RPC_ID="c$RPC_SEQ"
+  rec="$(jq -c --arg id "$RPC_ID" '. + {id: $id}' <<<"$1")" || return 1
+  printf '%s\n' "$rec" >&8 2>/dev/null
+}
+
+# Consume every complete record appended since the last call. Token deltas
+# and tool updates dominate the stream; they are routed by prefix without jq.
+rpc_pump() {
+  local line type now id method
+  now="$(date +%s)"
+  while :; do
+    line=""
+    if ! IFS= read -r line <&9; then
+      # read advances past a partial final line; keep it for the next call.
+      RPC_PENDING+="$line"
+      return 0
+    fi
+    line="$RPC_PENDING$line"
+    RPC_PENDING=""
+    RPC_LAST_EVENT_AT="$now"
+    case "$line" in
+      '{"type":"message_update"'*) RPC_LAST_ACTIVITY="$now"; RPC_RECOVERING=0; continue ;;
+      '{"type":"tool_execution_update"'*) RPC_LAST_ACTIVITY="$now"; continue ;;
+    esac
+    type="$(jq -r '.type // ""' <<<"$line" 2>/dev/null)" || type=""
+    [[ -n "$type" ]] || continue
+    RPC_LAST_EVENT="$type"
+    case "$type" in
+      response)
+        id="$(jq -r '.id // "noid"' <<<"$line")"
+        [[ "$id" =~ ^[A-Za-z0-9_-]+$ ]] && printf '%s\n' "$line" >"$SEG_DIR/responses/$id.json"
+        continue
+        ;;
+      agent_start) RPC_SETTLED=0; RPC_LAST_ACTIVITY="$now" ;;
+      turn_start | turn_end | message_start | message_end) RPC_LAST_ACTIVITY="$now"; RPC_RECOVERING=0 ;;
+      tool_execution_start)
+        RPC_LAST_ACTIVITY="$now"
+        RPC_ACTIVE_TOOL="$(jq -r '.toolName // "tool"' <<<"$line")"
+        ;;
+      tool_execution_end) RPC_LAST_ACTIVITY="$now"; RPC_ACTIVE_TOOL="" ;;
+      auto_retry_start) RPC_RETRIES=$((RPC_RETRIES + 1)); RPC_RECOVERING=1 ;;
+      compaction_start) RPC_COMPACTIONS=$((RPC_COMPACTIONS + 1)); RPC_RECOVERING=1 ;;
+      compaction_end) RPC_RECOVERING=0 ;;
+      agent_settled)
+        RPC_SETTLED=1
+        RPC_SETTLED_ABORTED="$(jq -r 'if .aborted == true then "true" else "false" end' <<<"$line")"
+        ;;
+      extension_ui_request)
+        # Dialogs block Pi until answered, and no one is watching a handoff.
+        method="$(jq -r '.method // ""' <<<"$line")"
+        case "$method" in
+          select | confirm | input | editor)
+            id="$(jq -r '.id // ""' <<<"$line")"
+            jq -c -n --arg id "$id" '{type: "extension_ui_response", id: $id, cancelled: true}' >&8 2>/dev/null
+            RPC_DIALOGS=$((RPC_DIALOGS + 1))
+            printf '%s cancelled %s dialog\n' "$(now_utc)" "$method" >>"$SEG_DIR/dialogs.log"
+            progress "cancelled an extension $method dialog (no one is watching)"
+            ;;
+        esac
+        ;;
+    esac
+    [[ "$PROGRESS_MODE" == summary ]] && render_pi_event "$line"
+  done
+}
+
+# rpc_call <json> <seconds> : sets RPC_REPLY; 3 if Pi exited, 124 on timeout.
+rpc_call() {
+  local deadline
+  RPC_REPLY=""
+  rpc_send "$1" || return 3
+  deadline=$(($(date +%s) + $2))
+  while :; do
+    rpc_pump
+    if [[ -f "$SEG_DIR/responses/$RPC_ID.json" ]]; then
+      RPC_REPLY="$(cat "$SEG_DIR/responses/$RPC_ID.json")"
+      return 0
+    fi
+    rpc_alive || return 3
+    (($(date +%s) < deadline)) || return 124
+    sleep 0.1
+  done
+}
+
+rpc_ok() { [[ "$(jq -r '.success // false' <<<"$RPC_REPLY" 2>/dev/null)" == true ]]; }
+
+# rpc_stop <seconds> : close Pi's stdin and wait for it to exit; then TERM
+# its group, and KILL that group and every descendant group seen. Sets
+# RPC_EXIT and RPC_SIGNALLED.
+rpc_stop() {
+  local deadline groups g
+  RPC_SIGNALLED=0
+  exec 8>&-
+  deadline=$(($(date +%s) + $1))
+  while rpc_alive && (($(date +%s) < deadline)); do sleep 0.1; done
+  if rpc_alive && [[ -n "$RPC_PID" ]]; then
+    RPC_SIGNALLED=1
+    groups="$(descendant_groups "$RPC_PID") ${TOOL_GROUPS:-}"
+    kill -TERM -- "-$RPC_PID" 2>/dev/null
+    sleep 2
+    groups="$groups $(descendant_groups "$RPC_PID")"
+    for g in $groups; do kill -KILL -- "-$g" 2>/dev/null; done
+    kill -KILL -- "-$RPC_PID" 2>/dev/null
+  fi
+  # The supervisor reaps on its next poll; read the status only once it exists.
+  deadline=$(($(date +%s) + 10))
+  while rpc_alive && (($(date +%s) < deadline)); do sleep 0.1; done
+  rpc_pump
+  exec 9<&-
+  RPC_EXIT="$(cat "$SEG_DIR/exit.status" 2>/dev/null)"
+  rm -f "$SEG_DIR/cmd.fifo"
+}
+
+# ---- handoff: logical run state ---------------------------------------------------
+# results/<run>/state.json is the logical handoff across segments: identity,
+# fingerprint, session, segment history, and live supervision fields. Status
+# reads it (and the files beside it) and never talks to a live Pi process.
+
+state_path() { printf '%s\n' "$DELEGATE_DIR/results/$1/state.json"; }
+
+# state_update <jq filter> [jq args...] : atomic update of this run's state.
+state_update() {
+  local file filter="$1" tmp
+  shift
+  file="$(state_path "$RUN_ID")"
+  tmp="$file.tmp.$$"
+  jq --argjson now "$(date +%s)" "$@" "$filter | .updated_at = \$now" "$file" >"$tmp" && mv "$tmp" "$file"
+}
+
+# Lock ownership: "<pid> <start time>" (start time only where ps is allowed).
+proc_start_time() { ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //'; }
+
+lock_is_stale() {
+  local owner pid started=""
+  owner="$(cat "$DELEGATE_DIR/lock/owner" 2>/dev/null)" || return 1
+  pid="${owner%% *}"
+  [[ "$owner" == *" "* ]] && started="${owner#* }"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 0
+  [[ -n "$started" && "$(proc_start_time "$pid")" != "$started" ]]
+}
+
+take_lock() {
+  mkdir -p "$DELEGATE_DIR" || return 1
+  if ! mkdir "$DELEGATE_DIR/lock" 2>/dev/null; then
+    lock_is_stale || return 1
+    say "taking over a stale lock left by process $(cut -d' ' -f1 "$DELEGATE_DIR/lock/owner")"
+    rm -f "$DELEGATE_DIR/lock/owner"
+    rmdir "$DELEGATE_DIR/lock" 2>/dev/null
+    mkdir "$DELEGATE_DIR/lock" 2>/dev/null || return 1
+  fi
+  printf '%s %s\n' "$$" "$(proc_start_time "$$")" >"$DELEGATE_DIR/lock/owner"
+  LOCKED=1
+}
+
+lock_refusal() { say "another run holds $DELEGATE_DIR/lock (owner: $(cat "$DELEGATE_DIR/lock/owner" 2>/dev/null || echo unknown)); remove it if no run is active"; }
+
+# Detached launch: the background runner reports here once its fast
+# preconditions pass (or why it stopped), so refusals stay synchronous.
+launch_report() {
+  [[ -n "${DELEGATE_LAUNCH_FILE:-}" && -z "${LAUNCH_REPORTED:-}" ]] || return 0
+  LAUNCH_REPORTED=1
+  jq -c -n --arg status "$1" --arg reason "${2:-}" --argjson code "${3:-0}" \
+    '{status: $status, reason: $reason, code: $code}' >"$DELEGATE_LAUNCH_FILE.tmp" &&
+    mv "$DELEGATE_LAUNCH_FILE.tmp" "$DELEGATE_LAUNCH_FILE"
+}
+
+runner_path() { printf '%s/%s\n' "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" "$(basename "${BASH_SOURCE[0]}")"; }
+
+# handoff_launch <run-id> <subcommand args...> : start this runner detached
+# (new session, no terminal, output to results/<run>/runner.log), wait for
+# its launch report, and print how to follow it. Exits with the report's
+# code for a refusal, 0 once the run is under way.
+handoff_launch() {
+  local run="$1" log launch report status reason code waited=0
+  shift
+  mkdir -p "$DELEGATE_DIR/results/$run" || { say "could not create the result directory"; exit 3; }
+  log="$DELEGATE_DIR/results/$run/runner.log"
+  launch="$DELEGATE_DIR/results/$run/launch.$$.json"
+  rm -f "$launch"
+  # Double fork with setsid (macOS has no setsid command): the orchestrator's
+  # tool-call timeout or process-group kill cannot reach the runner, and the
+  # runner's exit is what ends Pi (its stdin closes).
+  DELEGATE_LAUNCH_FILE="$launch" perl -MPOSIX -e '
+    my $log = shift;
+    exit 0 if fork();
+    POSIX::setsid() or die "setsid: $!";
+    exit 0 if fork();
+    open STDIN, "<", "/dev/null";
+    open STDOUT, ">>", $log or die "log: $!";
+    open STDERR, ">&", \*STDOUT;
+    exec @ARGV or exit 127;
+  ' "$log" bash "$(runner_path)" "$@" || { say "could not launch the handoff"; exit 3; }
+  while [[ ! -e "$launch" ]]; do
+    if ((waited >= 1200)); then
+      say "the handoff did not report within 120s; see ${log#"$ROOT"/}"
+      exit 3
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  report="$(cat "$launch")"
+  rm -f "$launch"
+  status="$(jq -r .status <<<"$report")"
+  reason="$(jq -r .reason <<<"$report")"
+  code="$(jq -r .code <<<"$report")"
+  if [[ "$status" != running ]]; then
+    say "$status: $reason"
+    say "log: ${log#"$ROOT"/}"
+    exit "$code"
+  fi
+  say "launched $run in the background; log: ${log#"$ROOT"/}"
+  say "follow it with: .agentic/delegate-run.sh handoff-status $run --wait 540"
+  say "  (repeat while it exits 12; then act on its exit status)"
+  printf '%s\n' "$run"
+  exit 0
+}
+
 # ---- handoff: a whole phase to a local agent session ----------------------------
 
-# plan_files <spec> : the backticked paths listed under "## Files to touch".
 plan_files() {
   awk '/^## Files to touch/ { on = 1; next } on && /^## / { exit }
     on && /^- `/ { sub(/^- `/, ""); sub(/`.*/, ""); print }' "$1"
@@ -1953,8 +2241,274 @@ audit_handoff() {
   return 0
 }
 
+handoff_resume_prompt() {
+  cat <<PROMPT
+You are resuming a paused local handoff in the same worktree and session. Spec: $1.
+
+Continue the approved phase from the current state of the worktree. First inspect the worktree and the latest "### Paused handoff" entry in the spec, and do not repeat completed work. Every rule from the original handoff prompt still applies. Finish the remaining work and the existing /review-check obligation, then append a short "### After handoff" entry as before.
+PROMPT
+}
+
+# Supervision settings. The lease renews on meaningful activity; there is no
+# default total limit. DELEGATE_HANDOFF_TIMEOUT (the old hard limit) is read
+# as the absolute ceiling, which now pauses the run instead of killing it.
+handoff_config() {
+  local v
+  LEASE_SECONDS="${DELEGATE_HANDOFF_LEASE_SECONDS:-3600}"
+  RECOVERY_SECONDS="${DELEGATE_HANDOFF_RECOVERY_SECONDS:-900}"
+  GRACE_SECONDS="${DELEGATE_HANDOFF_GRACE_SECONDS:-600}"
+  ABORT_SECONDS="${DELEGATE_HANDOFF_ABORT_SECONDS:-60}"
+  MAX_TOTAL="${DELEGATE_HANDOFF_MAX_TOTAL_SECONDS:-}"
+  if [[ -z "$MAX_TOTAL" && -n "${DELEGATE_HANDOFF_TIMEOUT:-}" ]]; then
+    MAX_TOTAL="$DELEGATE_HANDOFF_TIMEOUT"
+    say "warning: DELEGATE_HANDOFF_TIMEOUT is deprecated; it now sets the absolute ceiling (DELEGATE_HANDOFF_MAX_TOTAL_SECONDS), which pauses the run at a checkpoint instead of killing it"
+  fi
+  for v in "$LEASE_SECONDS" "$RECOVERY_SECONDS" "$GRACE_SECONDS" "$ABORT_SECONDS" ${MAX_TOTAL:+"$MAX_TOTAL"}; do
+    [[ "$v" =~ ^[1-9][0-9]*$ ]] || { say "handoff time settings must be positive whole seconds (got '$v')"; exit 2; }
+  done
+}
+
+# A content manifest of the worktree, for "has anything changed" at lease
+# expiry. GIT_OPTIONAL_LOCKS=0 keeps git from taking the index lock Pi's own
+# git commands may need.
+worktree_manifest() {
+  {
+    GIT_OPTIONAL_LOCKS=0 git -C "$TREE" diff --no-ext-diff "$SNAPSHOT_SHA" -- 2>/dev/null
+    GIT_OPTIONAL_LOCKS=0 git -C "$TREE" ls-files --others --exclude-standard 2>/dev/null
+  } | "${SHA[@]}" | cut -c1-16
+}
+
+# The arguments and environment every segment's Pi process gets.
+handoff_session_setup() {
+  local pi_thinking
+  pi_thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
+  HANDOFF_ARGS=(--mode rpc --approve --provider "$ENDPOINT_NAME" --model "$MODEL_ID" --session-dir "$RESULT_DIR/session")
+  [[ -n "$pi_thinking" ]] && HANDOFF_ARGS+=(--thinking "$pi_thinking")
+  HANDOFF_ENV=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb PI_CODING_AGENT_DIR="$RESULT_DIR/pi-agent")
+  [[ -n "${TMPDIR:-}" ]] && HANDOFF_ENV+=(TMPDIR="$TMPDIR")
+  [[ -n "${CRED_ENV:-}" ]] && HANDOFF_ENV+=("$CRED_ENV=${!CRED_ENV}")
+  # Pi installs the packages in .pi/settings.json into the worktree's ignored
+  # .pi/npm/ on start. Its npm cache stays in the run directory, which is
+  # writable inside Codex's sandbox where ~/.npm is not.
+  HANDOFF_ENV+=(npm_config_cache="$RESULT_DIR/npm-cache")
+}
+
+# Write the live supervision fields; cheap enough for every few seconds.
+handoff_status_write() {
+  TOOL_GROUPS="$(descendant_groups "$RPC_PID" | tr '\n' ' ')"
+  state_update '.live = {segment: $seg, pi_pid: $pid, last_event: $ev, last_event_at: $evat,
+      last_activity_at: $act, active_tool: $tool, retries: $retries, compactions: $comp,
+      dialogs_cancelled: $dialogs, lease_expires_at: $lease, checkpoint: $cp,
+      checkpoint_requested_at: $cpat, tool_groups: ($groups | split(" ") | map(select(. != "")))}' \
+    --arg seg "$SEG_N" --arg pid "$RPC_PID" --arg ev "$RPC_LAST_EVENT" --argjson evat "$RPC_LAST_EVENT_AT" \
+    --argjson act "$RPC_LAST_ACTIVITY" --arg tool "$RPC_ACTIVE_TOOL" --argjson retries "$RPC_RETRIES" \
+    --argjson comp "$RPC_COMPACTIONS" --argjson dialogs "$RPC_DIALOGS" --argjson lease "$1" \
+    --arg cp "$2" --argjson cpat "$3" --arg groups "$TOOL_GROUPS"
+}
+
+# handoff_segment <prompt-file> [<session-file>] : run one supervised Pi
+# segment. Sets SEG_END (completed, paused, or failed), SEG_REASON, and
+# SEG_FORCED. Nothing here calls a model except the session itself.
+handoff_segment() {
+  local prompt_file="$1" session="${2:-}" n started now lease_end checkpoint_at=0 checkpoint_reason=""
+  local grace_used=0 next_status=0 next_beat manifest current active_before ceiling_at=0 model
+  n="$(jq '.segments | length' "$(state_path "$RUN_ID")")"
+  SEG_N="$(printf '%04d' $((n + 1)))"
+  SEG_DIR="$RESULT_DIR/segments/$SEG_N"
+  SEG_END=failed SEG_REASON="" SEG_FORCED=0 TOOL_GROUPS=""
+  mkdir -p "$SEG_DIR" || { SEG_REASON="could not create $SEG_DIR"; return; }
+  started="$(date +%s)"
+  active_before="$(jq '.active_seconds // 0' "$(state_path "$RUN_ID")")"
+  [[ -n "${MAX_TOTAL:-}" ]] && ceiling_at=$((started + MAX_TOTAL - active_before))
+  state_update '.state = "running" | .runner_pid = $rp | .segments += [{segment: $seg, started_at: $s}]' \
+    --argjson rp "$$" --arg seg "$SEG_N" --argjson s "$started"
+  local -a args=("${HANDOFF_ARGS[@]}")
+  [[ -n "$session" ]] && args+=(--session "$session")
+  say "session segment $SEG_N: $HANDOFF_HARNESS on '$MODEL_NAME' ($ENDPOINT_NAME/$MODEL_ID); lease ${LEASE_SECONDS}s${MAX_TOTAL:+, ceiling ${MAX_TOTAL}s of active time}"
+  if ! rpc_start "$TREE" env -i "${HANDOFF_ENV[@]}" "$HANDOFF_HARNESS" "${args[@]}"; then
+    SEG_REASON="could not start $HANDOFF_HARNESS"
+    return
+  fi
+  state_update '.live.pi_pid = $p' --arg p "$RPC_PID"
+
+  # The session identity, and the model Pi resolved: an unknown model id
+  # does not fail Pi's startup, so compare it with the profile here.
+  if ! rpc_call '{"type":"get_state"}' 120 || ! rpc_ok; then
+    SEG_REASON="the harness did not answer get_state: $(bounded_tail "$SEG_DIR/harness.log" | tail -n 3 | tr '\n' ' ')"
+    rpc_stop 10
+    return
+  fi
+  model="$(jq -r '"\(.data.model.provider // "")/\(.data.model.id // "")"' <<<"$RPC_REPLY")"
+  if [[ "$model" != "$ENDPOINT_NAME/$MODEL_ID" ]]; then
+    SEG_REASON="the harness resolved model '$model', not '$ENDPOINT_NAME/$MODEL_ID'"
+    rpc_stop 10
+    return
+  fi
+  state_update '.session_file = $f | .session_id = $i' \
+    --arg f "$(jq -r '.data.sessionFile // ""' <<<"$RPC_REPLY")" --arg i "$(jq -r '.data.sessionId // ""' <<<"$RPC_REPLY")"
+  if ! rpc_call "$(jq -c -n --rawfile m "$prompt_file" '{type: "prompt", message: $m}')" 120 || ! rpc_ok; then
+    SEG_REASON="the harness did not accept the prompt: $(jq -r '.error? // "no response"' <<<"${RPC_REPLY:-null}" 2>/dev/null)"
+    rpc_stop 10
+    return
+  fi
+
+  manifest="$(worktree_manifest)"
+  printf '%s\n' "$manifest" >>"$SEG_DIR/manifests"
+  lease_end=$((RPC_LAST_ACTIVITY + LEASE_SECONDS))
+  next_beat=$(($(date +%s) + PROGRESS_INTERVAL))
+  while :; do
+    rpc_pump
+    now="$(date +%s)"
+    if ((RPC_SETTLED)); then
+      if ((checkpoint_at > 0)); then
+        SEG_END=paused
+        SEG_REASON="$checkpoint_reason"
+        [[ "$RPC_SETTLED_ABORTED" == true ]] && SEG_FORCED=1
+      else
+        SEG_END=completed
+      fi
+      break
+    fi
+    if ! rpc_alive; then
+      SEG_REASON="the harness exited $(cat "$SEG_DIR/exit.status" 2>/dev/null) before settling: $(bounded_tail "$SEG_DIR/harness.log" | tail -n 3 | tr '\n' ' ')"
+      break
+    fi
+    if ((checkpoint_at == 0)); then
+      if ((RPC_LAST_ACTIVITY + LEASE_SECONDS > lease_end)); then
+        lease_end=$((RPC_LAST_ACTIVITY + LEASE_SECONDS))
+        grace_used=0
+      fi
+      if [[ -n "${HANDOFF_STOP:-}" ]]; then
+        checkpoint_reason="operator stop"
+      elif ((ceiling_at > 0 && now >= ceiling_at)); then
+        checkpoint_reason="absolute ceiling of ${MAX_TOTAL}s active time reached"
+      elif ((now >= lease_end)); then
+        # Lease expired: renew on new worktree content (never on a manifest
+        # seen before), once on bounded retry/compaction recovery, otherwise
+        # checkpoint. No model is asked.
+        current="$(worktree_manifest)"
+        if ! grep -qxF "$current" "$SEG_DIR/manifests"; then
+          printf '%s\n' "$current" >>"$SEG_DIR/manifests"
+          lease_end=$((now + LEASE_SECONDS))
+          progress "lease renewed: the worktree changed"
+        elif ((RPC_RECOVERING && !grace_used)); then
+          grace_used=1
+          lease_end=$((now + RECOVERY_SECONDS))
+          progress "lease extended ${RECOVERY_SECONDS}s: retry or compaction recovery in progress"
+        else
+          checkpoint_reason="no meaningful activity for ${LEASE_SECONDS}s${RPC_ACTIVE_TOOL:+ (tool '$RPC_ACTIVE_TOOL' still running)}"
+        fi
+      fi
+      if [[ -n "$checkpoint_reason" ]]; then
+        say "requesting a checkpoint: $checkpoint_reason"
+        checkpoint_at="$now"
+        if ! rpc_call "$(jq -c -n --arg m "$CHECKPOINT_MESSAGE" '{type: "steer", message: $m}')" 60 || ! rpc_ok; then
+          say "the checkpoint steer was not accepted; forcing the pause"
+          checkpoint_at=$((now - GRACE_SECONDS))
+        fi
+      fi
+    elif ((now >= checkpoint_at + GRACE_SECONDS)); then
+      # Not settled within the grace: drop queued input and abort. abort
+      # returns once Pi is idle; rpc_stop signals only if it never does.
+      say "no settle ${GRACE_SECONDS}s after the checkpoint request; aborting"
+      SEG_FORCED=1
+      rpc_call '{"type":"clear_queue"}' "$ABORT_SECONDS"
+      rpc_call '{"type":"abort"}' "$ABORT_SECONDS"
+      rpc_pump
+      SEG_END=paused
+      SEG_REASON="$checkpoint_reason (forced: the session did not settle)"
+      break
+    fi
+    if ((now >= next_status)); then
+      handoff_status_write "$lease_end" "$checkpoint_reason" "$checkpoint_at"
+      next_status=$((now + 5))
+    fi
+    if ((now >= next_beat)); then
+      progress "session running — $((now - started))s elapsed, last activity $((now - RPC_LAST_ACTIVITY))s ago${RPC_ACTIVE_TOOL:+, tool: $RPC_ACTIVE_TOOL}"
+      next_beat=$((now + PROGRESS_INTERVAL))
+    fi
+    sleep 0.2
+  done
+  handoff_status_write "$lease_end" "$checkpoint_reason" "$checkpoint_at"
+  rpc_stop "$ABORT_SECONDS"
+  ((RPC_SIGNALLED)) && SEG_FORCED=1
+  now="$(date +%s)"
+  jq -n --arg seg "$SEG_N" --arg end "$SEG_END" --arg reason "$SEG_REASON" --argjson forced "$SEG_FORCED" \
+    --arg exit "${RPC_EXIT:-}" --argjson s "$started" --argjson e "$now" --argjson retries "$RPC_RETRIES" \
+    --argjson comp "$RPC_COMPACTIONS" --argjson dialogs "$RPC_DIALOGS" --arg last "$RPC_LAST_EVENT" \
+    '{segment: $seg, end: $end, reason: $reason, forced: ($forced == 1), harness_exit: $exit,
+      started_at: $s, ended_at: $e, seconds: ($e - $s), retries: $retries, compactions: $comp,
+      dialogs_cancelled: $dialogs, last_event: $last}' >"$SEG_DIR/status.json"
+  state_update '.segments[-1] += $st | .active_seconds = ((.active_seconds // 0) + $st.seconds) | del(.live)' \
+    --argjson st "$(cat "$SEG_DIR/status.json")"
+}
+
+# After a segment: verify and commit a completed phase, or audit and pause.
+handoff_after_segment() {
+  local wt="$TREE" gate_status=0 last
+  case "$SEG_END" in
+    failed) infra "$SEG_REASON; worktree kept at $wt" ;;
+    paused)
+      progress "auditing the paused worktree (no gate, no commit)"
+      state_update '.state = "auditing"'
+      audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+      last="$(tail -n 1 "$(jq -r '.session_file // ""' "$(state_path "$RUN_ID")")" 2>/dev/null |
+        jq -r '"\(.type // "?") \(.timestamp // "")"' 2>/dev/null)"
+      state_update '.state = "paused" | .reason = $r | .forced = $f | .paused_at = $now' \
+        --arg r "$SEG_REASON" --argjson f "$([[ "$SEG_FORCED" == 1 ]] && echo true || echo false)"
+      launch_report paused "$SEG_REASON" 11
+      say "paused: $SEG_REASON"
+      if [[ "$SEG_FORCED" == 1 ]]; then
+        say "the pause was forced: the last model turn, tool result, or file write may be incomplete"
+      else
+        say "the session settled at a checkpoint and wrote its pause note"
+      fi
+      say "worktree: $wt (branch $BRANCH); last session entry: ${last:-unknown}"
+      say "status: delegate-run.sh handoff-status $RUN_ID"
+      say "resume: delegate-run.sh handoff-resume $RUN_ID --allow-commit"
+      say "abandon: delegate-run.sh handoff-clean $RUN_ID"
+      exit 11
+      ;;
+  esac
+  state_update '.state = "verifying"'
+  progress "independently verifying — plan scope"
+  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
+  progress "independently verifying — full gate"
+  verify_cmd bash "$TOOLCHAIN" gate >"$RESULT_DIR/gate.log" 2>&1 || gate_status=$?
+  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  if ((gate_status != 0)); then
+    OUTCOME=needs_frontier
+    REASON="the session ended with the gate red: $(bounded_tail "$RESULT_DIR/gate.log" | tail -n 5 | tr '\n' ' ')"
+    say "needs_frontier: $REASON"
+    say "worktree kept at $wt; read the spec's '### After handoff' note there"
+    finish 10
+  fi
+  GATE_LEVEL=full
+  git -C "$wt" add -A >/dev/null 2>&1 &&
+    git -C "$wt" commit -q -m "Local handoff $RUN_ID ($PHASE on $MODEL_NAME)" >"$STATE/commit.log" 2>&1 ||
+    infra "could not commit on $BRANCH: $(bounded_tail "$STATE/commit.log")"
+  OUTCOME=green
+  REASON=""
+  say "green: $PHASE verified (full gate, plan scope) and committed on $BRANCH."
+  say "Next: review the branch (git diff HEAD...$BRANCH), then: git merge --squash $BRANCH"
+  say "  then: delegate-run.sh handoff-clean $RUN_ID"
+  finish 0
+}
+
+handoff_scratch() {
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-handoff.XXXXXX")" || infra "could not create scratch directory"
+  STATE="$WORK/state"
+  mkdir -p "$STATE"
+}
+
+# A stop request (handoff-stop sends TERM) becomes a checkpoint, not a kill.
+handoff_trap_stop() {
+  trap 'HANDOFF_STOP=1' TERM
+}
+
 cmd_handoff() {
-  local spec="" phase=implement profile allow_commit=0 progress_mode=""
+  local spec="" phase=implement profile allow_commit=0 progress_mode="" foreground=0 run_id=""
   profile="$(default_profile)"
   MODEL_NAME=""
   while (($#)); do
@@ -1971,43 +2525,50 @@ cmd_handoff() {
       --progress)
         (($# >= 2)) && [[ -n "$2" ]] || { say "--progress requires a value"; exit 2; }
         progress_mode="$2"; shift 2 ;;
+      --run-id)
+        (($# >= 2)) && [[ "$2" =~ ^handoff-[A-Za-z0-9._-]+$ ]] || { say "--run-id requires a handoff run id"; exit 2; }
+        run_id="$2"; shift 2 ;;
       --allow-commit) allow_commit=1; shift ;;
+      --foreground) foreground=1; shift ;;
       -h | --help) usage; exit 0 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) [[ -z "$spec" ]] || { say "one spec per handoff"; exit 2; }; spec="$1"; shift ;;
     esac
   done
-  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> --allow-commit [--phase implement|test-first+implement] [--model <name>] [--progress quiet|summary]"; exit 2; }
+  [[ -n "$spec" ]] || { say "usage: delegate-run.sh handoff <spec> --allow-commit [--phase implement|test-first+implement] [--model <name>] [--progress quiet|summary] [--foreground]"; exit 2; }
   configure_progress "$progress_mode"
   case "$phase" in implement | test-first+implement) ;; *) say "unknown phase: $phase"; exit 2 ;; esac
   [[ "$allow_commit" == 1 ]] || {
     say "refused: handoff creates a temporary commit on handoff/<run>; obtain explicit current-chat commit approval, then pass --allow-commit"
     exit 2
   }
+  handoff_config
+  require_deps git jq awk perl curl
+  [[ -z "$run_id" ]] && run_id="handoff-$(basename "$spec" .md)-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  if [[ "$foreground" == 0 ]]; then
+    local -a again=("$spec" --allow-commit --phase "$phase" --profile "$profile" --run-id "$run_id"
+      --progress "${progress_mode:-summary}" --foreground)
+    [[ -n "$MODEL_NAME" ]] && again+=(--model "$MODEL_NAME")
+    handoff_launch "$run_id" handoff "${again[@]}"
+  fi
+
   MODE=manual
   [[ -n "$MODEL_NAME" ]] || MODE=selected
-  require_deps git jq awk perl curl
-
-  load_handoff_harness || { say "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}"; exit 2; }
-  git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
-
+  load_handoff_harness || { launch_report refused "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}" 2; say "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}"; exit 2; }
+  git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { launch_report refused "not a git work tree" 2; say "not a git work tree: $ROOT"; exit 2; }
   mkdir -p "$DELEGATE_DIR/results"
-  if ! mkdir "$DELEGATE_DIR/lock" 2>/dev/null; then
-    say "another run holds $DELEGATE_DIR/lock; remove it if no run is active"
-    exit 2
-  fi
-  LOCKED=1
+  take_lock || { launch_report refused "another run holds the lock" 2; lock_refusal; exit 2; }
   trap cleanup EXIT
-
-  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-handoff.XXXXXX")" || infra "could not create scratch directory"
-  STATE="$WORK/state"
-  mkdir -p "$STATE"
+  handoff_trap_stop
+  handoff_scratch
+  RUN_ID="$run_id"
+  RESULT_DIR="$DELEGATE_DIR/results/$RUN_ID"
   [[ -f "$ROOT/$spec" ]] || refuse "spec not found: $spec"
   case "$spec" in /* | *..*) refuse "spec path must be relative to the repository: $spec" ;; esac
-  RUN_ID="handoff-$(basename "$spec" .md)-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   PACKET_REL="$spec"
   PACKET_SHA="$(sha_file "$ROOT/$spec")"
   TARGET="$spec"
+  PHASE="$phase"
   BUCKET="phase:$phase"
 
   # -- preconditions
@@ -2031,33 +2592,43 @@ cmd_handoff() {
   else
     select_model
   fi
-  local pi_model pi_thinking
-  pi_model="$ENDPOINT_NAME/$MODEL_ID"
-  pi_thinking="$(profile_get model "$MODEL_NAME" pi_thinking)"
+
+  # -- logical run state; the launcher returns once this exists
+  local base wt
+  base="${DELEGATE_HANDOFF_DIR:-${TMPDIR:-/tmp}/agentic-handoff}"
+  wt="$base/$RUN_ID"
+  BRANCH="handoff/$RUN_ID"
+  SNAPSHOT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+  mkdir -p "$RESULT_DIR/session" "$RESULT_DIR/pi-agent" "$RESULT_DIR/segments"
+  jq -n --arg run "$RUN_ID" --arg spec "$spec" --arg phase "$phase" --arg profile "$profile" \
+    --arg model "$MODEL_NAME" --arg mode "$MODE" --argjson selection "${SELECTION_JSON:-null}" \
+    --arg wt "$wt" --arg branch "$BRANCH" --arg snapshot "$SNAPSHOT_SHA" --arg spec_sha "$PACKET_SHA" \
+    --arg plan_sha "$(sha_file "$STATE/plan-files")" --arg fp "$FINGERPRINT" --arg qualified "${QUALIFIED:-}" \
+    --arg harness "$HANDOFF_HARNESS" --arg hv "$HANDOFF_HARNESS_VERSION" --argjson started "$(date +%s)" \
+    --argjson max "${MAX_TOTAL:-null}" --argjson rp "$$" \
+    '{run: $run, state: "preparing", spec: $spec, phase: $phase, profile: $profile, model: $model,
+      mode: $mode, selection: $selection, worktree: $wt, branch: $branch, snapshot: $snapshot,
+      spec_sha256: $spec_sha, plan_sha256: $plan_sha, fingerprint: $fp, qualified: $qualified,
+      harness: $harness, harness_version: $hv, started_at: $started, updated_at: $started,
+      max_total_seconds: $max, active_seconds: 0, runner_pid: $rp, segments: []}' >"$(state_path "$RUN_ID")"
+  launch_report running "" 0
 
   # -- worktree
-  local base wt branch
-  base="${DELEGATE_HANDOFF_DIR:-${TMPDIR:-/tmp}/agentic-handoff}"
   mkdir -p "$base" || infra "could not create $base"
-  wt="$base/$RUN_ID"
-  branch="handoff/$RUN_ID"
-  SNAPSHOT_SHA="$(git -C "$ROOT" rev-parse HEAD)"
-  git -C "$ROOT" worktree add -q -b "$branch" "$wt" "$SNAPSHOT_SHA" >"$STATE/worktree.log" 2>&1 ||
+  git -C "$ROOT" worktree add -q -b "$BRANCH" "$wt" "$SNAPSHOT_SHA" >"$STATE/worktree.log" 2>&1 ||
     infra "could not create the worktree: $(bounded_tail "$STATE/worktree.log")"
   TREE="$wt"
-  local result_dir="$DELEGATE_DIR/results/$RUN_ID"
-  mkdir -p "$result_dir/session" "$result_dir/pi-agent"
-  progress "handoff $RUN_ID — '$MODEL_NAME', $BUCKET; logs: ${result_dir#"$ROOT"/}/"
-  handoff_model_config >"$result_dir/pi-agent/models.json" || refuse "invalid handoff model configuration"
-  say "worktree: $wt (branch $branch)"
+  progress "handoff $RUN_ID — '$MODEL_NAME', $BUCKET; logs: ${RESULT_DIR#"$ROOT"/}/"
+  handoff_model_config >"$RESULT_DIR/pi-agent/models.json" || refuse "invalid handoff model configuration"
+  say "worktree: $wt (branch $BRANCH)"
 
-  verify_cmd bash "$TOOLCHAIN" install >"$result_dir/install.log" 2>&1 ||
-    say "warning: '$TOOLCHAIN install' failed in the worktree; see ${result_dir#"$ROOT"/}/install.log"
+  verify_cmd bash "$TOOLCHAIN" install >"$RESULT_DIR/install.log" 2>&1 ||
+    say "warning: '$TOOLCHAIN install' failed in the worktree; see ${RESULT_DIR#"$ROOT"/}/install.log"
   local ready=0
   verify_cmd bash "$TOOLCHAIN" ready >"$STATE/ready.log" 2>&1 || ready=$?
-  ((ready == 0)) || refuse "the gate is not ready in the worktree ($TOOLCHAIN ready exited $ready); remove it with: git worktree remove --force $wt"
+  ((ready == 0)) || refuse "the gate is not ready in the worktree ($TOOLCHAIN ready exited $ready); remove it with: delegate-run.sh handoff-clean $RUN_ID"
   if [[ "$phase" == implement ]] && verify_cmd bash "$TOOLCHAIN" test >"$STATE/baseline.log" 2>&1; then
-    refuse "the tests already pass: nothing to implement (run test-first first, or use --phase test-first+implement); remove the worktree with: git worktree remove --force $wt"
+    refuse "the tests already pass: nothing to implement (run test-first first, or use --phase test-first+implement); remove the worktree with: delegate-run.sh handoff-clean $RUN_ID"
   fi
 
   # -- session
@@ -2067,75 +2638,259 @@ cmd_handoff() {
     mkdir -p "$wt/.pi" && cp -R "$ROOT/.pi/npm" "$wt/.pi/npm" ||
       say "warning: could not copy .pi/npm/ into the worktree; Pi will install its packages"
   fi
-  handoff_prompt "$spec" "$phase" >"$result_dir/prompt.md"
-  local -a hargs=(-p --approve --provider "$ENDPOINT_NAME" --model "$MODEL_ID" --session-dir "$result_dir/session" --mode json)
-  [[ -n "$pi_thinking" ]] && hargs+=(--thinking "$pi_thinking")
-  local -a envkeep=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb PI_CODING_AGENT_DIR="$result_dir/pi-agent")
-  [[ -n "${TMPDIR:-}" ]] && envkeep+=(TMPDIR="$TMPDIR")
-  [[ -n "${CRED_ENV:-}" ]] && envkeep+=("$CRED_ENV=${!CRED_ENV}")
-  # Pi installs the packages in .pi/settings.json into the worktree's ignored
-  # .pi/npm/ on start. Its npm cache stays in the run directory, which is
-  # writable inside Codex's sandbox where ~/.npm is not.
-  envkeep+=(npm_config_cache="$result_dir/npm-cache")
-  local limit="${DELEGATE_HANDOFF_TIMEOUT:-14400}" started rc=0
-  started="$(date +%s)"
-  say "session: $HANDOFF_HARNESS on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"
-  : >"$result_dir/harness.events.jsonl"
-  : >"$result_dir/harness.log"
-  start_pi_event_watcher "$result_dir/harness.events.jsonl" "$started" "$result_dir/progress-renderer.pid"
-  (cd "$wt" && STEP_TIMEOUT="$limit" bounded env -i "${envkeep[@]}" "$HANDOFF_HARNESS" "${hargs[@]}" "$(cat "$result_dir/prompt.md")") \
-    >"$result_dir/harness.events.jsonl" 2>"$result_dir/harness.log" || rc=$?
-  finish_pi_event_watcher
-  record_attempt 1 session "harness exit $rc" "$(($(date +%s) - started))"
-  ((rc == 124)) && infra "the session hit its ${limit}s limit; worktree kept at $wt"
-  local harness_diag
-  harness_diag="$(bounded_tail "$result_dir/harness.log" | tail -n 5)"
-  [[ -n "$harness_diag" ]] || harness_diag="no stderr; see ${result_dir#"$ROOT"/}/harness.events.jsonl"
-  ((rc == 0)) || infra "the harness exited $rc: $harness_diag"
+  handoff_prompt "$spec" "$phase" >"$RESULT_DIR/prompt.md"
+  handoff_session_setup
+  handoff_segment "$RESULT_DIR/prompt.md"
+  handoff_after_segment
+}
 
-  # -- verify, independently of what the session said
-  progress "independently verifying — plan scope"
-  audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
-  [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
-  local gate_status=0
-  progress "independently verifying — full gate"
-  verify_cmd bash "$TOOLCHAIN" gate >"$result_dir/gate.log" 2>&1 || gate_status=$?
-  audit_handoff "$wt" "$spec" "$phase" "$branch" "$result_dir"
-  if ((gate_status != 0)); then
-    OUTCOME=needs_frontier
-    REASON="the session ended with the gate red: $(bounded_tail "$result_dir/gate.log" | tail -n 5 | tr '\n' ' ')"
-    say "needs_frontier: $REASON"
-    say "worktree kept at $wt; read the spec's '### After handoff' note there"
-    finish 10
+# handoff_state_live <state.json> : is this run's runner or Pi still alive?
+handoff_live() {
+  local file="$1" pid
+  for pid in $(jq -r '[.runner_pid, (.live.pi_pid // empty)] | map(tostring) | .[]' "$file" 2>/dev/null); do
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && return 0
+  done
+  return 1
+}
+
+# The logical state as status reports it: a non-terminal run whose runner
+# and Pi are both gone is "orphaned" (resumable, after cleanup).
+handoff_effective_state() {
+  local file="$1" state
+  state="$(jq -r '.state // "unknown"' "$file")"
+  case "$state" in
+    preparing | running | auditing | verifying) handoff_live "$file" || state=orphaned ;;
+  esac
+  printf '%s\n' "$state"
+}
+
+handoff_state_code() {
+  case "$1" in
+    green) echo 0 ;; needs_frontier) echo 10 ;; paused | orphaned) echo 11 ;;
+    integrity) echo 4 ;; infrastructure) echo 3 ;; refused) echo 2 ;; *) echo 12 ;;
+  esac
+}
+
+# handoff-status <run> [--wait <seconds>] : token-free; reads local files only.
+cmd_handoff_status() {
+  local run="" wait=0 file state deadline now code
+  while (($#)); do
+    case "$1" in
+      --wait)
+        (($# >= 2)) && [[ "$2" =~ ^[0-9]+$ ]] || { say "--wait requires whole seconds"; exit 2; }
+        wait="$2"; shift 2 ;;
+      -*) say "unknown option: $1"; exit 2 ;;
+      *) run="$1"; shift ;;
+    esac
+  done
+  [[ -n "$run" ]] || { say "usage: delegate-run.sh handoff-status <run-id> [--wait <seconds>]"; exit 2; }
+  require_deps jq
+  file="$(state_path "$run")"
+  [[ -f "$file" ]] || { say "no handoff run '$run' (no ${file#"$ROOT"/})"; exit 2; }
+  deadline=$(($(date +%s) + wait))
+  while :; do
+    state="$(handoff_effective_state "$file")"
+    code="$(handoff_state_code "$state")"
+    [[ "$code" != 12 ]] && break
+    now="$(date +%s)"
+    ((now < deadline)) || break
+    sleep 2
+  done
+  now="$(date +%s)"
+  jq -r --arg state "$state" --argjson now "$now" '
+    def age($t): if ($t | type) == "number" then "\($now - $t)s ago" else "n/a" end;
+    "run: \(.run)",
+    "state: \($state)\(if .reason then " — \(.reason)" else "" end)\(if .forced == true and $state == "paused" then " (forced)" else "" end)",
+    "spec: \(.spec) (\(.phase)); model: \(.model)",
+    "worktree: \(.worktree) (branch \(.branch))",
+    "segments: \(.segments | length); active time: \(.active_seconds // 0)s; started \(age(.started_at))",
+    (if .max_total_seconds then "absolute ceiling: \(.max_total_seconds)s of active time" else "absolute ceiling: none" end),
+    (if .live then
+      "live segment \(.live.segment): last event \(.live.last_event // "none") \(age(.live.last_event_at)); last activity \(age(.live.last_activity_at))",
+      "active tool: \(if (.live.active_tool // "") == "" then "none" else .live.active_tool end); retries \(.live.retries); compactions \(.live.compactions); dialogs cancelled \(.live.dialogs_cancelled)",
+      "lease expires in \((.live.lease_expires_at // $now) - $now)s\(if (.live.checkpoint // "") != "" then "; checkpoint requested: \(.live.checkpoint)" else "" end)"
+     else empty end)' "$file"
+  if [[ "$state" == running || "$state" == orphaned || "$state" == paused ]]; then
+    local wt changed
+    wt="$(jq -r .worktree "$file")"
+    if [[ -d "$wt" ]]; then
+      changed="$({ GIT_OPTIONAL_LOCKS=0 git -C "$wt" diff --name-only "$(jq -r .snapshot "$file")" -- 2>/dev/null
+        GIT_OPTIONAL_LOCKS=0 git -C "$wt" ls-files --others --exclude-standard 2>/dev/null; } | sort -u | grep -c . || true)"
+      say "changed paths in the worktree: $changed"
+    fi
   fi
-  GATE_LEVEL=full
+  if [[ "$state" == orphaned ]]; then
+    local g alive=""
+    for g in $(jq -r '.live.tool_groups // [] | .[]' "$file"); do
+      kill -0 -- "-$g" 2>/dev/null && alive="$alive $g"
+    done
+    say "the runner and Pi are gone without a final state${alive:+; tool process groups still alive:$alive}"
+  fi
+  if [[ -f "$DELEGATE_DIR/results/$run/runner.log" ]]; then
+    grep 'progress:' "$DELEGATE_DIR/results/$run/runner.log" | tail -n 5 | sed 's/^/  /'
+  fi
+  case "$state" in
+    paused | orphaned) say "next: delegate-run.sh handoff-resume $run --allow-commit (or handoff-clean $run)" ;;
+    green) say "next: review git diff HEAD...$(jq -r .branch "$file"), then merge with --squash" ;;
+  esac
+  exit "$code"
+}
 
-  git -C "$wt" add -A >/dev/null 2>&1 &&
-    git -C "$wt" commit -q -m "Local handoff $RUN_ID ($phase on $MODEL_NAME)" >"$STATE/commit.log" 2>&1 ||
-    infra "could not commit on $branch: $(bounded_tail "$STATE/commit.log")"
-  OUTCOME=green
-  REASON=""
-  say "green: $phase verified (full gate, plan scope) and committed on $branch."
-  say "Next: review the branch (git diff HEAD...$branch), then: git merge --squash $branch"
-  say "  then: delegate-run.sh handoff-clean $RUN_ID"
-  finish 0
+# handoff-stop <run> : ask a live run to checkpoint and pause.
+cmd_handoff_stop() {
+  local run="${1:-}" file pid
+  [[ -n "$run" ]] || { say "usage: delegate-run.sh handoff-stop <run-id>"; exit 2; }
+  require_deps jq
+  file="$(state_path "$run")"
+  [[ -f "$file" ]] || { say "no handoff run '$run'"; exit 2; }
+  pid="$(jq -r '.runner_pid // ""' "$file")"
+  [[ "$(handoff_effective_state "$file")" == running && "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null ||
+    { say "run '$run' has no live session to stop"; exit 2; }
+  kill -TERM "$pid" || { say "could not signal the runner ($pid)"; exit 3; }
+  say "asked $run to checkpoint and pause; follow it with: delegate-run.sh handoff-status $run --wait 540"
+}
+
+# Kill process groups a dead run's tools left behind (recorded while live).
+handoff_kill_leftovers() {
+  local file="$1" g
+  handoff_live "$file" && return 1
+  for g in $(jq -r '.live.tool_groups // [] | .[]' "$file" 2>/dev/null); do
+    [[ "$g" =~ ^[0-9]+$ ]] || continue
+    kill -0 -- "-$g" 2>/dev/null || continue
+    kill -TERM -- "-$g" 2>/dev/null
+    sleep 1
+    kill -KILL -- "-$g" 2>/dev/null
+    say "killed leftover tool process group $g"
+  done
+  return 0
+}
+
+resume_refuse() { launch_report refused "$*" 2; say "refused: $*"; exit 2; }
+
+# handoff-resume <run> --allow-commit [--max-total <s>] [--progress m] [--foreground]
+cmd_handoff_resume() {
+  local run="" allow_commit=0 progress_mode="" foreground=0 max_total="" file state n wt
+  while (($#)); do
+    case "$1" in
+      --allow-commit) allow_commit=1; shift ;;
+      --foreground) foreground=1; shift ;;
+      --max-total)
+        (($# >= 2)) && [[ "$2" =~ ^[1-9][0-9]*$ ]] || { say "--max-total requires whole seconds"; exit 2; }
+        max_total="$2"; shift 2 ;;
+      --progress)
+        (($# >= 2)) && [[ -n "$2" ]] || { say "--progress requires a value"; exit 2; }
+        progress_mode="$2"; shift 2 ;;
+      -*) say "unknown option: $1"; exit 2 ;;
+      *) [[ -z "$run" ]] || { say "one run per resume"; exit 2; }; run="$1"; shift ;;
+    esac
+  done
+  [[ -n "$run" ]] || { say "usage: delegate-run.sh handoff-resume <run-id> --allow-commit [--max-total <seconds>] [--progress quiet|summary] [--foreground]"; exit 2; }
+  configure_progress "$progress_mode"
+  [[ "$allow_commit" == 1 ]] || {
+    say "refused: a resumed handoff can still create the temporary commit on handoff/<run>; obtain explicit current-chat commit approval, then pass --allow-commit"
+    exit 2
+  }
+  require_deps git jq awk perl curl
+  file="$(state_path "$run")"
+  [[ -f "$file" ]] || { say "no handoff run '$run'"; exit 2; }
+  if [[ "$foreground" == 0 ]]; then
+    local -a again=("$run" --allow-commit --progress "${progress_mode:-summary}" --foreground)
+    [[ -n "$max_total" ]] && again+=(--max-total "$max_total")
+    handoff_launch "$run" handoff-resume "${again[@]}"
+  fi
+
+  # Resume refusals leave the paused run as it was.
+  state="$(handoff_effective_state "$file")"
+  [[ "$state" == paused || "$state" == orphaned ]] || resume_refuse "run '$run' is $state, not paused"
+  take_lock || { lock_refusal; resume_refuse "another run holds the lock"; }
+  trap cleanup EXIT
+  handoff_trap_stop
+  handoff_scratch
+  if [[ "$state" == orphaned ]]; then
+    say "run '$run' was orphaned (runner and Pi gone); treating it as a forced pause"
+    handoff_kill_leftovers "$file" || resume_refuse "run '$run' still has a live process"
+  fi
+  RUN_ID="$run"
+  RESULT_DIR="$DELEGATE_DIR/results/$RUN_ID"
+  PACKET_REL="$(jq -r .spec "$file")"
+  TARGET="$PACKET_REL"
+  PHASE="$(jq -r .phase "$file")"
+  BUCKET="phase:$PHASE"
+  BRANCH="$(jq -r .branch "$file")"
+  SNAPSHOT_SHA="$(jq -r .snapshot "$file")"
+  MODE="$(jq -r .mode "$file")"
+  SELECTION_JSON="$(jq -c .selection "$file")"
+  QUALIFIED="$(jq -r '.qualified // ""' "$file")"
+  RUN_STARTED="$(jq -r .started_at "$file")"
+  wt="$(jq -r .worktree "$file")"
+  TREE="$wt"
+
+  # -- the same logical handoff, or nothing
+  # git lists physical paths (macOS: /private/var for /var).
+  [[ -d "$wt" ]] && git -C "$ROOT" worktree list --porcelain | grep -qxF "worktree $(cd "$wt" && pwd -P)" ||
+    resume_refuse "the worktree $wt no longer exists"
+  git -C "$ROOT" rev-parse -q --verify "refs/heads/$BRANCH" >/dev/null || resume_refuse "the branch $BRANCH no longer exists"
+  [[ "$(git -C "$wt" rev-parse HEAD)" == "$SNAPSHOT_SHA" &&
+    "$(git -C "$wt" symbolic-ref -q HEAD)" == "refs/heads/$BRANCH" ]] ||
+    resume_refuse "the worktree moved off its starting commit or branch (a session or verifier commit)"
+  [[ -f "$ROOT/$PACKET_REL" && "$(sha_file "$ROOT/$PACKET_REL")" == "$(jq -r .spec_sha256 "$file")" ]] ||
+    resume_refuse "the spec $PACKET_REL changed in the checkout since the handoff started"
+  PACKET_SHA="$(jq -r .spec_sha256 "$file")"
+  plan_files "$ROOT/$PACKET_REL" >"$STATE/plan-files"
+  [[ "$(sha_file "$STATE/plan-files")" == "$(jq -r .plan_sha256 "$file")" ]] || resume_refuse "the approved plan's file list changed"
+  load_handoff_harness || resume_refuse "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}"
+  load_profile "$(jq -r .profile "$file")"
+  MODEL_NAME="$(jq -r .model "$file")"
+  load_model "$MODEL_NAME"
+  check_credential
+  handoff_fingerprint || resume_refuse "invalid handoff model configuration"
+  [[ "$FINGERPRINT" == "$(jq -r .fingerprint "$file")" ]] ||
+    resume_refuse "the model, endpoint, request settings, Pi version, or provider configuration changed (fingerprint $FINGERPRINT, recorded $(jq -r .fingerprint "$file"))"
+  [[ "$(handoff_model_config)" == "$(cat "$RESULT_DIR/pi-agent/models.json" 2>/dev/null)" ]] ||
+    resume_refuse "the generated provider configuration changed"
+  local session
+  session="$(jq -r '.session_file // ""' "$file")"
+  n="$(find "$RESULT_DIR/session" -name '*.jsonl' -type f 2>/dev/null | wc -l | tr -d ' ')"
+  # A runner that died before recording its session still left exactly one.
+  [[ -z "$session" && "$n" == 1 ]] && session="$(find "$RESULT_DIR/session" -name '*.jsonl' -type f)"
+  [[ -n "$session" && -f "$session" && "$n" == 1 ]] || resume_refuse "expected exactly one saved Pi session in ${RESULT_DIR#"$ROOT"/}/session (found $n)"
+  handoff_config
+  [[ -n "$max_total" ]] && MAX_TOTAL="$max_total"
+  [[ -z "$MAX_TOTAL" ]] && MAX_TOTAL="$(jq -r '.max_total_seconds // ""' "$file")"
+  if [[ -n "$MAX_TOTAL" ]] && (($(jq -r '.active_seconds // 0' "$file") >= MAX_TOTAL)); then
+    resume_refuse "the absolute ceiling (${MAX_TOTAL}s of active time) is spent; pass --max-total <seconds> to raise it"
+  fi
+  state_update '.max_total_seconds = $m' --argjson m "${MAX_TOTAL:-null}"
+  # Scope and test-file audit before resuming; a violation is an integrity stop.
+  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  launch_report running "" 0
+
+  handoff_resume_prompt "$PACKET_REL" >"$RESULT_DIR/resume-prompt.md"
+  handoff_session_setup
+  handoff_segment "$RESULT_DIR/resume-prompt.md" "$session"
+  handoff_after_segment
 }
 
 # handoff-clean [<run-id> | --all] : remove handoff worktrees and their
 # branches. A run id removes that one; --all removes every handoff worktree
 # of this repository. Without either, lists them. Never touches the main
-# working tree or any branch outside handoff/.
+# working tree or any branch outside handoff/, and skips a run that is live.
 cmd_handoff_clean() {
-  require_deps git awk
-  local target="${1:-}" path branch removed=0
+  require_deps git awk jq
+  local target="${1:-}" path branch removed=0 file
   git -C "$ROOT" worktree prune
   while IFS=$'\t' read -r path branch; do
     [[ "$branch" == handoff/* ]] || continue
+    file="$(state_path "${branch#handoff/}")"
     if [[ -z "$target" ]]; then
-      printf '%s\t%s\n' "${branch#handoff/}" "$path"
+      printf '%s\t%s\t%s\n' "${branch#handoff/}" "$path" "$([[ -f "$file" ]] && handoff_effective_state "$file" || echo unknown)"
       continue
     fi
     [[ "$target" == --all || "$target" == "${branch#handoff/}" ]] || continue
+    if [[ -f "$file" ]] && ! handoff_kill_leftovers "$file"; then
+      say "skipped ${branch#handoff/}: its run is live (stop it with handoff-stop first)"
+      continue
+    fi
     git -C "$ROOT" worktree remove --force "$path" 2>/dev/null || rm -rf "$path"
     git -C "$ROOT" branch -D "$branch" >/dev/null 2>&1
     say "removed $branch ($path)"
@@ -2172,6 +2927,9 @@ case "${1:-}" in
   reset) shift; cmd_reset "$@" ;;
   handoff) shift; cmd_handoff "$@" ;;
   handoff-clean) shift; cmd_handoff_clean "$@" ;;
+  handoff-status) shift; cmd_handoff_status "$@" ;;
+  handoff-resume) shift; cmd_handoff_resume "$@" ;;
+  handoff-stop) shift; cmd_handoff_stop "$@" ;;
   activate) shift; cmd_set_policy auto "$@" ;;
   deactivate) shift; cmd_set_policy off "$@" ;;
   -h | --help | "") usage; [[ -n "${1:-}" ]] ;;

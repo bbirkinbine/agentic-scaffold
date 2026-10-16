@@ -255,14 +255,19 @@ committed:
    `handoff/<run>` branch, separate from the feature branch, and ask for
    explicit current-chat authorization for that commit. Choosing delegation
    mode `handoff` by itself is not commit authorization. If the human does
-   not authorize it, use `files` or `none` instead. Once authorized, run
+   not authorize it, use `files` or `none` instead. Once authorized, launch
+   it:
    `bash .agentic/delegate-run.sh handoff <spec> --allow-commit --phase implement`
    (or `--phase test-first+implement`), with `--model <name>` when the
    human named one. The runner refuses without `--allow-commit`; pass it only
    for the authorization just obtained or recorded by `/unattended start`.
-   The session runs headless; this can take an hour or more. Do not edit the
+   The launch returns at once (exit 2 if refused) and prints the run id; the
+   session runs detached for as long as it keeps working. Do not edit the
    repository while it runs.
-2. Act on the exit status:
+2. Wait with `bash .agentic/delegate-run.sh handoff-status <run> --wait 540`.
+   It reads local files only and costs no tokens. Repeat it while it exits 12
+   (still running); 540 seconds stays under every client's tool time limit.
+3. Act on the exit status:
    - 0: verified (full gate green, only plan files changed, no test file in
      an implement-only phase) and committed on `handoff/<run>`. Read the
      spec's `### After handoff` note in the worktree, then run `/review`
@@ -270,6 +275,15 @@ committed:
      `git diff HEAD...handoff/<run>`. Fix findings yourself or hand off
      again; then `git merge --squash handoff/<run>` into the feature branch
      and continue with closeout.
+   - 11 (paused): the session went quiet past its inactivity lease, hit an
+     optional total ceiling, or was stopped, and was checkpointed; or its
+     runner died (state `orphaned`). Nothing was gated or committed. Read
+     the spec's `### Paused handoff` note in the worktree, then resume the
+     same session and worktree with
+     `bash .agentic/delegate-run.sh handoff-resume <run> --allow-commit`
+     (add `--max-total <seconds>` to raise a spent ceiling) and wait again
+     as in step 2. Resuming needs the same commit authorization as the
+     launch. Or abandon it with `handoff-clean <run>`.
    - 10 (`needs_frontier`): the session ended with the gate red or changed
      nothing. Read its handoff note in the kept worktree, then either
      implement yourself from the branch's starting point or hand off once
@@ -277,8 +291,19 @@ committed:
    - 4 (integrity): the session changed files outside the plan, or a test
      in an implement-only phase. Report to the human; do not merge.
    - 3 (infrastructure) or 2 (refused): report and implement yourself.
-3. After merging or abandoning a handoff, remove its worktree and branch:
+4. After merging or abandoning a handoff, remove its worktree and branch:
    `bash .agentic/delegate-run.sh handoff-clean <run>`
-   (`handoff-clean` alone lists what is left; `--all` removes every one).
-   Record the review verdict with `record-review <run>` first; a handoff is
-   scored per phase like a file run.
+   (`handoff-clean` alone lists what is left with each run's state; `--all`
+   removes every one that is not live). Record the review verdict with
+   `record-review <run>` first; a handoff is scored per phase like a file
+   run, once per logical run however many times it paused.
+
+To stop a live handoff deliberately, `handoff-stop <run>` asks it to
+checkpoint and pause (exit 11 from `handoff-status`).
+
+Under Codex, the default workspace sandbox blocks network access, including
+the local model endpoint (and the npm registry when the checkout has not
+installed its Pi packages). Ask the human to approve running the handoff
+commands outside the sandbox or with a network-enabled permission profile,
+or to run them in a terminal. Do not change the project's Codex sandbox
+configuration.
