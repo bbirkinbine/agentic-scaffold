@@ -291,7 +291,7 @@ quant = "Q8_K"                         # confirmed by the user
 runtime = "llama.cpp b5xxx"            # confirmed by the user
 context = 131072
 timeout_seconds = 900
-request = '{"reasoning_effort": "medium", "temperature": 0.6}'  # pinned JSON
+request = '{"reasoning_effort": "medium", "temperature": 0.6}'  # optional pinned JSON
 
 [[project]]
 root = "/canonical/local/path/to/repo"
@@ -299,6 +299,11 @@ policy = "off"               # off | auto
 candidates = ["coder-a-think", "coder-b"]   # exploration order
 activation_approved = false
 ```
+
+The optional per-model `request` JSON pins serving settings; existing profiles
+without it continue to work. Deterministic sampling and lower reasoning may
+help strict transformation tasks, but these are model/endpoint choices, not
+hardcoded harness policy. Requalify after changing them.
 
 The founding interview above creates or reuses this profile. Resolve `root`
 from the physical repository root, without following a remote URL as project
@@ -359,7 +364,18 @@ context with reasoning on, or outrun `timeout_seconds` on a model that must
 load first. The transformation stays trivial so grading stays exact. The
 response must be complete, unfenced, without preamble or leaked reasoning,
 and match the expected file after whitespace normalization, using the
-production request settings and transport rules. This catches the
+production request settings and transport rules. Fenced output is a
+qualification failure, never silently unwrapped. Direct file-return calls
+(warm-up, qualification, initial delegation and retries) put a fixed
+raw-file contract in the system message: the reply is written verbatim as
+the target file, with no fence, preamble, filename, patch or commentary.
+The source and test files in user packets use byte-counted neutral framing
+rather than Markdown code blocks: exactly the advertised number of bytes
+belongs to each file, even if its contents resemble an end marker. This is
+transport/protocol enforcement across models, not model-specific prompting.
+Changing the contract bumps the harness version and invalidates prior
+qualifications. Full Pi phase handoffs still use normal agent conversations
+and tools; they do not receive this system message. This catches the
 serialization failures [`workflow/docs/local-executor.md`](../workflow/docs/local-executor.md) names as dominant, before any real
 task depends on them. It records load time and generation time and warns
 when `timeout_seconds` leaves little margin. Qualification is per model
@@ -439,9 +455,10 @@ transfer cleanly between codebases. A model's record never crosses stacks.
 **Retry policy.** Use the model chosen for the run for at most three calls
 total, including the initial call. Each attempt starts from the same clean
 scratch snapshot. The first request contains the packet; subsequent requests
-contain the packet, the previous candidate, and bounded failure diagnostics.
-Qualification uses the production request settings and transport rules
-but sends a single request with no retry: a setup that needs a retry to
+contain the same fixed system contract, then the original user packet, the
+previous assistant candidate, and bounded corrective user diagnostics, in
+that order. Qualification uses the production request settings and transport
+rules but sends a single request with no retry: a setup that needs a retry to
 return a clean file is not qualified. Calibration uses the same request
 settings, feedback construction, reset behavior, and attempt limit as
 production. Changes to

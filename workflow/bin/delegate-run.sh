@@ -159,7 +159,8 @@
 
 set -uo pipefail
 
-HARNESS_VERSION="delegate-run-v1"
+# Changes to the direct-file request protocol revoke prior qualifications.
+HARNESS_VERSION="delegate-run-v2"
 MAX_ATTEMPTS=3
 # Ranking and demotion use the Wilson score interval (E. B. Wilson, JASA 22,
 # 1927; see docs/influences.md in agentic-scaffold). Scoring and bucket
@@ -466,6 +467,15 @@ packet_header() {
   ' "$1"
 }
 
+# source_bytes <label> <file> : byte-counted framing, not a sentinel or a
+# Markdown example. A file can contain any apparent delimiter without ending
+# the source early; the reader consumes exactly the advertised byte count.
+source_bytes() {
+  printf 'Source file %s: the next %s bytes are its literal contents. Read exactly that many bytes.\n' "$1" "$(wc -c <"$2" | tr -d ' ')"
+  cat "$2"
+  printf '\nEnd of byte-counted source file %s.\n' "$1"
+}
+
 # assemble_sections <tree> <failure-log> : the mechanical packet sections a
 # format-2 packet leaves to the runner, so the frontier model never spends
 # output tokens copying files: the target as it exists now, the full test
@@ -474,23 +484,20 @@ assemble_sections() {
   local tree="$1" log="$2" t
   printf '\n## The file as it exists now\n\n'
   if [[ -f "$tree/$TARGET" ]]; then
-    printf '`%s`:\n\n````\n' "$TARGET"
-    cat "$tree/$TARGET"
-    printf '````\n'
+    source_bytes "$TARGET" "$tree/$TARGET"
   else
     printf 'NEW FILE: `%s` does not exist yet.\n' "$TARGET"
   fi
   printf '\n## The failing tests\n\nThese must pass. They are the specification.\n'
   while IFS= read -r t; do
     [[ -f "$tree/$t" ]] || continue
-    printf '\n`%s`:\n\n````\n' "$t"
-    cat "$tree/$t"
-    printf '````\n'
+    printf '\n'
+    source_bytes "$t" "$tree/$t"
   done <<<"$TESTS"
-  printf '\n## The exact failure output\n\n````\n'
+  printf '\n## The exact failure output\n\n'
   # Color codes are noise to the model.
   sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$log" | tail -n "$DIAG_LINES" | tail -c "$DIAG_BYTES"
-  printf '````\n'
+  printf '\nEnd of failure output.\n'
   printf '\n## Output contract\n\n> Return the complete final contents of `%s`, and nothing else. No\n> diff, no patch, no commentary, no markdown fence around the file, no\n> explanation of your changes.\n' "$TARGET"
 }
 
@@ -843,22 +850,28 @@ request_extra() {
   if [[ -n "${REQUEST_JSON:-}" ]]; then printf '%s' "$REQUEST_JSON"; else printf '{}'; fi
 }
 
-# request_first <out> <content-file> : one user message plus pinned settings.
+# Only direct file-return calls use this contract. Pi handoffs use their own
+# provider and normal agent messages, never these request builders.
+RAW_FILE_SYSTEM='You are a raw-file transformation endpoint. Your entire response is written directly to the target file. Return only the literal final file contents. The first character of your response must be the first character of the file. Do not emit Markdown fences, backticks, a filename, commentary, explanations, diffs, patches, or status text.'
+
+# request_first <out> <content-file> : fixed system contract, then user packet.
 request_first() {
-  jq -n --arg model "$MODEL_ID" --rawfile content "$2" --argjson extra "$(request_extra)" \
-    '{model: $model, stream: false, messages: [{role: "user", content: $content}]} + $extra' >"$1" ||
+  jq -n --arg model "$MODEL_ID" --arg system "$RAW_FILE_SYSTEM" --rawfile content "$2" --argjson extra "$(request_extra)" \
+    '({model: $model, stream: false} + $extra) | .messages = [
+       {role: "system", content: $system}, {role: "user", content: $content}]' >"$1" ||
     infra "could not build the request (is 'request' in the profile valid JSON?)"
 }
 
-# request_retry <out> : the packet, the previous candidate, and the feedback.
+# request_retry <out> : system, original packet, previous candidate, feedback.
 request_retry() {
-  jq -n --arg model "$MODEL_ID" --rawfile packet "$STATE/packet-body.md" \
+  jq -n --arg model "$MODEL_ID" --arg system "$RAW_FILE_SYSTEM" --rawfile packet "$STATE/packet-body.md" \
     --rawfile previous "$STATE/previous-candidate" --rawfile feedback "$STATE/feedback.md" \
     --argjson extra "$(request_extra)" \
-    '{model: $model, stream: false, messages: [
+    '({model: $model, stream: false} + $extra) | .messages = [
+       {role: "system", content: $system},
        {role: "user", content: $packet},
        {role: "assistant", content: $previous},
-       {role: "user", content: $feedback}]} + $extra' >"$1" ||
+       {role: "user", content: $feedback}]' >"$1" ||
     infra "could not build the request (is 'request' in the profile valid JSON?)"
 }
 
@@ -1414,11 +1427,10 @@ Keep every other line exactly as it is, including blank lines and docstrings.
 
 # The file as it exists now
 
-\`\`\`python
 EOF
-  plumbing_file
+  plumbing_file >"$STATE/plumbing-source.py"
+  source_bytes plumbing.py "$STATE/plumbing-source.py"
   cat <<'EOF'
-```
 
 # Output contract
 
