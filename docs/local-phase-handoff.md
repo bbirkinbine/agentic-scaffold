@@ -27,7 +27,7 @@ fingerprint, and `status` and `reset` include both phase buckets. These fixes
 have regression coverage; an authenticated real-model phase trial remains open.
 
 Pi package fixes (2026-10-15), found by the
-resumable-handoff RPC spike (branch `spike/resumable-handoff-rpc`): a real Pi start in a
+[resumable-handoff](resumable-handoff.md) RPC spike: a real Pi start in a
 stack project installs `pi-subagents` into `.pi/npm/` and leaves a
 self-unignoring `.pi/npm/.gitignore`, which the scope audit would have stopped
 on. Stack `.gitignore` files now ignore `.pi/npm/` (`--update` migrates it), the

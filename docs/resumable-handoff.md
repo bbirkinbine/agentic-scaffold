@@ -501,7 +501,8 @@ pump routes tool updates without `jq`, and the status packet stays bounded.
 
 Ordered so that each step leaves the gates green.
 
-0. **Separate prerequisite fix** (its own PR, since it affects v1 today):
+0. **Prerequisite fix** (shipped with this spec, before the rest, since it
+   affects v1 today):
    ignore `.pi/npm/` in `stacks/{python,typescript,custom}/project/.gitignore`
    (and any other flavor that installs `.pi/settings.json`), with a
    `scripts/bootstrap-stack.sh` `--update` migration like the existing
@@ -575,7 +576,7 @@ plan, final paragraph).
 
 ## Decisions (settled 2026-10-15)
 
-1. Step 0 ships first as its own PR.
+1. Step 0 ships first, in the PR that carries this spec.
 2. No time-based segment boundary; the lease alone governs a live run.
 3. `/unattended` may resume a paused run itself, with no count limit, under
    its standing consent. Each pause and resume is logged under
