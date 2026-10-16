@@ -363,6 +363,10 @@ bounded_tail() { tail -n "$DIAG_LINES" "$1" | tail -c "$DIAG_BYTES"; }
 # Each verifier command gets DELEGATE_STEP_TIMEOUT seconds (default 900) so a
 # candidate that hangs a test cannot hang the run. The command runs in its
 # own process group, which is killed whole on timeout; exit status is 124.
+# Process groups its descendants created (Pi runs each tool command in one)
+# are outside that group, so they are collected before TERM and again before
+# KILL and killed too. Where `ps` is unavailable (Codex's macOS sandbox
+# denies it), only the command's own group is signalled.
 STEP_TIMEOUT="${DELEGATE_STEP_TIMEOUT:-900}"
 
 # `run` refuses without perl rather than run a verifier with no time limit.
@@ -371,8 +375,33 @@ bounded() {
       my $limit = shift;
       my $pid = fork() // die "fork: $!";
       if ($pid == 0) { setpgrp(0, 0); exec { $ARGV[0] } @ARGV or exit 127; }
+      my $own = getpgrp(0);
+      my $groups = sub {
+        my (%kids, %pgid, %seen, %found);
+        open my $ps, "-|", "ps -axo pid=,ppid=,pgid= 2>/dev/null" or return ();
+        while (<$ps>) {
+          my ($p, $pp, $g) = split;
+          next unless defined $g;
+          push @{ $kids{$pp} }, $p;
+          $pgid{$p} = $g;
+        }
+        close $ps;
+        my @queue = ($pid);
+        while (@queue) {
+          my $p = shift @queue;
+          next if $seen{$p}++;
+          my $g = $pgid{$p};
+          $found{$g} = 1 if $p != $pid && $g && $g != $pid && $g != $own;
+          push @queue, @{ $kids{$p} || [] };
+        }
+        return keys %found;
+      };
       local $SIG{ALRM} = sub {
-        kill "TERM", -$pid; sleep 2; kill "KILL", -$pid; waitpid($pid, 0);
+        my %stray = map { $_ => 1 } $groups->();
+        kill "TERM", -$pid; sleep 2;
+        $stray{$_} = 1 for $groups->();
+        kill "KILL", -$_ for keys %stray;
+        kill "KILL", -$pid; waitpid($pid, 0);
         print STDERR "delegate-run: timed out after ${limit}s: @ARGV\n";
         exit 124;
       };
@@ -2032,12 +2061,22 @@ cmd_handoff() {
   fi
 
   # -- session
+  # A new worktree lacks the ignored .pi/npm/; reuse the checkout's installed
+  # Pi packages so the session does not depend on the npm registry.
+  if [[ -d "$ROOT/.pi/npm" && ! -e "$wt/.pi/npm" ]] && git -C "$wt" check-ignore -q .pi/npm/; then
+    mkdir -p "$wt/.pi" && cp -R "$ROOT/.pi/npm" "$wt/.pi/npm" ||
+      say "warning: could not copy .pi/npm/ into the worktree; Pi will install its packages"
+  fi
   handoff_prompt "$spec" "$phase" >"$result_dir/prompt.md"
   local -a hargs=(-p --approve --provider "$ENDPOINT_NAME" --model "$MODEL_ID" --session-dir "$result_dir/session" --mode json)
   [[ -n "$pi_thinking" ]] && hargs+=(--thinking "$pi_thinking")
   local -a envkeep=(PATH="$PATH" HOME="$HOME" LANG="${LANG:-C.UTF-8}" TERM=dumb PI_CODING_AGENT_DIR="$result_dir/pi-agent")
   [[ -n "${TMPDIR:-}" ]] && envkeep+=(TMPDIR="$TMPDIR")
   [[ -n "${CRED_ENV:-}" ]] && envkeep+=("$CRED_ENV=${!CRED_ENV}")
+  # Pi installs the packages in .pi/settings.json into the worktree's ignored
+  # .pi/npm/ on start. Its npm cache stays in the run directory, which is
+  # writable inside Codex's sandbox where ~/.npm is not.
+  envkeep+=(npm_config_cache="$result_dir/npm-cache")
   local limit="${DELEGATE_HANDOFF_TIMEOUT:-14400}" started rc=0
   started="$(date +%s)"
   say "session: $HANDOFF_HARNESS on '$MODEL_NAME' ($pi_model), phase $phase, limit ${limit}s"

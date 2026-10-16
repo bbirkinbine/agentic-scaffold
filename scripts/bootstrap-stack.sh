@@ -1094,6 +1094,14 @@ elif [[ "$NO_STOP_GATE" == 1 && "$CLAUDE_SETTINGS_APPLIED" == 1 &&
   NO_STOP_GATE_APPLIED=1
 fi
 
+# Every profile's .pi/settings.json names Pi packages, which Pi installs into
+# .pi/npm/ with a self-unignoring .gitignore. Project-owned .gitignore is
+# never replaced; migrate just this entry.
+if ! grep -qxF '.pi/npm/' "$DST_DIR/.gitignore" 2>/dev/null; then
+  printf '\n# Pi project packages, installed by Pi on first start.\n.pi/npm/\n' >>"$DST_DIR/.gitignore"
+  echo "  added: .pi/npm/ ignore entry"
+fi
+
 sync .codex/rules/safety.rules
 sync .pi/extensions/agentic-hooks.ts
 sync .pi/extensions/agentic-child-hooks.ts
