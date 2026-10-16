@@ -1,9 +1,13 @@
 # Resumable local phase handoff — draft spec
 
-**Status:** direction approved; RPC plumbing spike passed on macOS, Linux and
-inside Codex's sandbox (see [Plumbing spike](#plumbing-spike-2026-10-15));
-decisions settled; implementation starts with step 0 (prerequisite fixes to
-v1 handoff), then the plan below
+**Status:** implemented (2026-10-15) as Pi RPC segments under an inactivity
+lease, a detached launch, `handoff-status [--wait]`, `handoff-resume`, and
+`handoff-stop`; the four-hour hard limit is removed. Deterministic smoke
+coverage drives an RPC stub harness and real Pi 1.3.0 against a loopback
+stub (green, graceful pause at a ceiling, resume to one ledger outcome).
+The real local-model trial that pauses and resumes (acceptance plan, final
+paragraph) is still open. Spike evidence:
+[Plumbing spike](#plumbing-spike-2026-10-15).
 **Last updated:** 2026-10-15
 
 ## Goal
@@ -570,9 +574,12 @@ Ordered so that each step leaves the gates green.
    a change (none so far beyond Pi's docs, already cited here).
 6. `bash scripts/render-client-surfaces.sh`, then every gate in `AGENTS.md`.
 
-The default 14,400 s hard limit stays until steps 1–3 pass and one real
-local-model trial pauses at a short ceiling and resumes (acceptance
-plan, final paragraph).
+Correction on implementation (2026-10-15): the default 14,400 s hard limit is
+removed rather than kept until the real-model trial. With the decision for no
+time-based boundary, a stopped run now pauses resumably instead of being
+destroyed, and the lease handles silence; an operator can still set
+`DELEGATE_HANDOFF_MAX_TOTAL_SECONDS`. The real-model pause/resume trial
+remains the open acceptance item.
 
 ## Decisions (settled 2026-10-15)
 

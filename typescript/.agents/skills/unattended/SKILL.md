@@ -66,7 +66,9 @@ Run after the plan is approved and persisted, before test-first.
    commits on the feature branch if the human grants that. If `handoff` was
    selected, record its separate authorization for temporary commits on
    `handoff/<run>` branches; without that exact authorization, handoff is not
-   available even when feature-branch commits are allowed. Never push or merge.
+   available even when feature-branch commits are allowed. That
+   authorization also covers resuming a paused handoff of the same run.
+   Never push or merge.
 5. Print the kickoff instruction the human can leave running, then stop.
 
 ## During the run — auto-answering
@@ -82,6 +84,13 @@ standing decision does not settle no longer stops the run. The orchestrator:
    to reverse it;
 3. keeps that decision's changes separable — its own commit when commits
    were granted, otherwise a list of the exact hunks — and continues.
+
+A handoff that pauses (`handoff-status` exit 11) is resumed without
+asking, as often as it pauses, with `handoff-resume <run> --allow-commit`
+under the recorded handoff authorization. Log each pause and resume under
+`## Unattended decisions` with its reason. A configured absolute ceiling is
+not raised on the human's behalf: when resume refuses for a spent ceiling,
+fall back as the failure-handling decision says.
 
 A tool or command that fails on its own invocation (an unsupported
 parameter, a wrong path or flag) is not a decision: correct the call from
@@ -103,7 +112,9 @@ When the human says they are back before the run ends:
    the human again. Standing decisions still stand.
 2. Let a local-model call in progress (`delegate-run.sh run`) finish rather
    than kill it, and make no workspace edits meanwhile: the runner refuses
-   to publish into a tree that changed under it.
+   to publish into a tree that changed under it. A live handoff keeps
+   running in its own worktree; report its `handoff-status` and offer
+   `handoff-stop` if the human wants it paused.
 3. Report where the run is (last green step, next step) and list the
    `## Unattended decisions` logged so far, then offer to reconcile them
    now or at the end.

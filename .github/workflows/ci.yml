@@ -88,6 +88,18 @@ jobs:
       - name: Bootstrap a custom-stack project, fill its runner, run its gate
         run: bash scripts/smoke-test-custom.sh
 
+      # The delegate smoke drives real Pi in RPC mode against the loopback
+      # stub; without Pi here those checks would be skipped (CI now fails).
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install Pi for the delegate runner's real-harness checks
+        run: |
+          npm install --global @earendil-works/pi-coding-agent@1.3.0
+          test "$(pi --version)" = "1.3.0"
+
       # Same job so the required check name stays unchanged.
       - name: Drive the local delegate runner against a stub model server
         run: bash scripts/smoke-test-delegate.sh

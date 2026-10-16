@@ -121,8 +121,9 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   phase to a local session, and
   [`docs/delegated-progress.md`](docs/delegated-progress.md) specifies its
   bounded live progress, and
-  [`docs/resumable-handoff.md`](docs/resumable-handoff.md) drafts recoverable
-  long-running sessions. A Claude Code or Codex orchestrator can
+  [`docs/resumable-handoff.md`](docs/resumable-handoff.md) makes those sessions
+  long-running and recoverable (inactivity lease, detached launch, token-free
+  `handoff-status`, pause and `handoff-resume`). A Claude Code or Codex orchestrator can
   delegate either way; the handoff session itself, and a fully local loop,
   run in Pi.
 

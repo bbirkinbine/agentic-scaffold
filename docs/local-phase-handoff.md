@@ -38,6 +38,16 @@ before, a tool command that outlived Pi's `TERM` handling was orphaned. Where
 `ps` is denied (Codex's macOS sandbox), only the session's own group is
 signalled.
 
+Resumable supervision (2026-10-15, [resumable-handoff](resumable-handoff.md)):
+the session now runs in Pi RPC mode under a renewable inactivity lease instead
+of the four-hour wall-clock limit below, which no longer exists. `handoff`
+launches detached and returns at once; `handoff-status <run> --wait <s>`
+follows it token-free; a quiet, stopped, or ceiling-limited session is
+checkpointed and paused (exit 11) after a scope audit, and `handoff-resume`
+continues the same Pi session and worktree. One logical run gets one ledger
+outcome however many times it paused. `DELEGATE_HANDOFF_TIMEOUT` now sets the
+optional absolute ceiling on active time.
+
 ## Problem
 
 The single-file runner sends a local model one packet with no tools and

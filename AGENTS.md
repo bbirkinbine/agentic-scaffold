@@ -306,19 +306,17 @@ Open:
   handoffs render compact live Pi tool, retry, and compaction events. Redirected
   runs stay quiet unless requested; raw reasoning, generated code, and full tool
   output remain out of the summary. Smoke-tested, with no real-model trial yet.
-- [`docs/resumable-handoff.md`](docs/resumable-handoff.md): replace the
-  four-hour terminal handoff timeout with a renewable inactivity lease (no
-  time-based segment boundary), recoverable RPC-backed pauses, token-free
-  `handoff-status --wait`, a detached launch every orchestrator can poll, and
-  `handoff-resume`; an absolute total ceiling stays optional. The Pi 1.3 RPC
-  plumbing spike passed on 2026-10-15 (macOS Bash 3.2, Linux, Codex's macOS
-  sandbox; loopback stub only) and the design decisions are settled. Step 0,
-  the v1 fixes the spike found (`.pi/npm/` ignored and migrated, Pi packages
-  seeded into the worktree with a run-local npm cache, tool process groups
-  killed on the hard limit), ships with the spec. The lease/pause/resume
-  implementation is next; the current hard timeout remains until its
-  acceptance and one real-model pause/resume trial pass. Under Codex the
-  handoff needs network access, which `/delegate` will document.
+- [`docs/resumable-handoff.md`](docs/resumable-handoff.md) is implemented:
+  handoffs run in Pi RPC mode under a renewable inactivity lease (no
+  time-based boundary; the four-hour hard limit is gone), launch detached,
+  are followed token-free with `handoff-status --wait`, pause at a
+  checkpoint (lease expiry, operator `handoff-stop`, optional ceiling) after
+  a scope audit, and continue with `handoff-resume` in the same session and
+  worktree; `/unattended` resumes pauses on its own. Smoke-tested with an RPC
+  stub harness and with real Pi 1.3.0 against a loopback stub (CI now
+  installs Pi for that job). The real local-model pause/resume trial is
+  still open. Under Codex the handoff needs network access, which
+  `/delegate` documents.
 - `/unattended` (`--full`) prepares one feature to run with nobody
   watching (overnight or a day away): `start` asks every foreseeable
   decision up front and records standing consent in the spec, the run
