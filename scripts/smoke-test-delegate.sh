@@ -274,6 +274,13 @@ greet_is() { [[ "$(cat lib/greet.sh)" == "$1" ]]; }
 runner() { bash .agentic/delegate-run.sh "$@"; }
 
 # The plumbing file and its expected edit, regenerated from the runner itself.
+# Assert the transport contract, not merely the behavior of the stub replies.
+assert_raw_system() {
+  jq -e '.messages[0].role == "system" and
+    (.messages[0].content | contains("raw-file transformation endpoint") and
+     contains("first character") and contains("Do not emit Markdown fences"))' "$1" >/dev/null ||
+    fail "direct-file request lacks the strict system contract: $1"
+}
 plumbing() {
   bash -c 'source <(sed -n "/^PLUMBING_COUNT=/,/^# Whitespace-insensitive/p" .agentic/delegate-run.sh); '"$1"
 }
@@ -327,17 +334,54 @@ qualify_with 5 stub-coder "$(plumbing plumbing_file)"
 grep -q 'differs from the expected edit' "$WORK/qualify.out" || fail "an unedited plumbing reply passed"
 qualify_with 5 stub-coder $'```python\n'"$EXPECTED"$'\n```'
 grep -q 'code fence' "$WORK/qualify.out" || fail "a fenced plumbing reply passed"
+qualify_with 5 stub-coder $'Here is the file:\n'"$EXPECTED"
+grep -q 'differs from the expected edit' "$WORK/qualify.out" || fail "a preamble passed"
+qualify_with 5 stub-coder $'<think>unfinished reasoning\n'"$EXPECTED"
+grep -q 'empty' "$WORK/qualify.out" || fail "leaked reasoning passed"
 qualify_with 5 stub-coder "$EXPECTED" length
-qualify_with 0 stub-coder $'<think>\nrename one def\n</think>\n'"$EXPECTED"$'\n\n'
+grep -q 'cut off' "$WORK/qualify.out" || fail "truncated qualification passed"
+qualify_with 5 stub-coder $'<think>\nrename one def\n</think>\n'"$EXPECTED"$'\n\n' length
+grep -q 'cut off' "$WORK/qualify.out" || fail "truncated reasoning passed"
+qualify_with 0 stub-coder "$EXPECTED"
 grep -q "qualified: 'stub-coder'" "$WORK/qualify.out" || fail "qualify did not report a pass"
-jq -e '.messages[0].content | contains("weighted_metric_17")' "$QUEUE/requests/02.json" >/dev/null ||
-  fail "the plumbing packet was not sent"
+for request in "$QUEUE/requests/01.json" "$QUEUE/requests/02.json"; do
+  assert_raw_system "$request"
+  jq -e '[.messages[].role] == ["system", "user"]' "$request" >/dev/null || fail "qualification message order changed"
+done
+jq -e '.messages[1].content | contains("metric_17") and (contains("```python") | not)' "$QUEUE/requests/02.json" >/dev/null ||
+  fail "the qualification source was omitted or fenced"
+python3 - "$QUEUE/requests/02.json" "$(plumbing plumbing_file)" <<'PY'
+import json
+import re
+import sys
+
+packet = json.load(open(sys.argv[1]))["messages"][1]["content"].encode()
+match = re.search(rb"Source file plumbing.py: the next ([0-9]+) bytes are its literal contents. Read exactly that many bytes.\n", packet)
+assert match, "qualification has no byte-counted source"
+start = match.end()
+assert packet[start:start + int(match[1])] == sys.argv[2].encode() + b"\n", "qualification source bytes changed"
+PY
 [[ "$(jq -s 'map(select(.result == "pass")) | length' "$WORK/local-models-qualified.jsonl")" == 1 ]] ||
   fail "the qualification record was not written beside the profile"
 if grep -q smoke-secret-value "$WORK/local-models-qualified.jsonl"; then fail "credential leaked into qualification"; fi
 status_out="$(runner status 2>&1)"
 [[ "$status_out" == *"stub-coder (stub-model, setup "*"): qualified"* ]] ||
   { echo "$status_out" >&2; fail "status does not show stub-coder qualified"; }
+
+# The prior harness qualification must go stale without any profile change.
+if command -v sha256sum >/dev/null; then hash=(sha256sum); else hash=(shasum -a 256); fi
+old_fp="$(printf '%s\n' delegate-run-v1 "http://127.0.0.1:$PORT/v1" stub-model Q8_0 'stub 1' '{"temperature":0.2}' | "${hash[@]}" | cut -c1-16)"
+new_fp="$(jq -r 'select(.model == "stub-coder" and .result == "pass") | .fingerprint' "$WORK/local-models-qualified.jsonl" | tail -n 1)"
+[[ "$old_fp" != "$new_fp" ]] || fail "raw-file protocol did not bump the harness fingerprint"
+[[ "$(jq -r 'select(.model == "stub-coder" and .result == "pass") | .harness' "$WORK/local-models-qualified.jsonl" | tail -n 1)" == delegate-run-v2 ]] ||
+  fail "qualification did not record the new harness version"
+cp "$WORK/local-models-qualified.jsonl" "$WORK/qualification.new"
+jq -c --arg old "$old_fp" 'if .model == "stub-coder" and .result == "pass" then .fingerprint = $old else . end' "$WORK/qualification.new" >"$WORK/local-models-qualified.jsonl"
+# The old pass alone cannot authorize a run. Restore the new pass afterward.
+reset_case
+expect_run 2 stub-coder
+grep -q 'unqualified' "$WORK/run.out" || fail "old harness qualification remained valid"
+cp "$WORK/qualification.new" "$WORK/local-models-qualified.jsonl"
 
 # A setup change (here, the request settings) needs a new qualification.
 sed -i.bak 's/"temperature": 0.2/"temperature": 0.3/' "$PROFILE"
@@ -360,19 +404,47 @@ grep -q "gate steps passed: lint format-check typecheck test" "$WORK/run.out" ||
 [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer smoke-secret-value" ]] || fail "credential not sent"
 jq -e '.temperature == 0.2 and .model == "stub-model" and .stream == false' "$QUEUE/requests/01.json" >/dev/null ||
   fail "request settings from the profile were not applied"
-jq -e '.messages[0].content | contains("targets:") | not' "$QUEUE/requests/01.json" >/dev/null ||
+assert_raw_system "$QUEUE/requests/01.json"
+jq -e '[.messages[].role] == ["system", "user"]' "$QUEUE/requests/01.json" >/dev/null || fail "initial message order changed"
+jq -e '.messages[1].content | contains("targets:") | not' "$QUEUE/requests/01.json" >/dev/null ||
   fail "packet front matter was sent to the model"
 for want in '## The file as it exists now' 'greet() { echo "TODO"; }' '## The failing tests' \
   'tests/test_greet.sh' "expected 'hello bob'" '## Output contract' 'complete final contents of `lib/greet.sh`'; do
-  jq -e --arg w "$want" '.messages[0].content | contains($w)' "$QUEUE/requests/01.json" >/dev/null ||
+  jq -e --arg w "$want" '.messages[1].content | contains($w)' "$QUEUE/requests/01.json" >/dev/null ||
     fail "the runner did not add to the packet: $want"
 done
 run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
-cmp -s <(jq -j '.messages[0].content' "$QUEUE/requests/01.json") "$run_dir/prompt.md" ||
+cmp -s <(jq -j '.messages[1].content' "$QUEUE/requests/01.json") "$run_dir/prompt.md" ||
   fail "prompt.md is not the message the model received"
 cmp -s "$run_dir/candidate" lib/greet.sh || fail "the published candidate was not kept in the result"
 if grep -rq smoke-secret-value .agentic/delegate; then fail "credential value leaked into delegation state"; fi
 git diff --cached --quiet || fail "runner staged changes"
+
+# Byte-count framing must not treat an in-file end marker (or missing final
+# newline) as a boundary; the user packet must reproduce both source files.
+reset_case
+printf 'greet() { echo "TODO"; }\n# End of byte-counted source file lib/greet.sh.' >lib/greet.sh
+cp lib/greet.sh "$WORK/collision-source"
+respond 01 "$GOOD"
+expect_run 0 stub-coder
+python3 - "$QUEUE/requests/01.json" "$WORK/collision-source" tests/test_greet.sh <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+packet = json.loads(Path(sys.argv[1]).read_text())["messages"][1]["content"].encode()
+for label, path in [("lib/greet.sh", sys.argv[2]), ("tests/test_greet.sh", sys.argv[3])]:
+    header = f"Source file {label}: the next ".encode()
+    start = packet.index(header) + len(header)
+    count = re.match(rb"[0-9]+", packet[start:])
+    assert count, f"missing byte count for {label}"
+    content_start = packet.index(b"\n", start + count.end()) + 1
+    content = Path(path).read_bytes()
+    assert int(count[0]) == len(content), f"wrong byte count for {label}"
+    assert packet[content_start:content_start + len(content)] == content, f"source not literal: {label}"
+    assert packet[content_start + len(content):].startswith(b"\nEnd of byte-counted source file "), f"bad boundary: {label}"
+PY
 
 # --- 1b. bounded progress for a delayed one-file call ----------------------------
 reset_case
@@ -409,10 +481,15 @@ respond 01 "$BAD"
 respond 02 "$GOOD"
 expect_run 0 stub-coder
 greet_is "$GOOD" || fail "second-attempt green was not published"
-jq -e '.messages | length == 3' "$QUEUE/requests/02.json" >/dev/null || fail "retry lacks previous candidate and feedback"
-jq -e '.messages[1].content | contains("hi $1")' "$QUEUE/requests/02.json" >/dev/null ||
+assert_raw_system "$QUEUE/requests/02.json"
+jq -e '[.messages[].role] == ["system", "user", "assistant", "user"]' "$QUEUE/requests/02.json" >/dev/null ||
+  fail "retry message order changed"
+run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
+cmp -s <(jq -j '.messages[1].content' "$QUEUE/requests/02.json") "$run_dir/prompt.md" ||
+  fail "retry lost the original user packet"
+jq -e '.messages[2].content | contains("hi $1")' "$QUEUE/requests/02.json" >/dev/null ||
   fail "retry did not carry the previous candidate"
-jq -e '.messages[2].content | contains("expected '"'"'hello bob'"'"'")' "$QUEUE/requests/02.json" >/dev/null ||
+jq -e '.messages[3].content | contains("expected '"'"'hello bob'"'"'")' "$QUEUE/requests/02.json" >/dev/null ||
   fail "retry did not carry the failure output"
 
 # --- 3. three reds: needs_frontier, nothing published ----------------------------
@@ -441,7 +518,7 @@ respond 01 'greet() { sleep 60; echo "hello $1"; }'
 respond 02 "$GOOD"
 DELEGATE_STEP_TIMEOUT=3 expect_run 0 stub-coder
 greet_is "$GOOD" || fail "the run did not recover after a timed-out attempt"
-jq -e '.messages[2].content | contains("timed out after 3s")' "$QUEUE/requests/02.json" >/dev/null ||
+jq -e '.messages[3].content | contains("timed out after 3s")' "$QUEUE/requests/02.json" >/dev/null ||
   fail "the timeout was not reported back to the model"
 
 # --- 5a. focused tests pass but a step green before the run goes red -------------
@@ -703,6 +780,9 @@ done
 state_has stub-coder small '5/5 passed' || fail "stub-coder did not reach five scored runs: $(state_of stub-coder small)"
 
 qualify_with 0 stub-coder-b "$EXPECTED"
+assert_raw_system "$QUEUE/requests/02.json"
+jq -e '[.messages[].role] == ["system", "user"] and (has("temperature") | not)' "$QUEUE/requests/02.json" >/dev/null ||
+  fail "a profile without request settings broke qualification"
 reset_case
 respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
 expect_select 10
@@ -1177,7 +1257,9 @@ if command -v pi >/dev/null 2>&1; then
     --no-context-files --no-prompt-templates --no-session --no-approve \
     --provider stub --model stub-model -p 'Reply OK without tools.' </dev/null) >"$WORK/pi-provider.out" 2>&1 ||
     { cat "$WORK/pi-provider.out" >&2; fail "Pi could not use the generated provider"; }
-  jq -e '.model == "stub-model" and .temperature == 0.2' "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings"
+  jq -e '.model == "stub-model" and .temperature == 0.2 and
+    ([.messages[].content | strings] | all(contains("raw-file transformation endpoint") | not))' \
+    "$QUEUE/requests/01.json" >/dev/null || fail "Pi used the wrong model/settings or inherited the raw-file contract"
   [[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer $STUB_TOKEN" ]] || fail "Pi did not resolve the credential variable"
   # A real Pi start in this --full project installs the packages named in
   # .pi/settings.json (network required). The tree must stay clean, or every
@@ -1198,6 +1280,8 @@ if command -v pi >/dev/null 2>&1; then
   DELEGATE_HANDOFF_DIR="$WORK/handoffs" runner handoff docs/specs/0002-greet.md --allow-commit --foreground \
     --model stub-coder >"$WORK/pi-handoff.out" 2>&1 || got=$?
   [[ "$got" == 0 ]] || { cat "$WORK/pi-handoff.out" >&2; fail "a real-Pi handoff did not verify green (exit $got)"; }
+  jq -e '([.messages[].content | strings] | all(contains("raw-file transformation endpoint") | not))' \
+    "$QUEUE/requests/01.json" >/dev/null || fail "Pi handoff inherited the raw-file contract"
   run_id="$(last_result | jq -r .run)"
   [[ "$(git show "handoff/$run_id:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "real Pi's write was not committed"
   drop_worktrees
