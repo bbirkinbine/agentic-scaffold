@@ -139,9 +139,9 @@ done
   "$extension" "$WORKFLOW/client/pi/settings.json" "$WORKFLOW"/roles/*.md || fail "Pi adapter pins an LLM provider/model"
 
 if ! command -v pi >/dev/null 2>&1; then
-  fail "Pi 1.2.0 is required to validate project package settings"
-elif [[ "$(pi --version)" != 1.2.0 ]]; then
-  fail "Pi validator baseline is 1.2.0; found $(pi --version)"
+  fail "Pi 1.3.0 is required to validate project package settings"
+elif [[ "$(pi --version)" != 1.3.0 ]]; then
+  fail "Pi validator baseline is 1.3.0; found $(pi --version)"
 else
   runtime_fixture="$(mktemp -d)"
   git -C "$runtime_fixture" init -q -b main

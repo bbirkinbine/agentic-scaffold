@@ -66,9 +66,11 @@ import subprocess
 runner = ".agentic/delegate-run.sh"
 cases = [
     ["run", "packet", "--model"],
+    ["run", "packet", "--progress"],
     ["qualify", "model", "--profile"],
     ["init", "--key-env"],
     ["handoff", "spec", "--phase"],
+    ["handoff", "spec", "--progress"],
     ["status", "--profile"],
     ["discover", "--profile"],
     ["policy", "--profile"],
@@ -88,6 +90,17 @@ for args in cases:
             f"exit {result.returncode}, output {output!r}"
         )
 PY
+
+for command in run handoff; do
+  got=0
+  bash .agentic/delegate-run.sh "$command" placeholder --progress noisy >"$WORK/progress-option.out" 2>&1 || got=$?
+  [[ "$got" == 2 ]] && grep -q 'unknown progress mode' "$WORK/progress-option.out" ||
+    fail "$command accepted an unknown progress mode"
+done
+help="$(bash .agentic/delegate-run.sh --help)"
+[[ "$help" == *'run <packet> [--model <name>] [--progress quiet|summary]'* &&
+  "$help" == *'handoff <spec> --allow-commit'* && "$help" == *'Progress is `summary`'* ]] ||
+  fail "runner help omitted the progress interface"
 
 # An existing project owns .gitignore. Updating adds only the new runtime
 # entry, preserving custom content and remaining idempotent.
@@ -246,7 +259,8 @@ reset_case() {
 # expect_run <status> <model> : runs the runner, asserts its exit status.
 expect_run() {
   local want="$1" model="$2" got=0
-  bash .agentic/delegate-run.sh run "$PACKET" --model "$model" >"$WORK/run.out" 2>&1 || got=$?
+  shift 2
+  bash .agentic/delegate-run.sh run "$PACKET" --model "$model" "$@" >"$WORK/run.out" 2>&1 || got=$?
   [[ "$got" == "$want" ]] || {
     cat "$WORK/run.out" >&2
     fail "expected exit $want, got $got (model $model)"
@@ -357,6 +371,35 @@ cmp -s <(jq -j '.messages[0].content' "$QUEUE/requests/01.json") "$run_dir/promp
 cmp -s "$run_dir/candidate" lib/greet.sh || fail "the published candidate was not kept in the result"
 if grep -rq smoke-secret-value .agentic/delegate; then fail "credential value leaked into delegation state"; fi
 git diff --cached --quiet || fail "runner staged changes"
+
+# --- 1b. bounded progress for a delayed one-file call ----------------------------
+reset_case
+respond 01 "$GOOD"
+started="$(date +%s)"
+DELEGATE_PROGRESS_INTERVAL=15 expect_run 0 stub-coder --progress summary
+elapsed="$(($(date +%s) - started))"
+((elapsed < 10)) || fail "stopping a heartbeat delayed a fast response (${elapsed}s)"
+
+reset_case
+respond 01 "$GOOD"
+printf '2\n' >"$QUEUE/01.delay"
+DELEGATE_PROGRESS_INTERVAL=1 expect_run 0 stub-coder --progress summary
+grep -q 'progress: run .*logs: .agentic/delegate/results/' "$WORK/run.out" ||
+  fail "summary mode did not print the run and result path before the call"
+grep -q 'progress: generating .*attempt 1/3.*1s elapsed' "$WORK/run.out" ||
+  fail "a delayed one-file call emitted no heartbeat"
+grep -q 'progress: extracting candidate' "$WORK/run.out" || fail "one-file progress omitted extraction"
+grep -q 'progress: verifying — format' "$WORK/run.out" || fail "one-file progress omitted verification stages"
+greet_is "$GOOD" || fail "progress changed one-file publication"
+[[ "$(last_result | jq -r .outcome)" == green ]] || fail "progress changed the one-file ledger outcome"
+if grep -q smoke-secret-value "$WORK/run.out"; then fail "progress printed the endpoint credential"; fi
+
+reset_case
+respond 01 "$GOOD"
+printf '2\n' >"$QUEUE/01.delay"
+DELEGATE_PROGRESS_INTERVAL=1 expect_run 0 stub-coder --progress quiet
+if grep -q 'progress:' "$WORK/run.out"; then fail "quiet mode emitted progress lines"; fi
+greet_is "$GOOD" || fail "quiet progress changed one-file publication"
 
 # --- 2. red, then green with feedback ------------------------------------------------
 reset_case
@@ -713,6 +756,41 @@ env >"$WORK/harness-env"
 printf '%s\n' "\$@" >"$WORK/harness-args"
 case "\$(cat "$WORK/harness-mode")" in
   good) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
+  progress)
+    printf '%s\n' '{"type":"agent_start"}'
+    for _ in \$(seq 1 50); do
+      grep -qF 'progress: agent started' "$WORK/handoff.out" && break
+      sleep 0.1
+    done
+    grep -qF 'progress: agent started' "$WORK/handoff.out" || exit 8
+    printf '%s\n' \
+      '{"type":"turn_start"}' \
+      '{"type":"tool_execution_start","toolCallId":"read-1","toolName":"read","args":{"path":"lib/greet.sh"}}' \
+      '{"type":"tool_execution_end","toolCallId":"read-1","toolName":"read","result":{},"isError":false,"durationMs":7}' \
+      '{"type":"tool_execution_start","toolCallId":"write-1","toolName":"write","args":{"path":"lib/\u001b[31munsafe.sh"}}'
+    printf '%s' '{"type":"tool_execution_start","toolCallId":"split-1",'
+    sleep 0.3
+    printf '%s\n' '"toolName":"edit","args":{"path":"lib/split.sh"}}'
+    printf '%s\n' \
+      '{"type":"tool_execution_start","toolCallId":"bash-1","toolName":"bash","args":{"command":"TOKEN=bare-token PASSWORD=bare-password API_KEY=bare-api STUB_TOKEN=smoke-secret-value printf éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé END-OF-LONG-COMMAND"}}' \
+      '{"type":"tool_execution_end","toolCallId":"bash-1","toolName":"bash","result":{},"isError":true,"durationMs":12}' \
+      '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":2000,"errorMessage":"secret detail"}' \
+      '{"type":"auto_retry_end","success":true,"attempt":2}' \
+      '{"type":"compaction_start","reason":"threshold"}' \
+      '{"type":"compaction_end","reason":"threshold","result":{"summary":"private summary"},"aborted":false,"willRetry":false}' \
+      '{"type":"message_end","message":{"role":"assistant","content":"private assistant text","stopReason":"stop"}}' \
+      '{"type":"future_event","private":"do not render"}' \
+      'not-json' \
+      '{"type":"agent_settled","aborted":false}'
+    printf '%s\n' 'pi diagnostic' >&2
+    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh
+    ;;
+  renderer-exit)
+    result_dir="\$(dirname "\$PI_CODING_AGENT_DIR")"
+    kill "\$(cat "\$result_dir/progress-renderer.pid")"
+    printf '%s\n' '{"type":"agent_start"}'
+    printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh
+    ;;
   outside) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo x >lib/extra.sh ;;
   tests) printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh; echo 'exit 0' >tests/test_greet.sh ;;
   committed-tests) echo 'exit 0' >tests/test_greet.sh; git add tests/test_greet.sh; git commit -qm 'unexpected test commit'; printf '%s\n' 'greet() { echo "hello \$1"; }' >lib/greet.sh ;;
@@ -728,10 +806,11 @@ SH
 chmod +x "$HARNESS"
 handoff() {
   local want="$1" mode="$2" got=0
+  shift 2
   echo "$mode" >"$WORK/harness-mode"
   DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" HANDOFF_SMOKE_SECRET=leak \
     bash .agentic/delegate-run.sh handoff docs/specs/0002-greet.md --allow-commit \
-      --model "${HANDOFF_MODEL:-stub-coder}" >"$WORK/handoff.out" 2>&1 || got=$?
+      --model "${HANDOFF_MODEL:-stub-coder}" "$@" >"$WORK/handoff.out" 2>&1 || got=$?
   [[ "$got" == "$want" ]] || { cat "$WORK/handoff.out" >&2; fail "handoff $mode: expected exit $want, got $got"; }
 }
 drop_worktrees() { runner handoff-clean --all >/dev/null 2>&1; return 0; }
@@ -742,6 +821,53 @@ DELEGATE_HANDOFF_HARNESS="$HARNESS" DELEGATE_HANDOFF_DIR="$WORK/handoffs" \
   runner handoff docs/specs/0002-greet.md --model stub-coder >"$WORK/handoff.out" 2>&1 || got=$?
 [[ "$got" == 2 ]] && grep -q -- '--allow-commit' "$WORK/handoff.out" || fail "handoff did not require explicit commit acknowledgement"
 [[ "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] || fail "refused handoff created a worktree"
+
+# A Pi JSONL stream is recorded in full but rendered as bounded, redacted
+# transitions. Malformed and unknown future records remain raw and do not fail
+# the handoff.
+handoff 0 progress --progress summary
+for want in 'progress: agent started' 'progress: tool start: read — lib/greet.sh' \
+  'progress: tool end: read — passed (7ms)' 'progress: tool start: edit — lib/split.sh' \
+  'progress: tool start: bash' \
+  'progress: tool end: bash — failed (12ms)' 'progress: retry 1/3 scheduled' \
+  'progress: retry 2 succeeded' 'progress: compaction started (threshold)' \
+  'progress: compaction ended (threshold)' 'progress: agent settled'; do
+  grep -qF "$want" "$WORK/handoff.out" || { cat "$WORK/handoff.out" >&2; fail "handoff summary lacks: $want"; }
+done
+if grep -Eq 'bare-token|bare-password|bare-api|smoke-secret-value|END-OF-LONG-COMMAND|private summary|private assistant text|secret detail|do not render' "$WORK/handoff.out"; then
+  fail "handoff summary exposed a secret, oversized field, or private event data"
+fi
+if LC_ALL=C grep -q $'\033' "$WORK/handoff.out"; then fail "handoff summary retained terminal control characters"; fi
+python3 - "$WORK/handoff.out" <<'PY'
+import pathlib
+import sys
+
+text = pathlib.Path(sys.argv[1]).read_bytes().decode("utf-8")
+line = next(line for line in text.splitlines() if "progress: tool start: bash — " in line)
+detail = line.split(" — ", 1)[1]
+if len(detail.encode("utf-8")) > 160:
+    raise SystemExit(f"progress detail exceeded 160 bytes: {len(detail.encode('utf-8'))}")
+PY
+run_id="$(last_result | jq -r .run)"
+run_dir=".agentic/delegate/results/$run_id"
+grep -qF 'not-json' "$run_dir/harness.events.jsonl" || fail "raw handoff events were not retained"
+grep -qF 'pi diagnostic' "$run_dir/harness.log" || fail "Pi stderr was not retained separately"
+[[ "$(last_result | jq -r .outcome)" == green ]] || fail "progress changed the handoff ledger outcome"
+runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the progress handoff"
+
+handoff 0 good --progress quiet
+if grep -q 'progress:' "$WORK/handoff.out"; then fail "quiet handoff emitted progress lines"; fi
+run_id="$(last_result | jq -r .run)"
+runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the quiet handoff"
+
+# Killing the optional renderer cannot stop the harness, alter its exit status,
+# or prevent a green handoff from being audited and recorded.
+handoff 0 renderer-exit --progress summary
+[[ "$(last_result | jq -r .outcome)" == green ]] || fail "renderer exit changed the handoff outcome"
+run_id="$(last_result | jq -r .run)"
+grep -qF 'agent_start' ".agentic/delegate/results/$run_id/harness.events.jsonl" ||
+  fail "renderer exit lost the raw event stream"
+runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "could not clean the renderer-exit handoff"
 
 handoff 0 good
 branch="$(git branch --list 'handoff/*' --format='%(refname:short)' | head -n 1)"
@@ -824,10 +950,13 @@ drop_worktrees
 handoff 10 red
 [[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "a red gate after the session was not needs_frontier"
 drop_worktrees
-DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang
+DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_TIMEOUT=2 handoff 3 hang --progress summary
+grep -q 'progress: session running' "$WORK/handoff.out" || fail "a hung summary-mode handoff emitted no heartbeat"
 grep -q 'limit' "$WORK/handoff.out" || fail "a hung session did not report its time limit"
+[[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the timeout ledger outcome"
 drop_worktrees
-handoff 3 crash
+handoff 3 crash --progress summary
+[[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the crash ledger outcome"
 drop_worktrees
 [[ -z "$(git branch --list 'handoff/*')" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
   fail "handoff-clean --all left worktrees or branches behind"

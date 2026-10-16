@@ -9,7 +9,7 @@ if [[ "${1:-}" != "--confirm-token-use" ]]; then
   exit 2
 fi
 command -v pi >/dev/null 2>&1 || { echo "pi is required" >&2; exit 1; }
-[[ "$(pi --version)" == 1.2.0 ]] || { echo "Pi 1.2.0 is required" >&2; exit 1; }
+[[ "$(pi --version)" == 1.3.0 ]] || { echo "Pi 1.3.0 is required" >&2; exit 1; }
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"

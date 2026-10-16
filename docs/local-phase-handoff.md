@@ -1,7 +1,8 @@
 # Local phase handoff — draft spec
 
 **Status:** v1 implemented (2026-10-15) as `delegate-run.sh handoff` and
-`handoff-clean`, smoke-tested with a stub harness; no real-model run yet.
+`handoff-clean`, including bounded live progress from Pi JSON events;
+smoke-tested with a stub harness, with no real-model run yet.
 Differences from the draft below: dependencies come from the stack's own
 `toolchain.sh install` in the worktree; a verified run is committed on its
 `handoff/<run>` branch so the orchestrator can review and `git merge
@@ -79,6 +80,7 @@ fingerprints, the ledger, and `policy` are reused:
 .agentic/delegate-run.sh handoff <spec-path> --allow-commit
                                              [--phase implement|test-first+implement]
                                              [--model <name>]
+                                             [--progress quiet|summary]
 ```
 
 1. **Refuse** unless: the human explicitly approved the temporary commit
@@ -101,6 +103,14 @@ fingerprints, the ledger, and `policy` are reused:
       --session-dir <result-dir>/session --mode json \
       "<handoff prompt>"
    ```
+
+   Pi stdout is retained verbatim as `results/<run>/harness.events.jsonl`;
+   Pi stderr remains `results/<run>/harness.log`. In an interactive terminal,
+   the runner consumes the JSONL concurrently and prints bounded lifecycle,
+   tool start/end, retry, compaction, and elapsed-time summaries. Redirected
+   runs default to quiet; `--progress quiet|summary` overrides the default.
+   Assistant text, reasoning, tool results, and unbounded arguments are never
+   rendered in the summary.
 
    The handoff prompt is fixed text plus the spec path and phase: run the
    named phases of the scaffold loop for this spec, follow `AGENTS.md`, use
@@ -161,7 +171,9 @@ upgrade starts a fresh record, as a runtime change does today.
   (it edits a planned file, or a forbidden file, or a test, or hangs, or
   exits non-zero) and asserts each exit status, the scope audit, the test
   hash check, the timeout, and the cleared environment (no unlisted
-  variable reaches the stub).
+  variable reaches the stub). It also streams representative Pi JSONL,
+  including malformed and unknown records, and checks bounded/redacted
+  summaries, raw-event retention, quiet mode, and unchanged ledger outcomes.
 - One recorded real run in a consumer project, graded by frontier review,
   before `/delegate` offers handoff by default.
 

@@ -118,7 +118,9 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   safety boundaries, and acceptance contract for bounded local-model
   delegation; its status header records the current implementation state.
   [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) hands a whole
-  phase to a local session. A Claude Code or Codex orchestrator can
+  phase to a local session, and
+  [`docs/delegated-progress.md`](docs/delegated-progress.md) specifies its
+  bounded live progress. A Claude Code or Codex orchestrator can
   delegate either way; the handoff session itself, and a fully local loop,
   run in Pi.
 
