@@ -306,6 +306,11 @@ Open:
   handoffs render compact live Pi tool, retry, and compaction events. Redirected
   runs stay quiet unless requested; raw reasoning, generated code, and full tool
   output remain out of the summary. Smoke-tested, with no real-model trial yet.
+- [`docs/resumable-handoff.md`](docs/resumable-handoff.md) is a draft follow-up:
+  replace the four-hour terminal handoff timeout with a renewable inactivity
+  lease, recoverable RPC-backed session segments, token-free status, and
+  `handoff-resume`; an absolute total ceiling becomes optional. The current hard
+  timeout remains until RPC plumbing and pause/resume acceptance pass.
 - `/unattended` (`--full`) prepares one feature to run with nobody
   watching (overnight or a day away): `start` asks every foreseeable
   decision up front and records standing consent in the spec, the run
