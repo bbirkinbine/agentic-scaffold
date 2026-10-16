@@ -1,7 +1,10 @@
 # Resumable local phase handoff — draft spec
 
-**Status:** direction approved; implementation not started
-**Last updated:** 2026-10-16
+**Status:** direction approved; RPC plumbing spike passed on macOS, Linux and
+inside Codex's sandbox (see [Plumbing spike](#plumbing-spike-2026-10-15));
+decisions settled; implementation starts with step 0 (prerequisite fixes to
+v1 handoff), then the plan below
+**Last updated:** 2026-10-15
 
 ## Goal
 
@@ -10,8 +13,8 @@ turning one fixed wall-clock duration into a destructive failure. Replace the
 current four-hour terminal timeout with:
 
 - a renewable inactivity lease that detects silence or a stuck operation;
-- a bounded session segment that ends at a recoverable checkpoint rather than
-  discarding the logical run;
+- a recoverable checkpoint (pause) rather than discarding the logical run
+  when the lease expires without activity;
 - `handoff-status` for deterministic, token-free inspection;
 - `handoff-resume` for continuing the same Pi session and worktree;
 - an optional absolute total ceiling for an operator or unattended policy that
@@ -93,15 +96,12 @@ The initial values are configuration, not claims about model capability. Start
 with a 60-minute inactivity lease and a 15-minute recovery/unknown grace, then
 tune from real event gaps. A model or project may require a longer lease.
 
-### 2. Four hours becomes a segment boundary, not a default hard kill
+### 2. No time-based segment boundary (decided 2026-10-15)
 
-At the segment boundary, the runner asks Pi to checkpoint at the next safe
-turn boundary. Productive work may cross any number of segments. There is no
-default absolute total duration.
-
-The boundary exists to keep one process and one diagnostic log bounded and to
-exercise resumability before an overnight session depends on it. It is not an
-assertion that the phase should be finished.
+A run continues for as long as the lease keeps renewing; the four-hour limit
+is removed rather than turned into a periodic checkpoint. A new segment starts
+only when a run pauses (lease expiry, operator stop, or the optional ceiling)
+and is resumed. There is no default absolute total duration.
 
 A configured absolute ceiling is still available for unattended policy or
 resource constraints. Reaching it produces the same checkpoint request first;
@@ -119,23 +119,43 @@ stack-neutral Bash runner:
 - `get_entries` provides a stable session-entry cursor for progress checks;
 - `steer` requests a checkpoint after the current assistant turn and its tools;
 - `clear_queue` plus `abort` provides a bounded forced-pause fallback;
-- closing stdin requests orderly shutdown after Pi settles.
+- closing stdin shuts Pi down promptly. It does **not** wait for the run to
+  settle: EOF during a run abandons it with no `agent_settled`. The runner
+  closes stdin only after `agent_settled` or a completed `abort`.
 
-The runner uses one parent-to-Pi FIFO and writes Pi stdout directly to the raw
-segment event log. A reader must continuously consume complete LF-delimited
-records, correlate command responses by ID, and preserve every session event.
-Pi stderr remains a separate diagnostic log. No shell pipeline may become the
-authoritative process status.
+The runner holds the only write end of a FIFO. An inline Perl supervisor (the
+same dependency `bounded` already uses) reads that FIFO and relays it into a
+real `pipe()` that is Pi's stdin, closing the pipe when the FIFO reaches EOF.
+Pi never reads the FIFO itself: on macOS, Node never sees EOF on a FIFO stdin.
+Bash process substitution would also give Pi a pipe, but Codex's macOS sandbox
+denies opening `/dev/fd/N`, which Bash 3.2 needs for it. Pi stdout goes
+directly to the raw segment event log, a regular file, so Pi can never block
+on a slow reader. The runner tails that file, consumes complete LF-delimited
+records, correlates command responses by ID, and preserves every session event.
+Pi stderr remains a separate diagnostic log. The supervisor also puts Pi in
+its own process group, records its pid, and writes its exit status atomically;
+that file, not a shell pipeline or `kill -0`, is the authoritative process
+status.
 
-Before replacing JSON mode, a plumbing spike must prove RPC startup, prompt,
-steer, abort, orderly shutdown, credential isolation, and session reopening on
-both macOS's system Bash and CI Linux. If a portable Bash RPC controller cannot
-meet those constraints, stop and reconsider a small shipped helper rather than
-silently falling back to destructive signals.
+The plumbing spike below established these constraints on macOS's system
+Bash 3.2, on Linux, and inside Codex's macOS sandbox. No separate shipped
+helper file is needed.
+
+The runner is launched **detached** from the orchestrator's tool call. A
+handoff runs for hours; Claude Code caps a foreground shell call at 10 minutes,
+and Codex commands are time-limited too. Because Pi exits as soon as the runner
+dies (stdin EOF), a tool timeout that killed an attached runner would also
+abandon the session mid-run. `handoff` therefore double-forks into a new
+session (`POSIX::setsid` in Perl; macOS has no `setsid` command), prints the
+run ID and status path, and returns at once. The orchestrator then calls
+`handoff-status <run> --wait <seconds>`. Each call blocks for at most the
+given time (below the client's tool limit), returns early when the run
+reaches a terminal or paused state, and exits with that outcome's status. All
+three clients use the same flow.
 
 ### 4. Pause only at a durable point when possible
 
-When the lease or segment boundary asks for a checkpoint:
+When lease expiry or the absolute ceiling asks for a checkpoint:
 
 1. Send a `steer` message instructing Pi to stop starting new implementation
    work, finish only the current safe operation, inspect the worktree, append a
@@ -148,9 +168,17 @@ When the lease or segment boundary asks for a checkpoint:
 6. Record the logical handoff as `paused` and exit with a distinct status.
 
 If Pi does not settle within the grace period, clear queued work and issue RPC
-`abort`. Only if RPC does not return idle may the runner use process-group
-`TERM`/`KILL`. Forced pause keeps the same artifacts but records that the last
-model generation, tool result, or file operation may be incomplete.
+`abort`. Only if RPC does not return idle may the runner use signals. Pi's
+bash tool runs each command in its own process group, so a signal to Pi's
+group alone does not reach a running tool: Pi's `TERM` handler kills those
+groups, but `KILL` orphans them. The fallback therefore sends `TERM` to Pi's
+group, waits, then enumerates Pi's live descendants (`ps -axo pid,ppid,pgid`)
+and kills their process groups before sending `KILL` to Pi. Codex's macOS
+sandbox denies `/bin/ps`. There the sweep is skipped and logged, the `TERM`
+grace is the only cleanup, and the result records that tool processes may
+have been orphaned. Forced pause keeps
+the same artifacts but records that the last model generation, tool result, or
+file operation may be incomplete.
 
 A pause never runs the final gate and never commits. It does run the scope,
 branch, HEAD, and implement-phase test-file audits. An out-of-plan change is
@@ -168,8 +196,12 @@ Add:
 
 `handoff-status` reads local state only. It reports the logical state, segment,
 worktree and process status, last event and age, active tool, retry/compaction
-counts, changed-path count, lease timing, segment timing, and any optional
-absolute ceiling. It sends no prompt and uses no model tokens.
+counts, changed-path count, lease timing, elapsed time, and any optional
+absolute ceiling. It sends no prompt and uses no model tokens. It never talks
+to the live Pi process: only the supervising runner holds the RPC pipe, so a
+second writer is impossible by construction. Status reads `state.json`, the
+segment's `status.json` and event log, and the append-only session file,
+which Pi writes entry by entry.
 
 `handoff-resume` refuses unless:
 
@@ -216,7 +248,7 @@ and secrets. Progress rendering remains bounded and redacted.
 
 A pause or resume segment is operational evidence, not a model outcome. Store
 append-only segment records separately from the terminal run result. Do not
-feed `paused`, lease renewal, segment rollover, or forced-pause records into
+feed `paused`, lease renewal, or forced-pause records into
 model selection or demotion.
 
 Only the final logical outcome is scored:
@@ -251,6 +283,7 @@ Proposed terminal outcomes:
 | --- | --- |
 | `0` | Full gate and scope audit passed; temporary handoff commit created |
 | `11` | Paused and resumable; no final gate or commit |
+| `12` | `handoff-status --wait` only: still running when the wait expired |
 | `10` | Session settled but final gate stayed red; frontier takes over |
 | `4` | Integrity violation; worktree retained |
 | `3` | RPC, process, endpoint, or verifier infrastructure failure |
@@ -262,8 +295,7 @@ session event, whether the stop was graceful or forced, and the exact
 
 ## Migration
 
-- Introduce `DELEGATE_HANDOFF_LEASE_SECONDS`,
-  `DELEGATE_HANDOFF_SEGMENT_SECONDS`, and optional
+- Introduce `DELEGATE_HANDOFF_LEASE_SECONDS` and optional
   `DELEGATE_HANDOFF_MAX_TOTAL_SECONDS` as temporary environment controls.
 - Move stable values into the private machine profile only after field evidence
   establishes which belong per model versus per checkout.
@@ -296,8 +328,8 @@ Extend the loopback handoff harness to emulate Pi RPC and prove:
 2. frequent meaningful activity renews a short lease without invoking a model
    or pausing the segment;
 3. repeated retries do not renew the full lease indefinitely;
-4. a segment boundary queues one checkpoint steer and pauses at
-   `agent_settled` without a signal;
+4. lease expiry or the absolute ceiling queues one checkpoint steer and pauses
+   at `agent_settled` without a signal;
 5. an unresponsive segment receives clear/abort, then process-group termination
    only after grace expires;
 6. pause performs plan, branch, HEAD, and test-file audits but does not run the
@@ -317,8 +349,8 @@ Extend the loopback handoff harness to emulate Pi RPC and prove:
     compatibility period;
 14. every generated stack receives a byte-identical runner.
 
-After deterministic smoke coverage, run one real local-model trial that crosses
-a deliberately short segment boundary, resumes the same session, passes the
+After deterministic smoke coverage, run one real local-model trial that hits a
+deliberately short absolute ceiling, pauses, resumes the same session, passes the
 full gate, and receives frontier review. Do not replace the current handoff
 path by default before that evidence exists.
 
@@ -337,21 +369,257 @@ path by default before that evidence exists.
 
 - Pi 1.3.0 [Sessions and Context](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/sessions.md), retrieved 2026-10-16, MIT: persisted sessions, `--session`, `--session-dir`, and continuation semantics.
 - Pi 1.3.0 [RPC Mode](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/rpc.md) and [RPC Commands](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/rpc-commands.md), retrieved 2026-10-16, MIT: strict JSONL framing, asynchronous command correlation, `prompt`, `steer`, `clear_queue`, `abort`, `get_state`, `get_entries`, `agent_settled`, session switching, and orderly shutdown.
+- Pi 1.3.0 [RPC Extension UI](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/rpc-extension-ui.md) and [JSON Event Stream](https://github.com/earendil-works/pi/blob/v1.3.0/packages/coding-agent/docs/json.md), read from the installed npm package on 2026-10-15, MIT: dialog methods block until an `extension_ui_response`; `ctx.hasUI` is true in RPC mode; event and retry record shapes.
 
 These references establish Pi's interfaces, not that the proposed Bash
 controller or recovery semantics work. The plumbing spike and acceptance tests
 must establish that locally.
 
-## Open questions before implementation planning
+## Plumbing spike (2026-10-15)
 
-1. Can the existing Bash runner control Pi RPC portably with FIFOs and ordinary
-   file descriptors on macOS Bash 3.2 and CI Linux, including cancellation and
-   process-group cleanup?
-2. Should the segment boundary default remain four hours, or be disabled until
-   real completion-time evidence exists?
-3. Which event gaps are normal for the current local endpoint during long
-   inference and long tools?
-4. Should a graceful paused segment exit immediately with 11, or may unattended
-   mode resume it automatically under standing consent?
-5. How should a human extend an optional absolute ceiling while a segment is
-   live without introducing a separate daemon?
+**Question:** can the stack-neutral Bash runner drive Pi 1.3.0 RPC portably,
+with no new runtime dependency? **Answer: yes**, with three changes to the
+draft design: Pi's stdin is a supervisor-relayed pipe rather than the FIFO
+itself, stdin EOF is not a graceful stop, and signal fallback must reach tool
+process groups. A follow-up the same day added the orchestrator side: the
+runner must launch detached, and under Codex it needs network access.
+
+**Setup.** A Bash controller library and sixteen scenarios, kept out of the
+repository as spike code, driving real `pi` 1.3.0 against
+`scripts/delegate-stub-server.py` on 127.0.0.1. Pi ran exactly as `handoff`
+runs it: `env -i` with only `PATH`, `HOME`, `LANG`, `TERM=dumb`,
+`PI_CODING_AGENT_DIR=<per-run dir with generated models.json>` and the
+credential variable, then
+`pi --mode rpc --approve --provider stub --model stub-model --session-dir <dir>`.
+Platforms: macOS 26 `/bin/bash` 3.2.57 (Node 26.8), and Docker
+`node:24-bookworm-slim` with Bash 5.2.15, Node 24.22 and
+`@earendil-works/pi-coding-agent@1.3.0` (CI uses ubuntu-latest, Node 24, Pi
+1.3.0). Both platforms produced the same result in every scenario. This shows
+plumbing only. A stub endpoint says nothing about real-model behaviour.
+
+| # | Requirement | Observed |
+| --- | --- | --- |
+| 1 | Start with isolated provider and cleared environment | `get_state` reports provider `stub`, model `stub-model`; stub received `Authorization: Bearer <value of the named variable>`; no global `~/.pi` extension records appeared |
+| 2 | Correlate commands | `prompt`→`{"id":"c1","type":"response","command":"prompt","success":true,"data":{"disposition":"started"}}`; `steer`→`disposition:"queued"`; a second `prompt` during a run without `streamingBehavior`→`success:false`; malformed input→`{"type":"response","command":"parse","success":false,…}` with no ID; `get_entries` with an unknown `since`→`success:false` |
+| 3 | Retain stdout/stderr, keep exit status | stdout as a regular file never blocks Pi; records up to 1,815,032 bytes (`tool_execution_end` for 200 KB of output) parsed; U+2028 inside strings did not split records; stderr separate; exit status from the supervisor file matched `waitpid` |
+| 4 | Checkpoint and `agent_settled` | During a `sleep 3` tool: `queue_update` (steer queued) → `tool_execution_end` → `turn_end` → `queue_update` (drained) → next model request carried the steer text and the tool result → `agent_settled {"aborted":false}` |
+| 5 | Shutdown by closing stdin | Idle: exit 0 in 120–160 ms. **During a run: exit 0 in ~130 ms with no `agent_settled`**; the session keeps the user prompt and no reply |
+| 6 | Reopen persisted session | `--session <file>` with the same `--session-dir`: same `sessionFile`, `messageCount` 3, `get_entries since=<last leafId>` empty, next request carried prior history. After a forced abort, reopen sent `["system","user","user"]` (original task, then resume prompt). `--session-id <uuid>` creates or reopens a runner-chosen ID |
+| 7 | Timeout and cancellation | `abort` against a 60 s silent request: `agent_settled {"aborted":true}` then the abort response, 180–270 ms, `isStreaming:false` afterwards. `abort` during `sleep 300` in a tool killed it in 90–420 ms. Fake Pi ignoring `TERM` with a grandchild: group `KILL` cleaned both (exit 137). Controller `SIGKILL`: Pi exited in ~110 ms (stdin EOF) |
+| 8 | macOS Bash 3.2 and Linux | Same results; constraints below |
+| 9 | No model calls for status, one writer | 15 `get_state`/`get_entries`/`get_session_stats` calls after a run: 1 model request total. Only the runner holds the pipe |
+
+**Failures found and their fixes:**
+
+- **FIFO stdin never reaches EOF on macOS.** With a FIFO, no writer remained
+  (`lsof`) but Pi kept running; plain Node reproduced it (`data` but no `end`).
+  Linux delivers EOF. Process substitution (`exec 8> >(…)`) fixed it outside
+  Codex but failed inside Codex's sandbox (`/dev/fd/62: Operation not
+  permitted`). The final design keeps the FIFO for the runner and has the Perl
+  supervisor relay it into a `pipe()`. Perl's blocking `sysread` sees FIFO EOF
+  on macOS. All scenarios passed again on macOS, inside the sandbox, and on
+  Linux.
+- **EOF is not graceful** (row 5). Pi 1.3's "orderly shutdown" disposes the
+  runtime; it does not finish the run. Close stdin only after settling.
+- **Tool commands run in their own process groups.** With `sleep 300` in a
+  tool, Pi's pgid was 28593 and the tool's 28662. Group `TERM`: Pi cleaned up
+  the tool (exit 143). Group `KILL`: the tool survived as an orphan (exit
+  137). This also applies to today's 4-hour timeout (`TERM`, 2 s, `KILL`).
+- **Extension dialogs block in RPC mode.** `ctx.hasUI` is true in RPC (false
+  in print mode). A project extension calling `ctx.ui.confirm` hung the run
+  until answered. Auto-answering `{"type":"extension_ui_response","id":…,"cancelled":true}`
+  let it settle (the tool was blocked as the extension chose). The scaffold's
+  own `agentic-hooks.ts` and `pi-subagents` only emit fire-and-forget
+  `notify`/`setWidget` records.
+- **An unknown model ID does not fail startup.** `--model no-such-model`
+  printed a stderr warning and used it as a custom ID (exit 0). The runner
+  must compare `get_state` provider/model with the profile before prompting.
+
+**Orchestrator-side follow-up (same day).** Checked with
+`codex sandbox` from codex-cli 0.162.1 (the repository's live acceptance pins
+0.146.0). It applies Codex's seatbelt policy to a command with no model call.
+
+- *Network.* Built-in profiles `:workspace` and `:read-only` blocked even
+  loopback (`curl` to the stub: exit 7), so the runner's endpoint check and
+  Pi's model calls fail. The legacy
+  `-c sandbox_workspace_write.network_access=true` had no effect on a
+  permission profile. A profile extending `:workspace` with network enabled
+  worked: `-c 'permissions.handoff.extends=":workspace"'
+  -c 'permissions.handoff.network.enabled=true' -P handoff` → HTTP 200. Under
+  it, the steer, reopen, abort, EOF, parent-kill, status and unresponsive
+  scenarios matched the unsandboxed results.
+- *Pi packages.* In a `custom --full` project, Pi's startup `npm install` of
+  `pi-subagents` failed: DNS (`ENOTFOUND`) under `:workspace`, and `EPERM`
+  on `~/.npm/_cacache` with network enabled. Pi then exited. Adding
+  `npm_config_cache=<result dir>/npm-cache` to Pi's cleared environment fixed
+  it. A fresh worktree never has the ignored `.pi/npm/`, so every handoff
+  installs the package again unless the runner seeds it from the primary
+  checkout.
+- *Process listing.* `/bin/ps` is denied, so the descendant sweep cannot run
+  there (see decision 4).
+- *Detached launch.* A caller in its own process group launched the spike
+  runner through a Perl double fork with `setsid`, then was `SIGKILL`ed as a
+  group after 2 s. The runner finished its steer and abort scenarios on macOS,
+  on Linux, and inside the sandbox. Launched from a sandboxed command that
+  exited at once, the runner also finished, and it kept the sandbox's network
+  permission.
+
+**Bash constraints the controller must respect** (each one broke the spike):
+
+- Never call controller functions inside `$(…)`. The subshell shares the fd 9
+  read offset, so it consumes records, but drops the state it parsed
+  (`agent_settled` was lost). Its `exec 8>&-` also leaves the parent's writer
+  open. Return results in globals.
+- `kill -0` is true for an unreaped zombie, and Bash 3.2 has no
+  `wait -n`, no `$!`/`wait` for process substitution, no `coproc`, no `{fd}`
+  allocation, no `$'\u…'`, and no fractional `read -t`. Use fixed fds (8, 9),
+  `sleep 0.1` polling, and the supervisor's exit file.
+- Every long-lived child started while fd 8 is open must get `8>&-`. A
+  `sleep 600` that inherited it kept Pi alive after the controller died.
+- The supervisor reaps Pi on its next 0.5 s poll. After a forced `KILL`, wait
+  for the status file to appear before reading it. Linux exposed this race
+  (an empty exit status); three Linux repeats then reported 137.
+- `${line%pattern}` on a 1.8 MB record ran for more than 20 s in Bash 3.2 and
+  5.3, in both UTF-8 and C locales. Prefix `case` matching, `${line:0:40}`,
+  and one `jq` call each took under 0.1 s. Route `message_update` records by
+  prefix and never use suffix removal on records.
+
+**Found outside RPC (affects v1 handoff today).** Running real Pi with
+`--approve` in a fresh `custom --full` project installed `pi-subagents` into
+`.pi/npm/` (network required) and left `?? .pi/npm/.gitignore` untracked: Pi
+writes `*` / `!.gitignore` there, so the file un-ignores itself. JSON print
+mode reproduced this. The handoff scope audit lists untracked files, so a real
+`handoff` in a `--full` project would integrity-stop on its first run, and a
+primary checkout where Pi has run fails the clean-tree precondition. The
+stub-harness smoke test cannot see it.
+
+**Event volume.** Each tool update repeats cumulative output: 200 KB of
+output produced a 4.9 MB event log. JSON mode has the same behaviour today. The
+pump routes tool updates without `jq`, and the status packet stays bounded.
+
+## Implementation plan (approved 2026-10-15)
+
+Ordered so that each step leaves the gates green.
+
+0. **Separate prerequisite fix** (its own PR, since it affects v1 today):
+   ignore `.pi/npm/` in `stacks/{python,typescript,custom}/project/.gitignore`
+   (and any other flavor that installs `.pi/settings.json`), with a
+   `scripts/bootstrap-stack.sh` `--update` migration like the existing
+   `.agentic/delegate/` entry, and a smoke assertion that a real
+   `pi --approve` start in a `--full` project leaves `git status` clean. Also
+   give today's `bounded` hard-timeout path the descendant-group sweep before
+   `KILL`, and set `npm_config_cache` inside the run directory in Pi's
+   environment (seeding the worktree's `.pi/npm/` from the primary checkout
+   when present).
+1. **`workflow/bin/delegate-run.sh`** (single source; the renderer copies it
+   to every flavor):
+   - RPC controller functions (`rpc_start`, `rpc_send`, `rpc_pump`,
+     `rpc_await`, `rpc_await_settled`, `rpc_shutdown`, `rpc_kill_tree`) as
+     spiked (FIFO plus Perl relay supervisor), plus dialog auto-cancel logged
+     to the segment log and a model/provider check from `get_state`.
+   - Detached launch: `handoff` validates preconditions in the foreground
+     (refusals still exit 2 synchronously), then double-forks with `setsid`,
+     prints the run ID, status path and the next command, and exits 0.
+     `--foreground` keeps today's attached behaviour for terminals and tests.
+     `handoff-resume` launches the same way.
+   - Lease/segment supervisor loop: activity classifier per the decision-1
+     table, `steer` checkpoint, grace, `clear_queue`+`abort`, signal fallback;
+     writes `segments/NNNN/{events.jsonl,harness.log,status.json}`.
+   - `state.json` for the logical run (snapshot SHA, spec and plan hashes,
+     fingerprint, session file and ID, last entry cursor, segment list,
+     absolute-ceiling deadline), written atomically.
+   - `cmd_handoff` switches to RPC segments; pause path runs `audit_handoff`
+     without the gate; exit 11.
+   - `cmd_handoff_status [--wait <s>]` (read-only; waits at most `<s>`, returns
+     early on a terminal or paused state, and exits with that outcome's code,
+     or 12 "still running" when the wait expires) and `cmd_handoff_resume` (refusal list
+     from decision 5, reopen with `--session`, one fixed resume prompt).
+   - `render_pi_event` reused for RPC events; `watch_pi_events` replaced by
+     the pump in the controller process, so no second reader exists.
+   - Env controls `DELEGATE_HANDOFF_LEASE_SECONDS`,
+     `DELEGATE_HANDOFF_MAX_TOTAL_SECONDS`,
+     `DELEGATE_HANDOFF_GRACE_SECONDS`; legacy `DELEGATE_HANDOFF_TIMEOUT` keeps
+     its hard meaning with a deprecation warning. Usage text and exit table.
+   - Ledger: segment records go to `segments/`, not the ledger; one terminal
+     ledger line per logical run.
+2. **`scripts/delegate-stub-server.py`**: optional streamed `tool_calls`
+   responses (the spike's queue format already works), and a `.hang` marker
+   that holds a request until the client disconnects.
+3. **`scripts/smoke-test-delegate.sh`**: a stub RPC harness (Bash script that
+   speaks the JSONL protocol, scripted per mode) covering acceptance items
+   1–13, plus a real-Pi-against-loopback block (skipped when `pi` is absent)
+   for steer→settle, abort, EOF, reopen, dialog cancel, and the tool-group
+   sweep. CI already installs Pi 1.3.0, so CI exercises the real-Pi block.
+4. **`workflow/commands/delegate.md`** ("Phase handoff") and
+   **`workflow/commands/unattended.md`**: one flow for Claude Code, Codex and
+   Pi orchestrators: launch (returns at once), then repeat
+   `handoff-status <run> --wait 540` until it is no longer 12 (540 s stays
+   under Claude Code's 10-minute tool limit), then act on the exit code
+   (0/10/11/4/3). Exit 11 handling and `handoff-resume`; unattended behaviour
+   per decision 3 below. A **Codex note**: the handoff needs network access
+   to the local endpoint (and to the npm registry when Pi packages are not
+   seeded); in Codex's default workspace sandbox, ask the human to approve
+   running it outside the sandbox or with a network-enabled permission
+   profile, or to run it in a terminal. Do not edit the project's Codex
+   sandbox configuration from the command.
+5. **Docs**: this spec (status), `docs/local-phase-handoff.md` (RPC,
+   exit 11, pause/resume), `workflow/docs/` user-facing section if
+   `/delegate` docs live there, `AGENTS.md` current state, README if commands
+   are listed there; `docs/influences.md` only if an outside source prompted
+   a change (none so far beyond Pi's docs, already cited here).
+6. `bash scripts/render-client-surfaces.sh`, then every gate in `AGENTS.md`.
+
+The default 14,400 s hard limit stays until steps 1–3 pass and one real
+local-model trial pauses at a short ceiling and resumes (acceptance
+plan, final paragraph).
+
+## Decisions (settled 2026-10-15)
+
+1. Step 0 ships first as its own PR.
+2. No time-based segment boundary; the lease alone governs a live run.
+3. `/unattended` may resume a paused run itself, with no count limit, under
+   its standing consent. Each pause and resume is logged under
+   `## Unattended decisions`; the optional absolute ceiling, when configured,
+   still stops it.
+4. Extension dialogs are auto-cancelled and logged.
+5. An absolute ceiling is raised by pausing and resuming with
+   `handoff-resume --max-total <s>`; no live channel.
+6. `handoff` launches detached by default; `--foreground` stays.
+7. Codex network access is documented (approve or run outside the sandbox);
+   the scaffold ships no Codex permission profile.
+8. Each pause writes a `### Paused handoff` note in the spec.
+
+## Cleanup when a background run exits early
+
+Checked on macOS and Linux with a tool command (`sleep 300`) running:
+
+| What dies | Observed | Left behind |
+| --- | --- | --- |
+| Runner (`SIGKILL`) | Supervisor sees FIFO EOF, closes Pi's stdin; Pi exits and kills its tool; supervisor writes exit status 0 | Lock, `state.json` saying running, worktree |
+| Runner and supervisor (`SIGKILL`) | Pi's stdin pipe closes; Pi exits and kills its tool | Same, and no exit-status file |
+| Pi itself (`SIGKILL` or hard crash) | Tool process group survives (spike `group-KILL`) | Orphaned tool, plus the above |
+| Graceful pause, verified finish, or forced abort | Runner cleans up normally | Worktree only (by design) |
+
+The runner cannot run a cleanup trap after `SIGKILL`, so the remaining
+cleanup happens on the next touch, without a daemon:
+
+- The lock records the runner's PID and, where `ps` is allowed, its start
+  time. A command that finds the lock held by a process that no longer exists
+  (or a reused PID with a different start time) reports it and takes the lock
+  over. Inside Codex's macOS sandbox, `ps` is denied, so a reused PID can make
+  a stale lock look live; the message names the lock to remove by hand.
+- `state.json` records runner, supervisor and Pi PIDs and the tool process
+  groups last seen in `tool_execution_start`. `handoff-status` reports such a
+  run as `orphaned` when none of them is alive and no terminal state was
+  written. If a recorded tool process group is still alive, it reports that
+  too.
+- `handoff-resume` accepts an `orphaned` run like a forced pause: it first
+  kills any surviving recorded tool group, runs the same scope and test-file
+  audits, then reopens the session. `handoff-clean` does the same kill before
+  removing the worktree.
+- Process inspection uses `kill -0` on recorded PIDs and process groups (checked inside Codex's sandbox: probe and group `TERM` both work), not
+  `ps`, so it also works inside Codex's sandbox.
+
+Still open, to be answered by field evidence rather than decisions: normal
+event gaps for the local endpoint during long inference and long tools, which
+set the initial 60/15-minute lease values.
