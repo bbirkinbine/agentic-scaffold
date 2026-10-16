@@ -181,7 +181,7 @@ Read top-down: everything in a tier includes the tiers above it.
   skills as `/skill:<name>`.
 - **Agents:** Claude Markdown, Codex TOML, and Pi Markdown adapters for
   `planner`, `test-first`, `reviewer`
-- **Hooks:** `branch-check` (warn on `main`), `block-destructive`
+- **Hooks:** `branch-check` (warn on `main` or an already-dirty checkout), `block-destructive`
   (deny unrecoverable Bash), `specs-status` (refresh the spec dashboard),
   `gate-on-stop` (block turn-end while the source tree is dirty and
   `.agentic/toolchain.sh gate` is red — remove with `--no-stop-gate`),

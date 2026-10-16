@@ -314,6 +314,14 @@ Create it as soon as a spec or issue exists, without waiting to be asked.
 
 One branch per spec / unit of work.
 
+## One writing agent per checkout
+
+A checkout has one session editing it. A second agent that will edit files
+starts in its own worktree on its own branch (`git worktree add
+../<repo>-<branch> -b <branch>`; see `docs/parallel-agents.md` where installed)
+and removes it after the PR merges. If a session starts with uncommitted changes
+it did not make, ask before editing; the SessionStart warning flags them.
+
 ## Before the Implement phase
 
 Run `git branch --show-current`; on `main` or `master`, stop and branch. The

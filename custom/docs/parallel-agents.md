@@ -74,6 +74,9 @@ Conventions that keep this sane:
 
 - **One worktree per spec/branch**, named after the branch. Remove it
   when the PR merges (`git worktree remove ../myproj-42-user-prefs`).
+- **One writing agent per checkout, including the main one.** The
+  SessionStart hook warns when a session opens on uncommitted changes it
+  did not make; treat that as a second writer and move to a worktree.
 - **Partition file ownership in the specs.** Each spec's `## Non-goals`
   should exclude the files the other stream owns. Two agents editing
   one module is a merge conflict you scheduled on purpose.

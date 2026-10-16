@@ -176,6 +176,10 @@ Don't claim a change is "ready" without at least:
 
 - Use a dedicated branch for feature and fix work. Do not write those
   changes directly on `main` or `master`.
+- One writing agent per checkout. A second agent that will edit files
+  starts in its own worktree on its own branch (`git worktree add
+  ../<repo>-<branch> -b <branch>`). If a session starts with uncommitted
+  changes it did not make, ask before editing.
 - Do not run `git commit` or `git push` without an explicit instruction
   from the human in the current conversation.
 - Treat hooks and command rules as guardrails, not as authorization for an

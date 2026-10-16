@@ -178,7 +178,7 @@ gate" stops being a failure mode.
 ```mermaid
 flowchart LR
     W["your work<br/>(edit · run · commit)"]
-    SS["Session start"] --> SSb["shared branch-check.sh<br/>warn if on main"] --> W
+    SS["Session start"] --> SSb["shared branch-check.sh<br/>warn if on main or tree already dirty"] --> W
     RL["reading src/** or tests/**"] --> RLb["AGENTS.md standing rules<br/>+ Claude path-scoped adapters"] --> W
     W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
     W --> POST["after each edit tool<br/>(Claude Edit/Write · Codex apply_patch)"] --> POSTb["toolchain.sh format<br/>(+ lint · typecheck with --strict-hooks)"]
