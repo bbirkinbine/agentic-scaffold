@@ -279,9 +279,13 @@ search is recorded before launching.
    The launch returns at once (exit 2 if refused) and prints the run id; the
    session runs detached for as long as it keeps working. Do not edit the
    repository while it runs.
-2. Wait with `bash .agentic/delegate-run.sh handoff-status <run> --wait 540`.
+2. Wait with
+   `bash .agentic/delegate-run.sh handoff-status <run> --wait 540 --interval 60`.
    It reads local files only and costs no tokens. Repeat it while it exits 12
-   (still running); 540 seconds stays under every client's tool time limit.
+   (still running), adding `--since <cursor>` with the `cursor:` value the
+   previous call printed, so each snapshot summarizes only what happened
+   since; 540 seconds stays under every client's tool time limit. The
+   interim lines show liveness, not progress: do not report them as work done.
 3. Act on the exit status:
    - 0: verified (full gate green, only plan files changed, no test file in
      an implement-only phase) and committed on `handoff/<run>`. Read the
