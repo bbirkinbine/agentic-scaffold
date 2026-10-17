@@ -26,7 +26,8 @@ args=("--$PROFILE")
 if [[ -n "$STRICT" ]]; then
   args+=("$STRICT")
 fi
-bash "$REPO_DIR/python/bootstrap.sh" "${args[@]}"
+boot_out="$(bash "$REPO_DIR/python/bootstrap.sh" "${args[@]}")"
+printf '%s\n' "$boot_out"
 
 # --- file-set assertions per profile ---
 
@@ -52,6 +53,21 @@ must pyproject.toml
 must .pre-commit-config.yaml
 must .agentic/scaffold-state
 must .agentic/scaffold-managed-files
+if ! grep -Eq '^SCAFFOLD_REVISION=([0-9a-f]{40}(-dirty)?|unknown)$' .agentic/scaffold-state; then
+  echo "SMOKE FAIL ($PROFILE): scaffold-state lacks SCAFFOLD_REVISION" >&2
+  exit 1
+fi
+if ! grep -q 'scripts/protect-main.sh' <<<"$boot_out"; then
+  echo "SMOKE FAIL ($PROFILE): bootstrap did not print the protect-main reminder" >&2
+  exit 1
+fi
+delegation_hint=0
+grep -q 'delegate-run.sh init' <<<"$boot_out" && delegation_hint=1
+if [[ "$PROFILE" == full && "$delegation_hint" == 0 ]] ||
+  [[ "$PROFILE" != full && "$delegation_hint" == 1 ]]; then
+  echo "SMOKE FAIL ($PROFILE): delegation next steps belong to --full only" >&2
+  exit 1
+fi
 must .claude/settings.json
 must .agentic/hooks/block-destructive.sh
 must .agentic/hooks/statusline.sh
@@ -299,9 +315,13 @@ run_profile_transition_matrix() {
 
   (
     cd "$root"
-    bash "$REPO_DIR/python/bootstrap.sh" --update --full >/dev/null
+    bash "$REPO_DIR/python/bootstrap.sh" --update --full >"$log"
   )
   state_must_equal "$root" PROFILE full
+  if ! grep -q 'delegate-run.sh init' "$log"; then
+    echo "SMOKE FAIL ($PROFILE): --update --full did not print delegation next steps" >&2
+    exit 1
+  fi
   transition_must "$root" .agents/skills/security/SKILL.md
   transition_must "$root" .pi/prompts/security.md
   transition_must "$root" docs/parallel-agents.md

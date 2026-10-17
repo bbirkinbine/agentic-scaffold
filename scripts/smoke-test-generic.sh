@@ -18,7 +18,7 @@ git -C "$fresh" init -q
 (
   cd "$fresh"
   bash "$REPO_DIR/generic/bootstrap.sh"
-)
+) | tee "$WORK_DIR/fresh-bootstrap.out"
 
 for path in \
   AGENTS.md \
@@ -39,6 +39,12 @@ for path in \
   docs/pi-agent.md; do
   [[ -e "$fresh/$path" ]] || fail "missing fresh-project file: $path"
 done
+
+grep -Eq '^SCAFFOLD_REVISION=([0-9a-f]{40}(-dirty)?|unknown)$' \
+  "$fresh/.agentic/scaffold-state/scaffold-revision" \
+  || fail "fresh project lacks the scaffold revision"
+grep -q 'scripts/protect-main.sh' "$WORK_DIR/fresh-bootstrap.out" \
+  || fail "bootstrap did not print the protect-main reminder"
 
 [[ "$(cat "$fresh/CLAUDE.md")" == '@AGENTS.md' ]] \
   || fail "fresh CLAUDE.md does not import canonical AGENTS.md"

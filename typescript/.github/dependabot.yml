@@ -12,6 +12,10 @@
 # Updates are grouped to cut PR noise: one PR per ecosystem for the
 # routine patch/minor bumps, separate PRs only for majors (which deserve
 # individual review). Tune open-pull-requests-limit / interval per repo.
+#
+# @types/node majors are ignored: they track the Node runtime major, which
+# changes deliberately together with .nvmrc and package.json engines. The
+# gate cannot catch types written for a newer Node than the project runs.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -19,6 +23,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         update-types:

@@ -1343,6 +1343,23 @@ prune_profile_transition() {
   fi
 }
 
+# Informational provenance: the scaffold commit that last wrote this project,
+# with -dirty when that checkout had uncommitted changes, or unknown for an
+# archive install. Update decisions never read it; per-file hashes decide.
+scaffold_revision() {
+  local top rev
+  top="$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "$top" || "$top" != "$(cd "$REPO_DIR" && pwd -P)" ]] ||
+    ! rev="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)"; then
+    echo unknown
+    return
+  fi
+  if [[ -n "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]]; then
+    rev="$rev-dirty"
+  fi
+  echo "$rev"
+}
+
 write_bootstrap_state() {
   local state_tmp="$RUNTIME_DIR/scaffold-state"
   local manifest_tmp="$RUNTIME_DIR/scaffold-managed-files.sorted"
@@ -1358,6 +1375,7 @@ write_bootstrap_state() {
     printf 'CODEX_CONFIG_HASH=%s\n' "$CODEX_CONFIG_HASH"
     printf 'CODEX_HOOKS_HASH=%s\n' "$CODEX_HOOKS_HASH"
     printf 'PI_SETTINGS_HASH=%s\n' "$PI_SETTINGS_HASH"
+    printf 'SCAFFOLD_REVISION=%s\n' "$(scaffold_revision)"
   } > "$state_tmp"
   cp "$state_tmp" "$STATE_FILE"
 
@@ -1407,7 +1425,21 @@ if [[ "$MIGRATION_PENDING" == 1 ]]; then
   exit 0
 fi
 
+# Local delegation is never configured by the bootstrap. Point a full
+# project at the setup sequence instead of leaving the runner to report
+# "off" with no next step.
+print_delegation_next_steps() {
+  [[ "$PROFILE" == full && -f "$DST_DIR/.agentic/delegate-run.sh" ]] || return 0
+  echo "Local delegation (optional): the runner is installed; nothing was activated."
+  echo "  If this machine runs a local inference server, follow /delegate ->"
+  echo "  \"Setting up local delegation\": name the endpoints, draft a machine profile"
+  echo "  with bash .agentic/delegate-run.sh init <base-url>, approve it, qualify"
+  echo "  candidates. Activation is a separate decision that needs explicit approval."
+  echo
+}
+
 if [[ "$MODE" == update ]]; then
+  print_delegation_next_steps
   echo "Update complete. Review what changed:"
   echo "  git diff"
   echo
@@ -1460,6 +1492,11 @@ if [[ -n "${STACK_BOOTSTRAP_NOTE:-}" ]]; then
   echo "$STACK_BOOTSTRAP_NOTE"
   echo
 fi
+print_delegation_next_steps
+echo "Protect main once the GitHub repo exists (day zero; the scaffold never"
+echo "changes repository settings on its own):"
+echo "  bash $REPO_DIR/scripts/protect-main.sh --dry-run   (or confirm a ruleset exists)"
+echo
 echo "Wire the commit guard: $STACK_DEV_INSTALL_HINT"
 echo "Read WORKFLOW.md next — it's in your project root and is the source"
 echo "of truth for what to do: day-zero setup and the per-feature loop."

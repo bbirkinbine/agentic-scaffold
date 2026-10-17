@@ -71,6 +71,9 @@ grep -q 'toolchain.sh` once filled' AGENTS.md || fail "AGENTS.md don't-touch lis
 ! grep -q 'pytest\|uv sync\|Vitest' AGENTS.md README.md \
   || fail "the contract or README names another stack's tools"
 grep -Fxq 'PROFILE=core' .agentic/scaffold-state || fail "persisted profile is not core"
+grep -Eq '^SCAFFOLD_REVISION=([0-9a-f]{40}(-dirty)?|unknown)$' .agentic/scaffold-state || fail "scaffold-state lacks SCAFFOLD_REVISION"
+grep -q 'scripts/protect-main.sh' "$WORK/bootstrap.out" || fail "bootstrap did not print the protect-main reminder"
+! grep -q 'delegate-run.sh init' "$WORK/bootstrap.out" || fail "--core printed delegation next steps"
 grep -q 'gate-on-stop.sh' .claude/settings.json || fail "Claude Stop hook not wired"
 grep -q 'toolchain.sh ready' .github/workflows/ci.yml || fail "consumer CI does not guard on ready"
 grep -q 'toolchain.sh gate' .github/workflows/ci.yml || fail "consumer CI does not call the runner's gate"

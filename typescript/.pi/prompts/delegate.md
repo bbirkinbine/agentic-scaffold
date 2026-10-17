@@ -12,6 +12,25 @@ implements the rule it states. Refuse the task rather than bending it —
 a packet that violates the preconditions is worse than no packet, because
 the failure will look like a model problem.
 
+## Setting up local delegation
+
+Until the machine profile has a `[[project]]` entry for this checkout,
+`bash .agentic/delegate-run.sh policy` prints `off`. Setup, each step
+stopping for the human (detail in `docs/project-types.md` → "Local
+delegation setup"):
+
+1. Ask which local inference endpoints to use (base URLs; for a server that
+   needs a key, the name of the environment variable holding it, never the
+   key).
+2. Run `bash .agentic/delegate-run.sh init <base-url> ...` and show the
+   draft profile. It writes nothing.
+3. Save it to `~/.config/agentic/local-models.toml` only after the human
+   approves it.
+4. Run `qualify <name>` on each candidate and report the results.
+5. Ask separately whether to activate. Only on an explicit yes run
+   `bash .agentic/delegate-run.sh activate`; never activate on your own
+   judgment.
+
 ## Preconditions — check all of them, and stop if any fails
 
 1. An active spec resolves under `AGENTS.md` → **Shared workflow protocols**
