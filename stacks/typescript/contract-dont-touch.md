@@ -1,1 +1,1 @@
-- `package.json` `engines` and the committed `package-lock.json` — ask first
+- `package.json` `engines` — ask first. Change `package-lock.json` only through npm, for dependencies the approved plan names

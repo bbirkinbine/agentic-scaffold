@@ -42,22 +42,25 @@ Revisit after the first incident.
 
 ## Accepted commands (safe to run unsupervised)
 
-Anything not on this list falls back to the default rule in `AGENTS.md`:
-ask first.
+This list names commands, not authority. When to ask follows `AGENTS.md` →
+**Approval matrix**: reversible in-plan work runs without asking after plan
+approval; scope expansion stops for the human; irreversible or publishing
+actions need explicit approval.
 
 **Read-only:** `git status`, `git diff`, `git log`, `git branch --show-current`,
 `rg`, `ls`, `cat`, `find` (non-destructive flags), `.agentic/toolchain.sh
 test | lint | typecheck | gate`, {{PROJECT_SPECIFIC_READ_ONLY}}.
 
 **Mutating but local-only:** `.agentic/toolchain.sh install | format`,
-adding a dependency with the stack's package manager (subject to the
-`dependency-hygiene` skill where installed),
+adding a dependency the approved plan names with the stack's package
+manager, lockfile change included (subject to the `dependency-hygiene` skill
+where installed; an unplanned dependency is scope expansion),
 `git switch -c <branch>`, `git switch <existing>`, `git stash`,
 `git restore <path>`, {{PROJECT_SPECIFIC_LOCAL_MUTATIONS}}.
 
 **Never on this list** (always require explicit approval):
-`git commit`, `git push` — see AGENTS.md "Commits and pushes require
-explicit approval". Anything matched by
+`git commit`, `git push`, and the other irreversible or publishing actions in
+`AGENTS.md` → **Approval matrix**. Anything matched by
 `.agentic/hooks/block-destructive.sh`. And the project-specific
 high-blast-radius commands: {{DEPLOY_SCRIPTS, MIGRATIONS_AGAINST_PROD,
 TERRAFORM_APPLY_ON_SHARED_STATE, NPM_PUBLISH, ETC}}.
@@ -86,12 +89,12 @@ git reset --soft HEAD~1    # undo last commit, keep changes staged
 
 ```bash
 git revert <sha>           # safe — creates a new commit that undoes it
-git push                   # (requires explicit approval — see AGENTS.md)
+git push                   # (requires explicit approval — AGENTS.md → Approval matrix)
 ```
 
 `git reset --hard` is recoverable via the reflog but still blunt — prefer
-`git reset --soft` above. Force-push is gated by the explicit-approval
-rule in AGENTS.md; never reach for it to "clean up" a branch.
+`git reset --soft` above. Force-push needs explicit approval
+(`AGENTS.md` → **Approval matrix**); never reach for it to "clean up" a branch.
 
 **Bad merge to main:** {{PROJECT_SPECIFIC_REVERT — open a revert PR
 with `gh pr create`, or use GitHub's "Revert" button on the merged PR.

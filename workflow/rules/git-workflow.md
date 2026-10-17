@@ -33,9 +33,8 @@ SessionStart warning and `no-commit-to-branch` hook are only backstops.
 
 ## Commits and pushes
 
-Never commit or push autonomously. Each commit needs an explicit current-chat
-instruction; pushing and `--force` each require a direct ask. Make the change,
-show `git status` and `git diff`, then wait.
+Commit and push only as `AGENTS.md` → **Approval matrix** allows: make the
+change, show `git status` and `git diff`, then wait.
 
 ## Pull requests
 

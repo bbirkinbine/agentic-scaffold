@@ -45,6 +45,25 @@ identities, not sequence. `0000-product.md` is context, never the active spec.
 End every deliberate stop with: what completed; why it stopped; what you need
 from the human; the exact command or reply that continues. Omit empty fields.
 
+### Approval matrix
+
+The one approval policy; other files add only their own exceptions.
+
+- **Runs without asking** once the plan (or Small spec) is approved:
+  reversible in-plan work: planned edits; gates, tests, linters, formatters;
+  installing plan-named dependencies (lockfile included); local reads; the
+  feature branch; re-reviews; in-scope fixes.
+- **Stop and ask:** spec approval, plan approval, scope expansion (a file,
+  behavior, or dependency the plan does not name), and `[ask-user]` or
+  `[DECISION NEEDED]` items.
+- **Explicit approval:** commit; push; PR create or merge; destructive acts
+  (deleting branches or data, history rewrite, force-push); repo, CI, or
+  protection settings; network publishing; activating local delegation;
+  handoff temporary commits (`/delegate`). "Commit and push" grants both; a
+  commit grant excludes push. Each commit needs its own approval unless the
+  human grants commits for the rest of one feature, recorded in its spec's
+  `## Standing decisions`; no grant covers force-push or merge.
+
 ### Semantic change set
 
 All semantic reviews (`/analyze`, both reviewers, and enabled specialists) use
@@ -102,7 +121,7 @@ to keep wide searches or noisy output out of the main context.
 | About to implement anything past trivial | `/test-first` before any implementation code |
 | Implementation done and `/review-check` is green | `/review` (and `/review-adversarial` on meaningful features) |
 | Need full test output, a wide survey, or doc fetches | A focused subagent |
-| Implementation needs files outside the approved plan, or Trivial/Small work outgrows its size row | Stop and ask the human first; re-size (Medium runs `/plan`) |
+| Implementation needs files outside the approved plan, or Trivial/Small work outgrows its size row | Stop and ask first; re-size (Medium runs `/plan`) |
 
 Subagents run on the session's model: pass no model override to a subagent
 or workflow unless the human names a model for that subagent.
@@ -123,18 +142,16 @@ A task between rows takes the larger one.
 ## Workflow expectations (Spec → Plan → Test-first → Implement → Verify)
 
 `WORKFLOW.md` owns the walkthrough and `docs/workflow-diagram.md` the diagram.
-For Medium/Large work, stop after drafting the spec for ownership and after
-Verify for commit authorization. Whenever `/plan` runs, stop after it for
-approval. Once the plan is approved and persisted, autodrive test-first →
-implement → docs → gate → review → fixes/re-review. Stop if tests, gates, or
-review invalidate the spec. Never commit without approval.
+Stop after the spec (Medium/Large), after any `/plan`, and after Verify for
+commit approval. Once the plan is approved and persisted, autodrive
+test-first → implement → docs → gate → review → fixes/re-review. Stop if
+tests, gates, or review invalidate the spec.
 
 Review findings are `[auto-fix]`, `[no-op]`, or `[ask-user]`. Apply
 `[auto-fix]`, sync docs, rerun the complete gate, and obtain a fresh focused
 review (full review for substantial fixes) until clear. Surface `[ask-user]`
-verbatim and stop unless the human explicitly authorized unattended shipping;
-with that consent recorded in the spec's `## Standing decisions`, answer and
-log it as `/unattended` describes.
+verbatim and stop; with `/unattended` consent in the spec's `## Standing
+decisions`, answer and log it as `/unattended` describes.
 
 - **Spec:** Before non-trivial work, create `docs/specs/NNNN-<feature>.md`
   with goal, criteria, non-goals, and external references. Use `/scope-check`
@@ -166,8 +183,6 @@ log it as `/unattended` describes.
   implementation and pass afterward.
 - **Multi-day work:** Append `## Phase handoff` at each phase boundary and
   resume in a fresh session.
-- If implementation needs files outside the approved plan, or Trivial/Small
-  work outgrows its size row, stop and ask first, then re-size.
 
 ## Detailed workflow guidance
 
@@ -308,9 +323,8 @@ SessionStart warning and `no-commit-to-branch` hook are only backstops.
 
 ## Commits and pushes
 
-Never commit or push autonomously. Each commit needs an explicit current-chat
-instruction; pushing and `--force` each require a direct ask. Make the change,
-show `git status` and `git diff`, then wait.
+Commit and push only as `AGENTS.md` → **Approval matrix** allows: make the
+change, show `git status` and `git diff`, then wait.
 
 ## Pull requests
 

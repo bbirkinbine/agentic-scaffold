@@ -181,7 +181,8 @@ Don't claim a change is "ready" without at least:
   ../<repo>-<branch> -b <branch>`). If a session starts with uncommitted
   changes it did not make, ask before editing.
 - Do not run `git commit` or `git push` without an explicit instruction
-  from the human in the current conversation.
+  from the human in the current conversation. "Commit and push" covers
+  both; a commit instruction alone does not cover push.
 - Treat hooks and command rules as guardrails, not as authorization for an
   action the human did not request.
 - Before reporting completion, show the validation evidence and summarize

@@ -283,7 +283,7 @@ and Pi; Codex uses the same name as `$<name>`.
 | `/delegate` | Hands work to a local model through `.agentic/delegate-run.sh`: one tested file per call (`files`) or a whole phase to a local session in a worktree (`handoff`), in the mode the human picks per run | Local implementation with frontier verification and review ([`local-executor.md`](local-executor.md)) | full |
 
 Two hard rules survive every profile: **CI is the gate you cannot skip**,
-and **you write the commit message** — the agent never commits for you.
+and **you write the commit message** — the agent never commits without your approval.
 
 The planning artifacts nest broad to narrow — **product spec (PRD) -> ADR
 -> spec** — and each has its own authoring flow in
