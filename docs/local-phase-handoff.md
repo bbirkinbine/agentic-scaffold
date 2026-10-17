@@ -148,7 +148,10 @@ fingerprints, the ledger, and `policy` are reused:
    - for `--phase implement`, no test path changed against the starting
      commit; for `test-first+implement`, test files are allowed and reported;
    - scope and test checks run before and after the gate, so verifier writes
-     cannot enter the final commit without being audited.
+     cannot enter the final commit without being audited;
+   - the same rules also run during the session, after tool calls, and stop
+     it early on a violation; the final audit stays the authority (see
+     [`resumable-handoff.md`](resumable-handoff.md) → Safety invariants).
 5. **Record and hand back.** Write `results/<run-id>/result.json` and one
    ledger line: mode `handoff`, phase, model, fingerprint (harness name and
    version included), wall time, gate outcome, scope outcome, and the
