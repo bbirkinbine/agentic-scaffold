@@ -176,7 +176,8 @@ The runner never merges, commits to the feature branch, or pushes.
 - `/unattended start` asks which phases go local and which model, and asks
   separately for authority to create temporary `handoff/<run>` commits. It
   records both as standing decisions; without the commit authority it uses
-  `files` or `none`.
+  `files` or `direct` (named `none` until 2026-10-16, still accepted as an
+  alias).
 - Any orchestrator client can call it: Claude Code, Codex, and Pi only run
   a shell command. Only the local session itself needs Pi.
 

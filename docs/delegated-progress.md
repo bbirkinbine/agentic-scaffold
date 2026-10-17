@@ -179,7 +179,7 @@ rendered.
 - A browser dashboard, notification service, RPC server, or multi-run monitor.
 - A persistent `progress.json`, `watch <run>`, or attachment protocol. Those
   remain possible follow-ups if terminal summaries prove insufficient.
-- Changing task routing among frontier implementation, `files`, and `handoff`.
+- Changing task routing among `direct`, `files`, and `handoff`.
 - Changing model qualification, scoring, demotion, retry, or review policy.
 - Implementing project-wide model/data-boundary policy.
 - Claiming local-model capability from progress output; only gate and review

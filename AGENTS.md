@@ -302,7 +302,8 @@ Open:
   handles both BSD and GNU stat. Regression coverage includes these paths;
   real-model handoff evidence remains open. Built after a local model
   (GLM-5.3) ran the full loop well with tools. Delegation is now an explicit
-  per-run mode (`none`, `files`, `handoff`) rather than implied by
+  per-run mode (`direct`, `files`, `handoff`; `none` was renamed `direct`
+  on 2026-10-16 and stays an alias) rather than implied by
   `policy = "auto"`. The single-file
   runner's scratch copy omitted ignored dependencies (`node_modules`), so
   its TypeScript typecheck and test steps were likely never verified in
