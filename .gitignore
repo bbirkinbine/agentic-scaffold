@@ -6,3 +6,6 @@
 .env
 .env.*
 !.env.*.example
+
+# Local-only working notes, including consumer-specific field-trial logs
+.private/
