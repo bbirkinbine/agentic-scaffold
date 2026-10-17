@@ -132,6 +132,16 @@ what quietly slips through, the pre-flip checklist) live in
 hygiene section of [`AGENTS.md.template`](AGENTS.md.template); both
 apply to this repo itself, not just to repos bootstrapped from it.
 
+Consumer-specific field-trial notes and running observation logs are internal
+working material. Keep them outside the repository or under the ignored
+`.private/` directory, and never link to them from tracked files. Keep a
+cumulative candidate backlog there: give proposals stable IDs, append new
+evidence, and retain deferred, superseded, and rejected items with their
+rationale rather than deleting them. Review the backlog as a set instead of
+turning each observation into an immediate scaffold change. Publish only the
+resulting reviewed, de-identified recommendations in the relevant design
+documentation after the evidence supports a change.
+
 ---
 
 ## Validation gates before claiming done
