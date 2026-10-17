@@ -228,6 +228,7 @@ launches the run:
 | `DELEGATE_HANDOFF_GRACE_SECONDS` | 600 | How long a checkpoint may take before the runner aborts the session |
 | `DELEGATE_HANDOFF_ABORT_SECONDS` | 60 | How long abort and shutdown may take before signals |
 | `DELEGATE_HANDOFF_MAX_TOTAL_SECONDS` | unset | Optional ceiling on active time across segments |
+| `DELEGATE_HANDOFF_SCOPE_CHECK_SECONDS` | 5 | Least time between in-flight scope checks (see Scope stops) |
 
 When the lease runs out with nothing new, or the ceiling is reached, or an
 operator stops the run, the runner asks the session to checkpoint: finish
@@ -235,6 +236,14 @@ the operation in progress, append a `### Paused handoff` note under
 `## Phase handoff` in the spec, and stop. It then audits scope and exits 11
 without running the gate or committing. A session that does not settle
 within the grace is aborted and recorded as a forced pause.
+
+**Scope stops.** The runner does not wait for the session to finish to
+check scope. After tool calls it applies the same rules as the final
+audit; a test edit in the implement phase, a path outside the plan, or a
+commit aborts the session at once and ends the run as an integrity stop
+(exit 4), with the worktree kept for inspection. That run cannot be
+resumed. After each context compaction the runner restates the scope
+rules to the session, since Pi's compaction summary may drop them.
 
 **Controls.**
 

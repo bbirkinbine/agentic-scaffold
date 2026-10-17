@@ -321,6 +321,20 @@ session event, whether the stop was graceful or forced, and the exact
 - No session/verifier commits before final verification.
 - No publication from paused work.
 - Scope and test-file audits before pause, before resume, and before commit.
+- In flight, the same scope rules are checked after tool calls (at most once
+  every `DELEGATE_HANDOFF_SCOPE_CHECK_SECONDS`, default 5, read-only with
+  `GIT_OPTIONAL_LOCKS=0`). A violation aborts the session at once, without a
+  checkpoint steer, records `early_scope_stop` in `state.json`, and the
+  unchanged post-segment audit ends the run as an integrity stop (exit 4,
+  worktree kept, no gate, no commit). Added 2026-10-16 after a field trial in
+  which a local model edited an implement-phase test after a compaction and
+  the audit refused it only when the session settled, 39 minutes later.
+- After each `compaction_end`, the runner sends one fixed steer restating
+  the scope rules (the plan's files, or their count when the list is long;
+  test immutability in the implement phase; no commit or branch change; stop
+  and record a conflict in `## Phase handoff` instead of editing a test).
+  Pi cannot append them to its default compaction summary. A steer that is
+  not accepted is reported as progress, not treated as a failure.
 - A forced pause is never described as a clean checkpoint.
 - Raw session artifacts stay ignored and are never copied into prompts for an
   AI status judge by default.

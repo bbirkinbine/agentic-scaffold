@@ -149,6 +149,10 @@
 # DELEGATE_HANDOFF_MAX_TOTAL_SECONDS
 # (unset) is an optional ceiling on active time across segments. The
 # deprecated DELEGATE_HANDOFF_TIMEOUT sets that ceiling.
+# DELEGATE_HANDOFF_SCOPE_CHECK_SECONDS (5) is the least time between in-flight
+# scope checks; each runs after a tool call, and a violation aborts the
+# session at once and ends the run as an integrity stop. After each
+# compaction the runner restates the scope rules to the session as a steer.
 #
 # Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
 # sha256sum or shasum.
@@ -1917,6 +1921,7 @@ rpc_start() {
   RPC_LAST_ACTIVITY="$(date +%s)"
   RPC_LAST_EVENT="" RPC_LAST_EVENT_AT="$RPC_LAST_ACTIVITY" RPC_ACTIVE_TOOL=""
   RPC_RETRIES=0 RPC_COMPACTIONS=0 RPC_RECOVERING=0 RPC_DIALOGS=0
+  RPC_TOOL_ENDED=0 RPC_COMPACTED=0
   mkdir -p "$SEG_DIR/responses" || return 1
   : >"$SEG_DIR/events.jsonl"
   : >"$SEG_DIR/harness.log"
@@ -2006,10 +2011,13 @@ rpc_pump() {
         RPC_LAST_ACTIVITY="$now"
         RPC_ACTIVE_TOOL="$(jq -r '.toolName // "tool"' <<<"$line")"
         ;;
-      tool_execution_end) RPC_LAST_ACTIVITY="$now"; RPC_ACTIVE_TOOL="" ;;
+      tool_execution_end) RPC_LAST_ACTIVITY="$now"; RPC_ACTIVE_TOOL=""; RPC_TOOL_ENDED=1 ;;
       auto_retry_start) RPC_RETRIES=$((RPC_RETRIES + 1)); RPC_RECOVERING=1 ;;
       compaction_start) RPC_COMPACTIONS=$((RPC_COMPACTIONS + 1)); RPC_RECOVERING=1 ;;
-      compaction_end) RPC_RECOVERING=0 ;;
+      compaction_end)
+        RPC_RECOVERING=0
+        [[ "$(jq -r '.aborted // false' <<<"$line")" == true ]] || RPC_COMPACTED=1
+        ;;
       agent_settled)
         RPC_SETTLED=1
         RPC_SETTLED_ABORTED="$(jq -r 'if .aborted == true then "true" else "false" end' <<<"$line")"
@@ -2207,40 +2215,58 @@ handoff_prompt() {
 You are a local model implementing one phase of an approved spec in an isolated worktree. Spec: $spec. Its plan is approved; the spec, its standing decisions, and its clarified decisions are final inputs.
 
 Run $phases, following AGENTS.md. Rules:
-- Change only the files the plan lists under "## Files to touch", plus the spec's own phase-handoff note.$( [[ "$phase" == implement ]] && printf '\n- The tests already exist and are the oracle: do not edit, add, or delete any test file. If a test looks wrong, stop and say so in the handoff note.' )
+- Change only the files the plan lists under "## Files to touch", plus the spec's own phase-handoff note. If the work needs a file the plan does not list, stop and say so in the handoff note.$( [[ "$phase" == implement ]] && printf '\n- The tests already exist and are the oracle: do not edit, add, or delete any test file. If a test looks wrong, stop and say so in the handoff note.' )
 - Do not use local delegation (.agentic/delegate-run.sh or /delegate) and pass no model override to any subagent.
 - Do not commit, push, or change branches. Do not ask the human anything: no one is watching. Where the spec leaves a choice open, pick the option that keeps the approved plan intact and record it in the handoff note.
 - Stop when /review-check is green, or when you are blocked. Before stopping, append a short "### After handoff" entry under "## Phase handoff" in the spec: what you did, any choice you made, and anything left red or blocked.
 PROMPT
 }
 
+handoff_head_ok() {
+  [[ "$(git -C "$1" rev-parse HEAD)" == "$SNAPSHOT_SHA" &&
+    "$(git -C "$1" symbolic-ref -q HEAD)" == "refs/heads/$2" ]]
+}
+
+# handoff_classify <wt> <spec> <phase> <dir> : the one scope rule set, shared
+# by the final audit and the in-flight check. Writes every path changed since
+# the starting commit (staged, unstaged, deleted, untracked) to <dir>/changed,
+# and those outside the plan, and test files changed in the implement phase,
+# to <dir>/outside and <dir>/tests-touched. Returns 1 if git fails, 2 for a
+# path containing a newline.
+handoff_classify() {
+  local wt="$1" spec="$2" phase="$3" dir="$4" f
+  {
+    git -C "$wt" diff --name-only --no-renames -z "$SNAPSHOT_SHA" -- &&
+      git -C "$wt" ls-files --others --exclude-standard -z
+  } >"$dir/changed.nul" || return 1
+  : >"$dir/changed"
+  while IFS= read -r -d '' f; do
+    [[ "$f" != *$'\n'* ]] || return 2
+    printf '%s\n' "$f" >>"$dir/changed"
+  done <"$dir/changed.nul"
+  LC_ALL=C sort -u "$dir/changed" >"$dir/changed.sorted"
+  mv "$dir/changed.sorted" "$dir/changed"
+  : >"$dir/outside"
+  : >"$dir/tests-touched"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    [[ "$f" == "$spec" || "$f" == docs/specs/README.md ]] && continue
+    grep -qxF "$f" "$STATE/plan-files" || printf '%s\n' "$f" >>"$dir/outside"
+    if [[ "$phase" == implement ]] && is_test_path "$f"; then printf '%s\n' "$f" >>"$dir/tests-touched"; fi
+  done <"$dir/changed"
+  return 0
+}
+
 # Audit the complete final tree against the starting commit, including
 # staged, unstaged, deleted, and untracked files. Run before and after the
 # gate: verifiers can write files too. A session must not move HEAD.
 audit_handoff() {
-  local wt="$1" spec="$2" phase="$3" branch="$4" result_dir="$5" f
-  [[ "$(git -C "$wt" rev-parse HEAD)" == "$SNAPSHOT_SHA" &&
-    "$(git -C "$wt" symbolic-ref -q HEAD)" == "refs/heads/$branch" ]] ||
+  local wt="$1" spec="$2" phase="$3" branch="$4" result_dir="$5" rc=0
+  handoff_head_ok "$wt" "$branch" ||
     integrity "the session or verifier committed or changed branches (worktree kept at $wt)"
-  {
-    git -C "$wt" diff --name-only --no-renames -z "$SNAPSHOT_SHA" -- || infra "could not diff handoff changes"
-    git -C "$wt" ls-files --others --exclude-standard -z || infra "could not list untracked handoff changes"
-  } >"$STATE/changed.nul"
-  : >"$STATE/changed"
-  while IFS= read -r -d '' f; do
-    [[ "$f" != *$'\n'* ]] || integrity "a changed path contains a newline"
-    printf '%s\n' "$f" >>"$STATE/changed"
-  done <"$STATE/changed.nul"
-  LC_ALL=C sort -u "$STATE/changed" >"$STATE/changed.sorted"
-  mv "$STATE/changed.sorted" "$STATE/changed"
-  : >"$STATE/outside"
-  : >"$STATE/tests-touched"
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
-    [[ "$f" == "$spec" || "$f" == docs/specs/README.md ]] && continue
-    grep -qxF "$f" "$STATE/plan-files" || printf '%s\n' "$f" >>"$STATE/outside"
-    if [[ "$phase" == implement ]] && is_test_path "$f"; then printf '%s\n' "$f" >>"$STATE/tests-touched"; fi
-  done <"$STATE/changed"
+  handoff_classify "$wt" "$spec" "$phase" "$STATE" || rc=$?
+  ((rc == 2)) && integrity "a changed path contains a newline"
+  ((rc == 0)) || infra "could not list handoff changes"
   jq -n --arg wt "$wt" --arg branch "$branch" --arg phase "$phase" --arg harness "$HANDOFF_HARNESS" \
     --arg harness_version "$HANDOFF_HARNESS_VERSION" --arg pi_model "$ENDPOINT_NAME/$MODEL_ID" \
     --rawfile changed "$STATE/changed" --rawfile outside "$STATE/outside" --rawfile tests "$STATE/tests-touched" \
@@ -2251,6 +2277,50 @@ audit_handoff() {
   [[ -s "$STATE/outside" ]] && integrity "changes outside the plan's files: $(tr '\n' ' ' <"$STATE/outside")(worktree kept at $wt)"
   [[ -s "$STATE/tests-touched" ]] && integrity "the implement phase changed test files: $(tr '\n' ' ' <"$STATE/tests-touched")(worktree kept at $wt)"
   return 0
+}
+
+# In-flight scope check after a tool call: the audit's rules, read-only and
+# without the index lock Pi's own git commands may need. Sets SCOPE_VIOLATION
+# and returns 1 on a violation. A git failure is not one; the final audit
+# still runs.
+handoff_scope_check() {
+  local rc=0
+  SCOPE_VIOLATION=""
+  mkdir -p "$STATE/live" || return 0
+  if ! GIT_OPTIONAL_LOCKS=0 handoff_head_ok "$TREE" "$BRANCH" 2>/dev/null; then
+    SCOPE_VIOLATION="the session committed or changed branches"
+    return 1
+  fi
+  GIT_OPTIONAL_LOCKS=0 handoff_classify "$TREE" "$PACKET_REL" "$PHASE" "$STATE/live" 2>/dev/null || rc=$?
+  case "$rc" in
+    0) ;;
+    2) SCOPE_VIOLATION="a changed path contains a newline"; return 1 ;;
+    *) return 0 ;;
+  esac
+  if [[ -s "$STATE/live/tests-touched" ]]; then
+    SCOPE_VIOLATION="the implement phase changed test files: $(tr '\n' ' ' <"$STATE/live/tests-touched")"
+  elif [[ -s "$STATE/live/outside" ]]; then
+    SCOPE_VIOLATION="changes outside the plan's files: $(tr '\n' ' ' <"$STATE/live/outside")"
+  fi
+  SCOPE_VIOLATION="${SCOPE_VIOLATION% }"
+  [[ -z "$SCOPE_VIOLATION" ]]
+}
+
+# The rules restated after a compaction, since Pi cannot append them to its
+# default compaction summary. Bounded: a long plan is named by count only.
+handoff_guardrail_message() {
+  local spec="$1" phase="$2" count files
+  count="$(grep -c . "$STATE/plan-files")"
+  files="$(awk '{ printf "%s%s", sep, $0; sep = ", " }' "$STATE/plan-files")"
+  if ((count <= 20 && ${#files} <= 1500)); then
+    files="the files listed under \"## Files to touch\" in $spec ($files)"
+  else
+    files="the $count files listed under \"## Files to touch\" in $spec"
+  fi
+  printf '%s' "Handoff supervisor reminder after context compaction: the original handoff rules still apply. Change only $files, plus the spec's own \"## Phase handoff\" note."
+  [[ "$phase" == implement ]] &&
+    printf '%s' " This is the implement phase: the tests are the oracle; do not edit, add, or delete any test file."
+  printf '%s' " Do not commit, push, or change branches. If a test or the plan conflicts with what the work requires, stop and record the conflict under \"## Phase handoff\" in the spec instead of editing the test or a file outside the plan."
 }
 
 handoff_resume_prompt() {
@@ -2270,12 +2340,13 @@ handoff_config() {
   RECOVERY_SECONDS="${DELEGATE_HANDOFF_RECOVERY_SECONDS:-900}"
   GRACE_SECONDS="${DELEGATE_HANDOFF_GRACE_SECONDS:-600}"
   ABORT_SECONDS="${DELEGATE_HANDOFF_ABORT_SECONDS:-60}"
+  SCOPE_CHECK_SECONDS="${DELEGATE_HANDOFF_SCOPE_CHECK_SECONDS:-5}"
   MAX_TOTAL="${DELEGATE_HANDOFF_MAX_TOTAL_SECONDS:-}"
   if [[ -z "$MAX_TOTAL" && -n "${DELEGATE_HANDOFF_TIMEOUT:-}" ]]; then
     MAX_TOTAL="$DELEGATE_HANDOFF_TIMEOUT"
     say "warning: DELEGATE_HANDOFF_TIMEOUT is deprecated; it now sets the absolute ceiling (DELEGATE_HANDOFF_MAX_TOTAL_SECONDS), which pauses the run at a checkpoint instead of killing it"
   fi
-  for v in "$LEASE_SECONDS" "$RECOVERY_SECONDS" "$GRACE_SECONDS" "$ABORT_SECONDS" ${MAX_TOTAL:+"$MAX_TOTAL"}; do
+  for v in "$LEASE_SECONDS" "$RECOVERY_SECONDS" "$GRACE_SECONDS" "$ABORT_SECONDS" "$SCOPE_CHECK_SECONDS" ${MAX_TOTAL:+"$MAX_TOTAL"}; do
     [[ "$v" =~ ^[1-9][0-9]*$ ]] || { say "handoff time settings must be positive whole seconds (got '$v')"; exit 2; }
   done
 }
@@ -2324,6 +2395,7 @@ handoff_status_write() {
 handoff_segment() {
   local prompt_file="$1" session="${2:-}" n started now lease_end checkpoint_at=0 checkpoint_reason=""
   local grace_used=0 next_status=0 next_beat manifest current active_before ceiling_at=0 model
+  local next_scope=0 steers=0 guardrail
   n="$(jq '.segments | length' "$(state_path "$RUN_ID")")"
   SEG_N="$(printf '%04d' $((n + 1)))"
   SEG_DIR="$RESULT_DIR/segments/$SEG_N"
@@ -2366,6 +2438,7 @@ handoff_segment() {
 
   manifest="$(worktree_manifest)"
   printf '%s\n' "$manifest" >>"$SEG_DIR/manifests"
+  guardrail="$(handoff_guardrail_message "$PACKET_REL" "$PHASE")"
   lease_end=$((RPC_LAST_ACTIVITY + LEASE_SECONDS))
   next_beat=$(($(date +%s) + PROGRESS_INTERVAL))
   while :; do
@@ -2384,6 +2457,38 @@ handoff_segment() {
     if ! rpc_alive; then
       SEG_REASON="the harness exited $(cat "$SEG_DIR/exit.status" 2>/dev/null) before settling: $(bounded_tail "$SEG_DIR/harness.log" | tail -n 3 | tr '\n' ' ')"
       break
+    fi
+    # Fail fast on scope: check after tool calls, at most once every
+    # SCOPE_CHECK_SECONDS. A violation aborts at once (no pause note: the
+    # session is what broke scope); the audit after the segment, unchanged,
+    # turns it into the integrity outcome and keeps the worktree.
+    if ((RPC_TOOL_ENDED && now >= next_scope)); then
+      RPC_TOOL_ENDED=0
+      next_scope=$((now + SCOPE_CHECK_SECONDS))
+      if ! handoff_scope_check; then
+        say "early scope stop: $SCOPE_VIOLATION; aborting the session"
+        state_update '.early_scope_stop = {at: $now, segment: $seg, reason: $r}' --arg seg "$SEG_N" --arg r "$SCOPE_VIOLATION"
+        SEG_FORCED=1
+        rpc_call '{"type":"clear_queue"}' "$ABORT_SECONDS"
+        rpc_call '{"type":"abort"}' "$ABORT_SECONDS"
+        rpc_pump
+        SEG_END=paused
+        SEG_REASON="early scope stop: $SCOPE_VIOLATION"
+        break
+      fi
+    fi
+    # Restate the rules once per compaction; the summary may have dropped
+    # them. A steer that is not accepted is reported, not fatal.
+    if ((RPC_COMPACTED)); then
+      RPC_COMPACTED=0
+      if ((checkpoint_at == 0)); then
+        if rpc_call "$(jq -c -n --arg m "$guardrail" '{type: "steer", message: $m}')" 60 && rpc_ok; then
+          steers=$((steers + 1))
+          progress "guardrails restated after compaction"
+        else
+          progress "the post-compaction guardrail steer was not accepted"
+        fi
+      fi
     fi
     if ((checkpoint_at == 0)); then
       if ((RPC_LAST_ACTIVITY + LEASE_SECONDS > lease_end)); then
@@ -2448,9 +2553,10 @@ handoff_segment() {
   jq -n --arg seg "$SEG_N" --arg end "$SEG_END" --arg reason "$SEG_REASON" --argjson forced "$SEG_FORCED" \
     --arg exit "${RPC_EXIT:-}" --argjson s "$started" --argjson e "$now" --argjson retries "$RPC_RETRIES" \
     --argjson comp "$RPC_COMPACTIONS" --argjson dialogs "$RPC_DIALOGS" --arg last "$RPC_LAST_EVENT" \
+    --argjson steers "$steers" \
     '{segment: $seg, end: $end, reason: $reason, forced: ($forced == 1), harness_exit: $exit,
       started_at: $s, ended_at: $e, seconds: ($e - $s), retries: $retries, compactions: $comp,
-      dialogs_cancelled: $dialogs, last_event: $last}' >"$SEG_DIR/status.json"
+      guardrail_steers: $steers, dialogs_cancelled: $dialogs, last_event: $last}' >"$SEG_DIR/status.json"
   state_update '.segments[-1] += $st | .active_seconds = ((.active_seconds // 0) + $st.seconds) | del(.live)' \
     --argjson st "$(cat "$SEG_DIR/status.json")"
 }
@@ -2464,6 +2570,9 @@ handoff_after_segment() {
       progress "auditing the paused worktree (no gate, no commit)"
       state_update '.state = "auditing"'
       audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+      # A session that broke scope is not resumable, even if it reverted the
+      # edit before the abort landed and the audit found a clean tree.
+      [[ "$SEG_REASON" == "early scope stop: "* ]] && integrity "$SEG_REASON (worktree kept at $wt)"
       last="$(tail -n 1 "$(jq -r '.session_file // ""' "$(state_path "$RUN_ID")")" 2>/dev/null |
         jq -r '"\(.type // "?") \(.timestamp // "")"' 2>/dev/null)"
       state_update '.state = "paused" | .reason = $r | .forced = $f | .paused_at = $now' \

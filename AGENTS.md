@@ -324,7 +324,10 @@ Open:
   worktree; `/unattended` resumes pauses on its own. Smoke-tested with an RPC
   stub harness and with real Pi 1.3.0 against a loopback stub (CI now
   installs Pi for that job). The real local-model pause/resume trial is
-  still open. Under Codex the handoff needs network access, which
+  still open. The runner also checks scope after tool calls and aborts on an
+  out-of-plan or implement-phase test edit (an integrity stop, not a
+  settle-time refusal), and restates the scope rules as a steer after each
+  compaction; smoke-tested with a stub, no real-model run yet. Under Codex the handoff needs network access, which
   `/delegate` documents.
 - `/unattended` (`--full`) prepares one feature to run with nobody
   watching (overnight or a day away): `start` asks every foreseeable

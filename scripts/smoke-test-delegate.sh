@@ -456,11 +456,11 @@ elapsed="$(($(date +%s) - started))"
 
 reset_case
 respond 01 "$GOOD"
-printf '2\n' >"$QUEUE/01.delay"
+printf '3\n' >"$QUEUE/01.delay"
 DELEGATE_PROGRESS_INTERVAL=1 expect_run 0 stub-coder --progress summary
 grep -q 'progress: run .*logs: .agentic/delegate/results/' "$WORK/run.out" ||
   fail "summary mode did not print the run and result path before the call"
-grep -q 'progress: generating .*attempt 1/3.*1s elapsed' "$WORK/run.out" ||
+grep -q 'progress: generating .*attempt 1/3.*[1-9][0-9]*s elapsed' "$WORK/run.out" ||
   fail "a delayed one-file call emitted no heartbeat"
 grep -q 'progress: extracting candidate' "$WORK/run.out" || fail "one-file progress omitted extraction"
 grep -q 'progress: verifying — format' "$WORK/run.out" || fail "one-file progress omitted verification stages"
@@ -923,6 +923,17 @@ start() {
       emit '{"type":"tool_execution_start","toolCallId":"t1","toolName":"bash","args":{"command":"sleep 300"}}'
       ;;
     busy) ;;
+    early-tests | early-outside)
+      # Breaks scope with its first tool call, then keeps working for two
+      # minutes; the in-flight check must abort it long before that.
+      if [[ "$mode" == early-tests ]]; then echo 'exit 0' >tests/test_greet.sh; else echo x >lib/extra.sh; fi
+      emit '{"type":"tool_execution_start","toolCallId":"e1","toolName":"write","args":{"path":"early"}}'
+      emit '{"type":"tool_execution_end","toolCallId":"e1","toolName":"write","result":{},"isError":false,"durationMs":2}'
+      ;;
+    compaction)
+      emit '{"type":"compaction_start","reason":"threshold"}'
+      emit '{"type":"compaction_end","reason":"threshold","result":{"summary":"rules lost"},"aborted":false,"willRetry":false}'
+      ;;
     checkpoint | retry-loop) ((resumed)) && complete ;;
     *) complete ;;
   esac
@@ -936,6 +947,21 @@ tick() {
       ((ticks >= 6)) && complete
       ;;
     checkpoint) emit '{"type":"tool_execution_update","toolCallId":"c1","toolName":"bash","partialResult":{}}' ;;
+    early-tests | early-outside)
+      emit '{"type":"tool_execution_update","toolCallId":"e2","toolName":"bash","partialResult":{}}'
+      ((ticks >= 120)) && complete
+      ;;
+    compaction)
+      # In-scope writes mid-session (plan file, spec note, specs index) must
+      # not trip the in-flight check.
+      if ((ticks == 1)); then
+        greet
+        printf '%s\n' '### Working note' >>"$spec"
+        echo '# Specs' >docs/specs/README.md
+        emit '{"type":"tool_execution_end","toolCallId":"m1","toolName":"write","result":{},"isError":false,"durationMs":2}'
+      fi
+      ((ticks >= 4)) && complete
+      ;;
     retry-loop) emit '{"type":"auto_retry_start","attempt":1,"maxAttempts":3,"delayMs":1000,"errorMessage":"overloaded"}' ;;
   esac
   if ((steered && working)) && [[ "$mode" == checkpoint || "$mode" == retry-loop ]]; then
@@ -953,7 +979,12 @@ while :; do
           '{model: {provider: $p, id: $m}, sessionFile: $f, sessionId: "stub-session", isStreaming: false}')"
         ;;
       prompt) reply "$id" prompt '{"disposition":"started"}'; start ;;
-      steer) reply "$id" steer '{"disposition":"queued"}'; steered=1; echo steer >>"$WORK/harness-steers" ;;
+      steer)
+        reply "$id" steer '{"disposition":"queued"}'
+        steered=1
+        echo steer >>"$WORK/harness-steers"
+        jq -c .message <<<"$line" >>"$WORK/harness-steer-messages"
+        ;;
       clear_queue) reply "$id" clear_queue '{"steering":[],"followUp":[]}' ;;
       abort) [[ "$mode" == hang-tool ]] || { settle true; reply "$id" abort; } ;;
       extension_ui_response)
@@ -1120,8 +1151,45 @@ drop_worktrees
 export DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_ABORT_SECONDS=3 DELEGATE_HANDOFF_GRACE_SECONDS=3
 
 # Steady activity renews a short lease; the run completes without a pause.
+rm -f "$WORK/harness-steers"
 DELEGATE_HANDOFF_LEASE_SECONDS=2 handoff 0 busy --progress summary
 [[ ! -s "$WORK/harness-steers" ]] || fail "an active session was asked to checkpoint"
+drop_worktrees
+
+# In-flight scope stop: a session that changes a test file, or a file outside
+# the plan, is aborted after that tool call instead of when it settles (two
+# minutes later here). The audit still decides: integrity, worktree kept, no
+# gate, no commit.
+for mode in early-tests early-outside; do
+  want=tests/test_greet.sh
+  [[ "$mode" == early-outside ]] && want=lib/extra.sh
+  started="$(date +%s)"
+  handoff 4 "$mode" --progress summary
+  (($(date +%s) - started < 30)) || fail "$mode: the scope violation was not stopped early"
+  grep -q "early scope stop: .*$want" "$WORK/handoff.out" || { cat "$WORK/handoff.out" >&2; fail "$mode: the early stop did not name $want"; }
+  run_id="$(handoff_run_id "$WORK/handoff.out")"
+  [[ "$(state_of "$run_id" .state)" == integrity && "$(state_of "$run_id" .exit_status)" == 4 ]] ||
+    fail "$mode: the early stop did not end as an integrity outcome"
+  [[ "$(state_of "$run_id" '.early_scope_stop.reason // ""')" == *"$want"* ]] || fail "$mode: state.json did not record the early scope stop"
+  [[ -d "$WORK/handoffs/$run_id" ]] || fail "$mode: the worktree was not kept"
+  [[ -z "$(git -C "$WORK/handoffs/$run_id" log --oneline "$(git rev-parse HEAD)..HEAD")" ]] || fail "$mode: an early stop created a commit"
+  [[ ! -e ".agentic/delegate/results/$run_id/gate.log" ]] || fail "$mode: an early stop ran the gate"
+  drop_worktrees
+done
+
+# After a compaction the runner restates the scope rules once, as a steer;
+# the run otherwise proceeds to green.
+rm -f "$WORK/harness-steer-messages"
+handoff 0 compaction --progress summary
+[[ "$(wc -l <"$WORK/harness-steer-messages" | tr -d ' ')" == 1 ]] || fail "a compaction did not produce exactly one guardrail steer"
+for want in 'reminder after context compaction' 'lib/greet.sh' 'do not edit, add, or delete any test file' \
+  'Do not commit, push, or change branches' 'record the conflict under'; do
+  grep -qF "$want" "$WORK/harness-steer-messages" || fail "the guardrail steer lacks: $want"
+done
+grep -q 'guardrails restated after compaction' "$WORK/handoff.out" || fail "the guardrail steer was not reported"
+if grep -q 'early scope stop' "$WORK/handoff.out"; then fail "in-scope writes tripped the in-flight check"; fi
+run_id="$(last_result | jq -r .run)"
+[[ "$(state_of "$run_id" '.segments[0].guardrail_steers')" == 1 ]] || fail "the guardrail steer was not recorded"
 drop_worktrees
 
 # A dialog is answered "cancelled" instead of blocking the session.
