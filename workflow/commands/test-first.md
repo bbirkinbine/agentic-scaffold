@@ -44,7 +44,8 @@ edit it.
 Any new or changed source file, application/package module, runtime
 configuration, migration, or other implementation path is a **hard phase
 failure**. Surface the exact unexpected paths and diff, preserve the user's
-pre-existing changes, and stop before implementation. Do not accept "the edit
+pre-existing changes, and stop before implementation with a checkpoint report
+(`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**). Do not accept "the edit
 was only a stub" and do not silently revert files.
 
 Finally, the orchestrator independently re-runs the focused new tests with

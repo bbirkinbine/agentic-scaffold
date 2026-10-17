@@ -32,7 +32,8 @@ code.
 
 Surface its findings verbatim. Do NOT argue with or rationalize away its calls
 — if it says "needs to be redone," that's a real signal. The orchestrator may
-apply `[auto-fix]` findings; `[ask-user]` stops for human adjudication.
+apply `[auto-fix]` findings; `[ask-user]` stops for human adjudication, with a checkpoint report
+(`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**).
 
 After any fixes, docs affected by the fix are synchronized and the complete
 gate runs again. Then invoke a fresh reviewer with the prior findings and the

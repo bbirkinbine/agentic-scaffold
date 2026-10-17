@@ -51,7 +51,10 @@ the loop gets the contract and safety hooks (generic).
    "not decided yet" where that is the truth instead of guessing; and walk me
    through day zero
    (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
-   generic flavor).
+   generic flavor). When setup is done and we have agreed on exactly one
+   first unit of work, start it without waiting for me to ask (in a loop
+   flavor, draft its spec and stop for my review); if which unit comes
+   first is not settled, ask me.
    ```
 
 If your description is thin, the agent runs the product interview first

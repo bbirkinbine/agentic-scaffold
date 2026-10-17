@@ -57,7 +57,9 @@ Procedure:
    the provenance categories in `docs/specs/README.md`.
 5. After the last answer, write the file from the answers, keeping the
    human's voice. Skeleton below. Stop after writing; surface the path
-   and do NOT continue into `/spec` or `/plan`.
+   and do NOT continue into `/spec` or `/plan`. End with a checkpoint
+   report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint
+   report**) whose continue line is `/spec <first roadmap unit>`.
 
 Questions:
 

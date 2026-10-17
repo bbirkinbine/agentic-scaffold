@@ -78,4 +78,6 @@ Stop after writing the file — in either mode. Do NOT proceed to
 implementation. A drafted ADR is a first pass, not an accepted decision:
 surface the path you wrote, and in draft mode list any
 `<!-- assumption: ... -->` markers you left. The human reviews and edits
-the rationale before the decision is acted on.
+the rationale before the decision is acted on. End with a checkpoint
+report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint
+report**).

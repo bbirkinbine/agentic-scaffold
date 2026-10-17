@@ -50,6 +50,8 @@ Job selection:
   count and aggregation policy as well as the rubric and threshold. If an
   existing suite lacks them, propose the missing settings and stop for
   confirmation before executing.
+- Either stop ends with a checkpoint report (`AGENTS.md` → **Shared workflow
+  protocols** → **Checkpoint report**).
 
 The evaluator authors from the spec (never the implementation), keeps the
 rubric, inputs, and ground truth external, and runs the LM-judge pass

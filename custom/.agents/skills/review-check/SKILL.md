@@ -26,7 +26,7 @@ If any step fails:
 - Do NOT declare the gate passed.
 - Show the failing output verbatim (the failing test names, the type
   errors, the lint findings).
-- Stop. The human decides whether to fix or accept.
+- Stop with a checkpoint report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**). The human decides whether to fix or accept.
 
 If all steps pass:
 
