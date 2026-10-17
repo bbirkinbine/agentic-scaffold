@@ -41,17 +41,15 @@ Run after the plan is approved and persisted, before test-first.
      model, so a frontier choice means "start the session on it" and is
      recorded as the session model, never as an override. When local
      delegation is on, list the qualified models from
-     `bash .agentic/delegate-run.sh status` with their records and ask
-     which to use, one for all files or one per bucket; route each packet
-     by the bucket the runner accepts (it refuses a packet labelled smaller
-     than its counts). Ask the delegation mode for this run: `direct`, `files`
-     (one file per call), or `handoff` (implementation, or test-first plus
-     implementation, to a local session; `/delegate` → "Delegation modes").
-     A verified `handoff` is preserved as a temporary commit on its isolated
-     `handoff/<run>` branch, so ask separately whether those temporary commits
-     are authorized; choosing the mode alone is not commit approval. If they
-     decline, choose `files` or `direct`. Default `direct` when this session
-     itself runs on a local model.
+     `bash .agentic/delegate-run.sh status` with their phase records and
+     ask which to use, or whether to let the runner select. Ask the
+     delegation mode for this run: `direct` or `handoff` (implementation,
+     or test-first plus implementation, to a local session; `/delegate` →
+     "Delegation modes"). A verified `handoff` is preserved as a temporary
+     commit on its isolated `handoff/<run>` branch, so ask separately
+     whether those temporary commits are authorized; choosing the mode
+     alone is not commit approval. If they decline, choose `direct`.
+     Default `direct` when this session itself runs on a local model.
 2. Ask them in one batch, each naming the spec or plan line it affects and
    offering your best-guess default so "defaults are fine" is a complete
    answer. Ask only what the spec, plan, and `AGENTS.md` do not already
@@ -112,11 +110,8 @@ When the human says they are back before the run ends:
 
 1. Stop auto-answering from that message on; `[ask-user]` findings go to
    the human again. Standing decisions still stand.
-2. Let a local-model call in progress (`delegate-run.sh run`) finish rather
-   than kill it, and make no workspace edits meanwhile: the runner refuses
-   to publish into a tree that changed under it. A live handoff keeps
-   running in its own worktree; report its `handoff-status` and offer
-   `handoff-stop` if the human wants it paused.
+2. A live handoff keeps running in its own worktree; report its
+   `handoff-status` and offer `handoff-stop` if the human wants it paused.
 3. Report where the run is (last green step, next step) and list the
    `## Unattended decisions` logged so far, then offer to reconcile them
    now or at the end.

@@ -1,41 +1,33 @@
 #!/usr/bin/env bash
-# Local delegate runner — sends one /delegate packet to a local model,
-# verifies the returned file in a scratch copy of the workspace, and
-# publishes it only when it passes. The model gets text and returns text;
-# it has no repository access and no tools.
-#
-# A candidate passes when the packet's focused tests pass and every gate
-# step (lint, format-check, typecheck, test) that was green before the run
-# is still green. Steps already red before the run — usually other plan
-# files that have not landed — are reported as unverified ("partial"), not
-# held against the candidate; the full gate must go green once they land.
+# Local delegate runner — hands a whole phase of an approved spec to a local
+# agent session (Pi, RPC mode) on a local model in a new git worktree, then
+# verifies the full gate and the plan's scope there before committing the
+# result on a handoff branch for the orchestrating session to review. It also
+# qualifies local models, keeps their per-phase record, and selects among a
+# project's candidates.
 #
 # Usage: .agentic/delegate-run.sh <subcommand> [args] [--profile <path>]
 #
-#   qualify <model>          Plumbing check: one known-answer packet sized
-#                            like a medium task, graded exactly. A model must
-#                            pass before `run` will use it; any change to its
-#                            setup (model, quant, runtime, request settings,
-#                            endpoint, runner version) needs a new pass.
-#   run <packet> [--model <name>] [--progress quiet|summary]
-#                            Send <packet> to the named model, or without
-#                            --model to the model selected from this
-#                            project's [[project]] candidates. Up to three
-#                            calls; each attempt starts from the same clean
-#                            scratch snapshot. Retries carry the previous
-#                            candidate and bounded failure output.
-#   record-review <run> pass|model-defect|packet-defect
-#                            Record /review's final verdict on a published
-#                            candidate. Until then a green run is pending.
-#                            Also records how many of the published lines
-#                            (kept in results/<run>/candidate) review kept.
+#   qualify <model>          Plumbing check: two direct requests to the model
+#                            (a first response, then a known-answer edit of a
+#                            generated file of about 270 lines), graded
+#                            exactly. A model must pass before a handoff will
+#                            use it; any change to its setup (model, quant,
+#                            runtime, request settings, endpoint, runner
+#                            version) needs a new pass.
+#   record-review <run> pass|model-defect|spec-defect
+#                            Record /review's final verdict on a verified
+#                            handoff (spec-defect: the spec or plan was at
+#                            fault, not the model; packet-defect is accepted
+#                            as its older name). Until then a green run is
+#                            pending.
 #   policy                   Prints `auto` and exits 0 only when this
 #                            checkout's [[project]] entry has policy = "auto",
 #                            activation_approved = true, and at least one
 #                            qualified candidate; otherwise prints `off: <why>`
 #                            and exits 1. With a profile but a missing
 #                            dependency, exits 2. The orchestrator checks this
-#                            before handing implementation to a local model.
+#                            before offering a handoff.
 #   activate | deactivate    Set this checkout's [[project]] entry to
 #                            policy = "auto" with activation_approved = true
 #                            (or back to "off"). Run only on the human's
@@ -53,8 +45,8 @@
 #   discover                 What each endpoint's /models lists, matched to
 #                            profile models and their qualification.
 #   status                   Each profile model's qualification and its
-#                            record per bucket in this project.
-#   reset <model> <bucket>   Clear a demotion (small, medium, phase:implement,
+#                            record per phase bucket in this project.
+#   reset <model> <bucket>   Clear a demotion (phase:implement,
 #                            phase:test-first+implement); starts a fresh record.
 #   handoff <spec> --allow-commit [--phase implement|test-first+implement]
 #                            [--model <name>] [--progress quiet|summary]
@@ -69,13 +61,13 @@
 #                            the temporary handoff-branch commit. A verified
 #                            run is committed on `handoff/<run>` for the
 #                            orchestrator to review and merge; scored per
-#                            phase like a run. By default it launches
-#                            detached, prints the run id, and exits 0 (2 if
-#                            refused); follow it with handoff-status --wait.
-#                            --foreground runs it attached and exits with the
-#                            outcome. The session is supervised by a
-#                            renewable inactivity lease, not a fixed limit;
-#                            see docs/local-executor.md -> "Supervising a
+#                            phase. By default it launches detached, prints
+#                            the run id, and exits 0 (2 if refused); follow
+#                            it with handoff-status --wait. --foreground runs
+#                            it attached and exits with the outcome. The
+#                            session is supervised by a renewable inactivity
+#                            lease, not a fixed limit; see
+#                            docs/local-executor.md -> "Supervising a
 #                            handoff" (log locations included).
 #   handoff-status <run-id> [--wait <seconds>] [--interval <seconds>]
 #                            [--since <cursor>]
@@ -101,8 +93,8 @@
 #                            with its handoff/ branch after merging or
 #                            abandoning it.
 #
-# Scoring: a success is a published candidate that passed review; a failure
-# is needs_frontier or a model-defect review. A model is demoted for a
+# Scoring: a success is a verified handoff that passed review; a failure is
+# needs_frontier or a model-defect review. A model is demoted for a phase
 # bucket after a model-defect review, or when it has at least 5 scored runs
 # and the upper bound of the 95% Wilson interval over its last 20 is below
 # 50%. Demotion warns but does not block a manual run. Selection explores
@@ -128,24 +120,20 @@
 #   timeout_seconds = 900                  # optional; whole-call limit
 #   request = '{"temperature": 0.6}'       # optional; JSON merged into each request
 #
-# Packet: the file /delegate writes under .agentic/delegate/packets/, with
-# a front-matter header naming `targets: [<path>]` and
-# `test_targets: [<path> ...]`. The header is not sent to the model.
-#
 # Exit status:
-#   0   run: green candidate published (uncommitted); qualify: passed
-#   10  needs_frontier: three attempts spent, a model call timed out after
-#       connecting (scored against the model; no retry), or nothing was
-#       selectable; implement with the frontier model
-#   2   refused: usage, profile, packet, or workspace preconditions
+#   0   qualify: passed; handoff (--foreground, handoff-status,
+#       handoff-resume): verified and committed on handoff/<run>
+#   10  needs_frontier: the session ended with the gate red or changed
+#       nothing, or no candidate was selectable; implement in the
+#       orchestrating session
+#   11  paused and resumable (no gate, no commit)
+#   12  handoff-status only: still running when the wait ended
+#   2   refused: usage, profile, spec, or workspace preconditions
 #   5   qualify: the model failed the plumbing check
-#   3   infrastructure failure: endpoint, transport, or verifier
-#   4   integrity stop: unexpected writes, or the workspace changed mid-run
-#   handoff (--foreground, handoff-status, handoff-resume): 0 verified and
-#   committed on handoff/<run>; 10 the session ended with the gate red; 11
-#   paused and resumable (no gate, no commit); 4 out-of-plan or test-file
-#   changes; 3 harness, RPC, install, or worktree failure; 2 refused; 12
-#   (handoff-status only) still running when the wait ended.
+#   3   infrastructure failure: endpoint, transport, harness, RPC, install,
+#       worktree, or verifier
+#   4   integrity stop: out-of-plan or test-file changes, or a session or
+#       verifier commit
 #
 # Handoff supervision: DELEGATE_HANDOFF_LEASE_SECONDS (default 3600) is the
 # inactivity lease, renewed by model or tool activity and new worktree
@@ -161,7 +149,7 @@
 # session at once and ends the run as an integrity stop. After each
 # compaction the runner restates the scope rules to the session as a steer.
 #
-# Requires: bash, git, curl, jq (1.6+), tar, perl (the step watchdog), and
+# Requires: bash, git, curl, jq (1.6+), perl (the step watchdog), and
 # sha256sum or shasum.
 #
 # Progress is `summary` when stderr is a terminal and `quiet` otherwise.
@@ -170,23 +158,19 @@
 
 set -uo pipefail
 
-# Changes to the direct-file request protocol revoke prior qualifications.
+# Part of every setup fingerprint: changes to qualify's direct request
+# protocol, or to how handoff runs are scored, revoke prior qualifications
+# and start fresh records.
 HARNESS_VERSION="delegate-run-v2"
-MAX_ATTEMPTS=3
 # Ranking and demotion use the Wilson score interval (E. B. Wilson, JASA 22,
-# 1927; see docs/influences.md in agentic-scaffold). Scoring and bucket
-# parameters are unsourced starting points (docs/local-delegate-runner.md
-# in agentic-scaffold -> "Unsourced starting points"); tune them
-# from the ledger, and bump HARNESS_VERSION when the retry rules change.
+# 1927; see docs/influences.md in agentic-scaffold). Scoring parameters are
+# unsourced starting points (docs/local-delegate-runner.md in
+# agentic-scaffold -> "Unsourced starting points"); tune them from the ledger.
 EXPLORE_MIN=5
 WINDOW=20
 DEMOTE_MIN=5
 DEMOTE_BELOW=0.5
 Z=1.96
-SMALL_LINES=150
-SMALL_CONTRACTS=8
-MEDIUM_LINES=300
-MEDIUM_CONTRACTS=15
 DIAG_LINES=120
 DIAG_BYTES=12000
 PROGRESS_MODE=quiet
@@ -339,20 +323,21 @@ sha_file() { "${SHA[@]}" <"$1" | cut -d' ' -f1; }
 
 now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
-# Bounded tail of a log, for retry feedback and escalation diagnostics.
+# Bounded tail of a log, for escalation diagnostics.
 bounded_tail() { tail -n "$DIAG_LINES" "$1" | tail -c "$DIAG_BYTES"; }
 
-# Run a verifier command in the scratch tree without the endpoint credential.
-# Each verifier command gets DELEGATE_STEP_TIMEOUT seconds (default 900) so a
-# candidate that hangs a test cannot hang the run. The command runs in its
-# own process group, which is killed whole on timeout; exit status is 124.
-# Process groups its descendants created (Pi runs each tool command in one)
-# are outside that group, so they are collected before TERM and again before
-# KILL and killed too. Where `ps` is unavailable (Codex's macOS sandbox
-# denies it), only the command's own group is signalled.
+# Run a verifier command in the handoff worktree without the endpoint
+# credential. Each verifier command gets DELEGATE_STEP_TIMEOUT seconds
+# (default 900) so a change that hangs a test cannot hang the run. The
+# command runs in its own process group, which is killed whole on timeout;
+# exit status is 124. Process groups its descendants created (Pi runs each
+# tool command in one) are outside that group, so they are collected before
+# TERM and again before KILL and killed too. Where `ps` is unavailable
+# (Codex's macOS sandbox denies it), only the command's own group is
+# signalled.
 STEP_TIMEOUT="${DELEGATE_STEP_TIMEOUT:-900}"
 
-# `run` refuses without perl rather than run a verifier with no time limit.
+# The handoff requires perl rather than run a verifier with no time limit.
 bounded() {
   perl -e '
       my $limit = shift;
@@ -452,31 +437,7 @@ profile_get() {
   ' "$PROFILE_TSV"
 }
 
-# ---- packet header (restricted front matter: key: value | key: [a, b]) ---------
-
-# Prints key<TAB>item, one line per list item or scalar.
-packet_header() {
-  awk '
-    NR == 1 { if ($0 != "---") exit; next }
-    $0 == "---" { exit }
-    index($0, ":") {
-      k = substr($0, 1, index($0, ":") - 1)
-      v = substr($0, index($0, ":") + 1)
-      sub(/[ \t]+#.*$/, "", v); gsub(/^[ \t]+|[ \t]+$/, "", v)
-      if (v ~ /^\[.*\]$/) {
-        v = substr(v, 2, length(v) - 2)
-        n = split(v, items, ",")
-        for (i = 1; i <= n; i++) {
-          item = items[i]; gsub(/^[ \t"\047]+|[ \t"\047]+$/, "", item)
-          if (item != "") printf "%s\t%s\n", k, item
-        }
-      } else {
-        gsub(/^["\047]|["\047]$/, "", v)
-        printf "%s\t%s\n", k, v
-      }
-    }
-  ' "$1"
-}
+# ---- qualify request ------------------------------------------------------------
 
 # source_bytes <label> <file> : byte-counted framing, not a sentinel or a
 # Markdown example. A file can contain any apparent delimiter without ending
@@ -486,103 +447,6 @@ source_bytes() {
   cat "$2"
   printf '\nEnd of byte-counted source file %s.\n' "$1"
 }
-
-# assemble_sections <tree> <failure-log> : the mechanical packet sections a
-# format-2 packet leaves to the runner, so the frontier model never spends
-# output tokens copying files: the target as it exists now, the full test
-# files, the live failure output, and the fixed output contract.
-assemble_sections() {
-  local tree="$1" log="$2" t
-  printf '\n## The file as it exists now\n\n'
-  if [[ -f "$tree/$TARGET" ]]; then
-    source_bytes "$TARGET" "$tree/$TARGET"
-  else
-    printf 'NEW FILE: `%s` does not exist yet.\n' "$TARGET"
-  fi
-  printf '\n## The failing tests\n\nThese must pass. They are the specification.\n'
-  while IFS= read -r t; do
-    [[ -f "$tree/$t" ]] || continue
-    printf '\n'
-    source_bytes "$t" "$tree/$t"
-  done <<<"$TESTS"
-  printf '\n## The exact failure output\n\n'
-  # Color codes are noise to the model.
-  sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$log" | tail -n "$DIAG_LINES" | tail -c "$DIAG_BYTES"
-  printf '\nEnd of failure output.\n'
-  printf '\n## Output contract\n\n> Return the complete final contents of `%s`, and nothing else. No\n> diff, no patch, no commentary, no markdown fence around the file, no\n> explanation of your changes.\n' "$TARGET"
-}
-
-packet_body() {
-  awk 'NR == 1 && $0 == "---" { fm = 1; next } fm && $0 == "---" { fm = 0; next } !fm' "$1"
-}
-
-# ---- workspace listing and manifests ------------------------------------------
-
-# NUL-separated tracked plus unignored untracked files, minus delegation state
-# and credential-shaped files that must never be copied.
-list_files() {
-  git -C "$1" ls-files -z -c -o --exclude-standard | tr '\0' '\n' |
-    awk '!/^\.agentic\/delegate\//' |
-    awk '!/(^|\/)(id_rsa[^\/]*|id_ed25519[^\/]*|[^\/]*\.pem|[^\/]*\.key)$/' |
-    awk '!/(^|\/)\.env(\..*)?$/ || /\.example$/' |
-    LC_ALL=C sort -u | tr '\n' '\0'
-}
-
-# manifest <dir> <nul-list> : sorted "path<TAB>kind<TAB>detail" lines.
-manifest() {
-  local dir="$1" list="$2" f
-  (
-    cd "$dir" || exit 1
-    while IFS= read -r -d '' f; do
-      if [[ -L "$f" ]]; then
-        printf '%s\tlink\t%s\n' "$f" "$(readlink "$f")"
-      elif [[ -f "$f" ]]; then
-        if [[ -x "$f" ]]; then
-          printf '%s\tfile-x\t%s\n' "$f" "$(sha_file "$f")"
-        else
-          printf '%s\tfile\t%s\n' "$f" "$(sha_file "$f")"
-        fi
-      elif [[ ! -e "$f" ]]; then
-        printf '%s\tmissing\t-\n' "$f"
-      fi
-    done <"$list"
-  ) | LC_ALL=C sort
-}
-
-# Paths whose manifest lines differ between two manifests.
-changed_paths() {
-  LC_ALL=C comm -3 "$1" "$2" | sed 's/^\t//' | cut -f1 | LC_ALL=C sort -u
-}
-
-# Refuse a path whose existing components are symlinks (escape from the tree).
-no_symlink_path() {
-  local base="$1" rel="$2" acc=""
-  local IFS=/
-  local part
-  for part in $rel; do
-    acc="${acc:+$acc/}$part"
-    [[ -L "$base/$acc" ]] && return 1
-  done
-  return 0
-}
-
-# ---- gate steps -----------------------------------------------------------------
-
-GATE_STEPS="lint format-check typecheck test"
-
-# run_steps <label> : runs each gate step in the scratch tree, writing
-# "<step> <status>" lines to $STATE/<label>.steps and one log per step.
-run_steps() {
-  local label="$1" step status
-  : >"$STATE/$label.steps"
-  for step in $GATE_STEPS; do
-    status=0
-    verify_cmd bash "$TOOLCHAIN" "$step" >"$STATE/$label.$step.log" 2>&1 || status=$?
-    printf '%s %s\n' "$step" "$status" >>"$STATE/$label.steps"
-  done
-}
-
-step_status() { awk -v s="$2" '$1 == s { print $2 }' "$STATE/$1.steps"; }
 
 # ---- profile, setup fingerprint, qualification --------------------------------
 
@@ -741,18 +605,6 @@ describe_score() {
   printf '%s\n' "$line"
 }
 
-# bucket_for <lines> <contract-items> : small | medium | too-large
-bucket_for() {
-  local lines="$1" contracts="${2:-0}"
-  if ((lines <= SMALL_LINES && contracts <= SMALL_CONTRACTS)); then
-    echo small
-  elif ((lines <= MEDIUM_LINES && contracts <= MEDIUM_CONTRACTS)); then
-    echo medium
-  else
-    echo too-large
-  fi
-}
-
 # ---- project entry, selection, discovery ------------------------------------
 
 # project_get <key> : the key of the [[project]] entry whose root is this
@@ -797,7 +649,7 @@ select_model() {
       refuse() { printf '%s\tbad\t-\t0\t0\t0\t0\t0\t1\tok\t0\t0\t%s\n' "$name" "$*"; exit 0; }
       load_model "$name"
       state="$(qualification_state "$name" "$FINGERPRINT")"
-      if [[ "$BUCKET" == phase:* ]]; then handoff_fingerprint || refuse "invalid handoff model configuration"; fi
+      handoff_fingerprint || refuse "invalid handoff model configuration"
       read -r n s pend def lo hi dem med <<<"$(score "$name" "$FINGERPRINT" "$BUCKET")"
       up=0
       [[ "$state" == qualified && "$dem" == ok ]] && reachable && up=1
@@ -835,7 +687,7 @@ select_model() {
   SELECTION_JSON="$(selection_json "$phase" "$chosen" "$runner_up")"
   load_model "$chosen"
   check_credential
-  if [[ "$BUCKET" == phase:* ]]; then handoff_fingerprint || refuse "invalid handoff model configuration"; fi
+  handoff_fingerprint || refuse "invalid handoff model configuration"
   QUALIFIED=qualified
   local line
   line="$(awk -F'\t' -v c="$chosen" '$1 == c { printf "%d scored runs, %d passed, lower bound %.2f", $4, $5, $8 }' "$STATE/candidates.tsv")"
@@ -861,43 +713,28 @@ request_extra() {
   if [[ -n "${REQUEST_JSON:-}" ]]; then printf '%s' "$REQUEST_JSON"; else printf '{}'; fi
 }
 
-# Only direct file-return calls use this contract. Pi handoffs use their own
-# provider and normal agent messages, never these request builders.
+# Only qualify's direct file-return calls use this contract. Pi handoffs use
+# their own provider and normal agent messages, never this request builder.
 RAW_FILE_SYSTEM='You are a raw-file transformation endpoint. Your entire response is written directly to the target file. Return only the literal final file contents. The first character of your response must be the first character of the file. Do not emit Markdown fences, backticks, a filename, commentary, explanations, diffs, patches, or status text.'
 
-# request_first <out> <content-file> : fixed system contract, then user packet.
-request_first() {
+# build_request <out> <content-file> : fixed system contract, then the task.
+build_request() {
   jq -n --arg model "$MODEL_ID" --arg system "$RAW_FILE_SYSTEM" --rawfile content "$2" --argjson extra "$(request_extra)" \
     '({model: $model, stream: false} + $extra) | .messages = [
        {role: "system", content: $system}, {role: "user", content: $content}]' >"$1" ||
     infra "could not build the request (is 'request' in the profile valid JSON?)"
 }
 
-# request_retry <out> : system, original packet, previous candidate, feedback.
-request_retry() {
-  jq -n --arg model "$MODEL_ID" --arg system "$RAW_FILE_SYSTEM" --rawfile packet "$STATE/packet-body.md" \
-    --rawfile previous "$STATE/previous-candidate" --rawfile feedback "$STATE/feedback.md" \
-    --argjson extra "$(request_extra)" \
-    '({model: $model, stream: false} + $extra) | .messages = [
-       {role: "system", content: $system},
-       {role: "user", content: $packet},
-       {role: "assistant", content: $previous},
-       {role: "user", content: $feedback}]' >"$1" ||
-    infra "could not build the request (is 'request' in the profile valid JSON?)"
-}
-
 # call_model <label> <request-file> : writes $STATE/<label>.response.json and
 # sets CALL_SECONDS. Returns 2 when the server accepted the connection but the
 # model did not answer within timeout_seconds (thinking counts): that is the
-# model's setup being too slow, which the caller scores. Every other transport
-# failure exits through infra() and is not scored.
+# model's setup being too slow, which qualify records as a failure. Every
+# other transport failure exits through infra().
 call_model() {
   local label="$1" req="$2"
   local resp="$STATE/$label.response.json" err="$STATE/$label.curl.err" meta="$STATE/$label.curl.meta"
-  local out curl_status=0 code detail
-  detail="${label#attempt-}"
-  [[ "$label" == attempt-* ]] && detail="attempt $detail/$MAX_ATTEMPTS"
-  start_heartbeat "generating — $detail"
+  local out curl_status=0 code
+  start_heartbeat "generating — $label"
   if [[ -n "${CRED_ENV:-}" ]]; then
     # The header comes through a file descriptor so the credential never
     # appears in a process argument list.
@@ -931,10 +768,10 @@ call_model() {
   progress "response received — ${CALL_SECONDS}s"
 }
 
-# extract_candidate <label> : writes $STATE/candidate; on a format problem
-# prints the reason and returns 1 (the attempt is spent, with feedback).
-extract_candidate() {
-  local resp="$STATE/$1.response.json" cand="$STATE/candidate" finish first
+# extract_file <label> : writes the returned file to $STATE/returned; on a
+# format problem prints the reason and returns 1.
+extract_file() {
+  local resp="$STATE/$1.response.json" cand="$STATE/returned" finish first
   finish="$(jq -r '.choices[0].finish_reason // "missing"' "$resp")"
   jq -j '.choices[0].message.content // "" | if type == "string" then . else "" end' "$resp" >"$cand"
 
@@ -947,7 +784,7 @@ extract_candidate() {
     return 1
   fi
 
-  # Reasoning that the server left inline is transport, not the candidate.
+  # Reasoning that the server left inline is transport, not the file.
   first="$(grep -m1 -v '^[[:space:]]*$' "$cand" || true)"
   if [[ "$first" == "<think>"* ]]; then
     awk 'f { print; next } /<\/think>/ { f = 1; sub(/.*<\/think>/, ""); if (length($0)) print }' \
@@ -973,35 +810,25 @@ extract_candidate() {
 # ---- result and ledger ----------------------------------------------------------
 
 ATTEMPTS_JSON='[]'
-LAST_STEPS=""
 RUN_STARTED="$(date +%s)"
 GATE_LEVEL=""
-UNVERIFIED=""
 OUTCOME=""
 REASON=""
 LOCKED=0
 STATE=""
 WORK=""
 
-record_attempt() {
-  ATTEMPTS_JSON="$(jq -c --argjson n "$1" --arg outcome "$2" --arg detail "$3" --argjson seconds "$4" \
-    '. + [{attempt: $n, outcome: $outcome, detail: $detail, seconds: $seconds}]' <<<"$ATTEMPTS_JSON")"
-}
-
 finish() {
   local status="$1" result_dir
   if [[ -n "${RUN_ID:-}" ]]; then
     result_dir="$DELEGATE_DIR/results/$RUN_ID"
     mkdir -p "$result_dir"
-    # A logical handoff's attempts are its session segments.
-    [[ "$RUN_ID" == handoff-* && -f "$result_dir/state.json" ]] &&
+    # A handoff's attempts are its session segments.
+    [[ -f "$result_dir/state.json" ]] &&
       ATTEMPTS_JSON="$(jq -c '[.segments[] | {attempt: (.segment | tonumber), outcome: (.end // "incomplete"),
         detail: (.reason // ""), seconds: (.seconds // 0)}]' "$result_dir/state.json" 2>/dev/null || echo '[]')"
     [[ -n "$STATE" && -f "$STATE/last-diagnostics.txt" ]] &&
       cp "$STATE/last-diagnostics.txt" "$result_dir/last-diagnostics.txt"
-    # The exact first message the model received, for review attribution.
-    [[ -n "$STATE" && -s "$STATE/packet-body.md" ]] &&
-      cp "$STATE/packet-body.md" "$result_dir/prompt.md"
     jq -n \
       --arg ts "$(now_utc)" --arg run "$RUN_ID" --arg packet "${PACKET_REL:-}" \
       --arg packet_sha "${PACKET_SHA:-}" --arg outcome "$OUTCOME" --arg reason "$REASON" \
@@ -1009,7 +836,7 @@ finish() {
       --arg quant "${QUANT:-}" --arg runtime "${RUNTIME:-}" --arg endpoint "${ENDPOINT_NAME:-}" \
       --arg request "${REQUEST_JSON:-}" --arg target "${TARGET:-}" --arg bucket "${BUCKET:-}" \
       --arg snapshot "${SNAPSHOT_SHA:-}" --argjson attempts "$ATTEMPTS_JSON" \
-      --arg gate "${GATE_LEVEL:-}" --arg unverified "${UNVERIFIED:-}" \
+      --arg gate "${GATE_LEVEL:-}" \
       --arg fingerprint "${FINGERPRINT:-}" --argjson qualified "$([[ "${QUALIFIED:-}" == qualified ]] && echo true || echo false)" \
       --arg mode "${MODE:-manual}" --argjson selection "${SELECTION_JSON:-null}" \
       --argjson wall "$(($(date +%s) - RUN_STARTED))" \
@@ -1020,12 +847,12 @@ finish() {
         model: {name: $model, model_id: $model_id, quant: $quant, runtime: $runtime,
                 endpoint: $endpoint, request: $request},
         attempts: $attempts, outcome: $outcome, reason: $reason,
-        gate: $gate, unverified_steps: ($unverified | split(" ") | map(select(. != ""))),
+        gate: $gate,
         wall_seconds: $wall,
         review: null}' \
       >"$result_dir/result.json"
     jq -c . "$result_dir/result.json" >>"$DELEGATE_DIR/ledger.jsonl"
-    if [[ "$RUN_ID" == handoff-* && -f "$result_dir/state.json" ]]; then
+    if [[ -f "$result_dir/state.json" ]]; then
       state_update '.state = $o | .reason = $r | .exit_status = $s | .finished_at = $now' \
         --arg o "$OUTCOME" --arg r "$REASON" --argjson s "$status"
     fi
@@ -1036,24 +863,17 @@ finish() {
       say "record for '$MODEL_NAME', $(describe_score "$MODEL_NAME" "$FINGERPRINT" "$BUCKET")"
     fi
     if [[ "$OUTCOME" == green ]]; then
-      say "after /review: delegate-run.sh record-review $RUN_ID pass|model-defect|packet-defect"
+      say "after /review: delegate-run.sh record-review $RUN_ID pass|model-defect|spec-defect"
     fi
   fi
   exit "$status"
 }
 
-# The end-of-run summary: model, wall time, each attempt, and which gate
-# steps passed or could not verify this file.
+# The end-of-run summary: model, wall time, and each session segment.
 print_summary() {
   [[ -n "${MODEL_NAME:-}" ]] || return 0
   say "summary: $OUTCOME — '$MODEL_NAME' on $TARGET ($BUCKET), $(jq -r .wall_seconds "$1")s wall"
-  jq -r '.attempts[] | "  attempt \(.attempt): \(.outcome), \(.seconds)s\(if .detail != "" then " — " + .detail else "" end)"' "$1" >&2
-  if [[ -n "$LAST_STEPS" && -f "$LAST_STEPS" ]]; then
-    local passed red
-    passed="$(awk '$2 == 0 { printf "%s%s", sep, $1; sep = " " }' "$LAST_STEPS")"
-    red="$(awk '$2 != 0 { printf "%s%s", sep, $1; sep = " " }' "$LAST_STEPS")"
-    say "  gate steps passed: ${passed:-none}; red: ${red:-none}${UNVERIFIED:+ (red before the run too, so unverified: $UNVERIFIED)}"
-  fi
+  jq -r '.attempts[] | "  segment \(.attempt): \(.outcome), \(.seconds)s\(if .detail != "" then " — " + .detail else "" end)"' "$1" >&2
 }
 
 cleanup() {
@@ -1066,345 +886,11 @@ cleanup() {
   return 0
 }
 
-# ---- run ----------------------------------------------------------------------
-
-cmd_run() {
-  local packet="" profile progress_mode=""
-  profile="$(default_profile)"
-  MODEL_NAME=""
-  while (($#)); do
-    case "$1" in
-      --model)
-        (($# >= 2)) && [[ -n "$2" ]] || { say "--model requires a value"; exit 2; }
-        MODEL_NAME="$2"; shift 2 ;;
-      --profile)
-        (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
-        profile="$2"; shift 2 ;;
-      --progress)
-        (($# >= 2)) && [[ -n "$2" ]] || { say "--progress requires a value"; exit 2; }
-        progress_mode="$2"; shift 2 ;;
-      -h | --help) usage; exit 0 ;;
-      -*) say "unknown option: $1"; exit 2 ;;
-      *) [[ -z "$packet" ]] || { say "one packet per run"; exit 2; }; packet="$1"; shift ;;
-    esac
-  done
-  [[ -n "$packet" ]] || { say "usage: delegate-run.sh run <packet> [--model <name>] [--progress quiet|summary]"; exit 2; }
-  configure_progress "$progress_mode"
-  MODE=manual
-  [[ -n "$MODEL_NAME" ]] || MODE=selected
-
-  local dep
-  for dep in git curl jq tar awk perl; do
-    command -v "$dep" >/dev/null 2>&1 || { say "missing dependency: $dep"; exit 2; }
-  done
-  git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { say "not a git work tree: $ROOT"; exit 2; }
-
-  mkdir -p "$DELEGATE_DIR/results"
-  take_lock || { lock_refusal; exit 2; }
-  trap cleanup EXIT
-
-  [[ -f "$packet" ]] || { say "packet not found: $packet"; exit 2; }
-  local packet_abs
-  packet_abs="$(cd "$(dirname "$packet")" && pwd)/$(basename "$packet")"
-  PACKET_REL="${packet_abs#"$ROOT"/}"
-  PACKET_SHA="$(sha_file "$packet_abs")"
-  RUN_ID="$(basename "$packet_abs" .md)-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-
-  WORK="$(mktemp -d "${TMPDIR:-/tmp}/delegate-run.XXXXXX")" || infra "could not create scratch directory"
-  STATE="$WORK/state"
-  TREE="$WORK/tree"
-  mkdir -p "$STATE" "$TREE"
-
-  # -- profile
-  load_profile "$profile"
-
-  # -- packet
-  packet_header "$packet_abs" >"$STATE/header.tsv"
-  packet_body "$packet_abs" >"$STATE/packet-body.md"
-  # format: 2 -> the runner adds the file, tests, failure output, and output
-  # contract; older packets carry them and are sent as written.
-  PACKET_FORMAT="$(awk -F'\t' '$1 == "format" { print $2; exit }' "$STATE/header.tsv")"
-  TESTS="$(awk -F'\t' '$1 == "test_targets" { print $2 }' "$STATE/header.tsv")"
-  local targets tests
-  targets="$(awk -F'\t' '$1 == "targets" { print $2 }' "$STATE/header.tsv")"
-  tests="$(awk -F'\t' '$1 == "test_targets" { print $2 }' "$STATE/header.tsv")"
-  local declared_bucket contracts expected
-  declared_bucket="$(awk -F'\t' '$1 == "bucket" { print $2; exit }' "$STATE/header.tsv")"
-  expected="$(awk -F'\t' '$1 == "expected_lines" { print $2; exit }' "$STATE/header.tsv")"
-  [[ "$expected" =~ ^[0-9]+$ ]] || expected=0
-  contracts="$(awk -F'\t' '$1 == "contract_items" { print $2; exit }' "$STATE/header.tsv")"
-  [[ "$contracts" =~ ^[0-9]+$ ]] || contracts=0
-  [[ -n "$targets" ]] || refuse "packet has no front-matter 'targets' (re-run /delegate to regenerate it)"
-  [[ "$(printf '%s\n' "$targets" | wc -l | tr -d ' ')" == 1 ]] ||
-    refuse "multi-file (coupled) packets are not supported yet; delegate one file per packet"
-  [[ -n "$tests" ]] || refuse "packet has no front-matter 'test_targets'"
-  [[ -s "$STATE/packet-body.md" ]] || refuse "packet body is empty"
-  TARGET="$targets"
-  case "$TARGET" in
-    /* | *..* | .agentic/* | .git/* | .github/* | .claude/* | .codex/* | .pi/* | .agents/*)
-      refuse "target '$TARGET' is outside the delegable source tree" ;;
-  esac
-  local t
-  while IFS= read -r t; do
-    [[ "$t" == "$TARGET" ]] && refuse "target '$TARGET' is also a test target"
-    case "$t" in /* | *..*) refuse "unsafe test target '$t'" ;; esac
-  done <<<"$tests"
-  no_symlink_path "$ROOT" "$TARGET" || integrity "target path '$TARGET' passes through a symlink"
-
-  # The bucket comes from the file, not the label, so a mislabelled packet
-  # cannot land in a smaller bucket. A new file has no size yet, so the
-  # packet's expected_lines stands in, and a declared bucket larger than the
-  # counts give is kept (the frontier model's estimate of the finished file).
-  local lines=0
-  [[ -f "$ROOT/$TARGET" ]] && lines="$(wc -l <"$ROOT/$TARGET" | tr -d ' ')"
-  ((expected > lines)) && lines="$expected"
-  BUCKET="$(bucket_for "$lines" "$contracts")"
-  [[ "$BUCKET" != too-large ]] ||
-    refuse "target is $lines lines with $contracts contract items: larger than the medium bucket (<=$MEDIUM_LINES lines, <=$MEDIUM_CONTRACTS items)"
-  case "$declared_bucket:$BUCKET" in
-    "":* | small:small | medium:medium) ;;
-    medium:small) BUCKET=medium ;;
-    small:medium)
-      refuse "packet says bucket 'small' but $lines lines with $contracts contract items make it 'medium'; fix the header and route by the corrected bucket" ;;
-    *) refuse "packet has unknown bucket '$declared_bucket' (small or medium)" ;;
-  esac
-
-  # -- model: the one the human named, or the runner's selection
-  if [[ -n "$MODEL_NAME" ]]; then
-    MODE=manual
-    load_model "$MODEL_NAME"
-    check_credential
-    QUALIFIED="$(qualification_state "$MODEL_NAME" "$FINGERPRINT")"
-    [[ "$QUALIFIED" == qualified ]] ||
-      refuse "model '$MODEL_NAME' is $QUALIFIED for its current setup; run: delegate-run.sh qualify $MODEL_NAME"
-    [[ "$(score "$MODEL_NAME" "$FINGERPRINT" "$BUCKET" | cut -d' ' -f7)" != demoted ]] ||
-      say "warning: '$MODEL_NAME' is demoted for $BUCKET tasks; this manual run is still scored"
-  else
-    MODE=selected
-    select_model
-  fi
-  mkdir -p "$DELEGATE_DIR/results/$RUN_ID"
-  progress "run $RUN_ID — '$MODEL_NAME', $BUCKET; logs: ${DELEGATE_DIR#"$ROOT"/}/results/$RUN_ID/"
-
-  # -- snapshot the workspace (tracked + unignored untracked, minus delegation state)
-  list_files "$ROOT" >"$STATE/files.nul"
-  manifest "$ROOT" "$STATE/files.nul" >"$STATE/workspace.manifest"
-  SNAPSHOT_SHA="$(sha_file "$STATE/workspace.manifest")"
-  (cd "$ROOT" && tar -cf - --null -T "$STATE/files.nul") | (cd "$TREE" && tar -xf -) ||
-    infra "could not copy the workspace snapshot"
-  git -C "$TREE" init -q || infra "could not initialize scratch listing"
-  # Ignored dependency directories (node_modules, .venv) are not in the
-  # snapshot; install them so typecheck and tests can verify the candidate.
-  verify_cmd bash "$TOOLCHAIN" install >"$STATE/install.log" 2>&1 ||
-    say "warning: '$TOOLCHAIN install' failed in the scratch copy; steps needing dependencies may stay red: $(bounded_tail "$STATE/install.log" | tail -n 2 | tr '\n' ' ')"
-
-  no_symlink_path "$TREE" "$TARGET" || integrity "target path '$TARGET' passes through a symlink"
-  [[ -f "$TREE/$TOOLCHAIN" ]] || refuse "no $TOOLCHAIN in the workspace"
-  bash -n "$TREE/$TOOLCHAIN" || infra "$TOOLCHAIN does not parse"
-
-  local ready=0
-  verify_cmd bash "$TOOLCHAIN" ready >"$STATE/ready.log" 2>&1 || ready=$?
-  case "$ready" in
-    0) ;;
-    3) refuse "the gate is deliberately unconfigured ($TOOLCHAIN ready exited 3); a model cannot be verified" ;;
-    *) infra "the gate is broken ($TOOLCHAIN ready exited $ready): $(bounded_tail "$STATE/ready.log")" ;;
-  esac
-
-  local src_dirs inside=0 d
-  src_dirs="$(verify_cmd bash "$TOOLCHAIN" source-dirs 2>/dev/null)"
-  for d in $src_dirs; do
-    [[ "$TARGET" == "${d%/}/"* ]] && inside=1
-  done
-  [[ "$inside" == 1 ]] || refuse "target '$TARGET' is not under the gate's source dirs ($src_dirs)"
-
-  say "provisioning scratch copy"
-  verify_cmd bash "$TOOLCHAIN" install >"$STATE/install.log" 2>&1 ||
-    infra "toolchain install failed in scratch: $(bounded_tail "$STATE/install.log")"
-  # Match the edit hook, which formats after every frontier edit.
-  verify_cmd bash "$TOOLCHAIN" format >"$STATE/format.log" 2>&1 ||
-    infra "toolchain format failed on the baseline: $(bounded_tail "$STATE/format.log")"
-  list_files "$TREE" >"$STATE/scratch-files.nul"
-  manifest "$TREE" "$STATE/scratch-files.nul" >"$STATE/baseline.manifest"
-
-  # -- the intended red baseline
-  local test_args=() status=0
-  while IFS= read -r t; do test_args+=("$t"); done <<<"$tests"
-  verify_cmd bash "$TOOLCHAIN" test "${test_args[@]}" >"$STATE/baseline-test.log" 2>&1 || status=$?
-  [[ "$status" != 0 ]] || refuse "the target's tests already pass; there is nothing to delegate"
-  if [[ "$PACKET_FORMAT" == 2 ]]; then
-    assemble_sections "$TREE" "$STATE/baseline-test.log" >>"$STATE/packet-body.md"
-  fi
-  # Steps red before the run (other plan files not landed yet) cannot be
-  # held against the candidate; steps green before the run must stay green.
-  run_steps baseline
-
-  local baseline_exists=0
-  if [[ -f "$TREE/$TARGET" ]]; then
-    baseline_exists=1
-    cp -p "$TREE/$TARGET" "$STATE/target.baseline"
-  fi
-
-  # -- attempts
-  local n started elapsed reason green=0
-  for ((n = 1; n <= MAX_ATTEMPTS; n++)); do
-    started="$(date +%s)"
-    if [[ "$baseline_exists" == 1 ]]; then
-      cat "$STATE/target.baseline" >"$TREE/$TARGET"
-    else
-      rm -f "$TREE/$TARGET"
-    fi
-
-    say "attempt $n/$MAX_ATTEMPTS: calling '$MODEL_NAME'"
-    if [[ "$n" == 1 ]]; then
-      request_first "$STATE/attempt-$n.request.json" "$STATE/packet-body.md"
-    else
-      request_retry "$STATE/attempt-$n.request.json"
-    fi
-    if ! call_model "attempt-$n" "$STATE/attempt-$n.request.json"; then
-      # A retry would most likely time out again, so the run ends here and is
-      # scored as a failure for this model.
-      elapsed=$(($(date +%s) - started))
-      reason="the model did not answer within timeout_seconds=$TIMEOUT (connected; thinking counts toward the limit)"
-      printf '%s\n' "$reason" >"$STATE/last-diagnostics.txt"
-      record_attempt "$n" timeout "$reason" "$elapsed"
-      OUTCOME=needs_frontier
-      REASON="$reason; raise timeout_seconds for '$MODEL_NAME' or cap its reasoning in request"
-      say "needs_frontier: $REASON"
-      say "packet: $PACKET_REL"
-      finish 10
-    fi
-    progress "extracting candidate"
-    if ! reason="$(extract_candidate "attempt-$n")"; then
-      elapsed=$(($(date +%s) - started))
-      printf '%s\n' "$reason" >"$STATE/last-diagnostics.txt"
-      record_attempt "$n" format "$reason" "$elapsed"
-      cp "$STATE/candidate" "$STATE/previous-candidate"
-      printf 'Your file was rejected before verification.\n\n%s\n\nReturn the complete final contents of `%s`, and nothing else. No diff, no patch, no commentary, no markdown fence around the file.\n' \
-        "$reason" "$TARGET" >"$STATE/feedback.md"
-      say "attempt $n rejected: $reason"
-      continue
-    fi
-
-    mkdir -p "$(dirname "$TREE/$TARGET")"
-    no_symlink_path "$TREE" "$TARGET" || integrity "target path '$TARGET' became a symlink"
-    if [[ "$baseline_exists" == 1 ]]; then
-      cat "$STATE/candidate" >"$TREE/$TARGET"
-    else
-      cp "$STATE/candidate" "$TREE/$TARGET"
-    fi
-    cp "$STATE/candidate" "$STATE/previous-candidate"
-
-    status=0
-    progress "verifying — format"
-    verify_cmd bash "$TOOLCHAIN" format >"$STATE/attempt-$n.format.log" 2>&1 || status=$?
-    local focused=0 regressed="" still_red="" step
-    if [[ "$status" == 0 ]]; then
-      progress "verifying — focused tests"
-      verify_cmd bash "$TOOLCHAIN" test "${test_args[@]}" >"$STATE/attempt-$n.focused.log" 2>&1 || focused=$?
-      progress "verifying — gate steps"
-      run_steps "attempt-$n"
-      LAST_STEPS="$STATE/attempt-$n.steps"
-      for step in $GATE_STEPS; do
-        if [[ "$(step_status "attempt-$n" "$step")" != 0 ]]; then
-          if [[ "$(step_status baseline "$step")" == 0 ]]; then
-            regressed="${regressed:+$regressed }$step"
-          else
-            still_red="${still_red:+$still_red }$step"
-          fi
-        fi
-      done
-    fi
-
-    # Post-execution audit: only the target may differ from the baseline.
-    list_files "$TREE" >"$STATE/after-files.nul"
-    manifest "$TREE" "$STATE/after-files.nul" >"$STATE/after.manifest"
-    local unexpected
-    unexpected="$(changed_paths "$STATE/baseline.manifest" "$STATE/after.manifest" | grep -v -x -F "$TARGET" || true)"
-    elapsed=$(($(date +%s) - started))
-    if [[ -n "$unexpected" ]]; then
-      record_attempt "$n" integrity "unexpected changes: $(printf '%s' "$unexpected" | tr '\n' ' ')" "$elapsed"
-      integrity "the candidate's gate run changed files other than the target: $(printf '%s' "$unexpected" | tr '\n' ' ')"
-    fi
-
-    local why=""
-    if [[ "$status" != 0 ]]; then
-      why="the formatter failed on the file"
-      bounded_tail "$STATE/attempt-$n.format.log" >"$STATE/last-diagnostics.txt"
-    elif [[ "$focused" != 0 ]]; then
-      why="the target's tests failed"
-      bounded_tail "$STATE/attempt-$n.focused.log" >"$STATE/last-diagnostics.txt"
-    elif [[ -n "$regressed" ]]; then
-      why="gate steps that passed before the change now fail: $regressed"
-      : >"$STATE/last-diagnostics.txt"
-      for step in $regressed; do
-        printf '== %s ==\n' "$step" >>"$STATE/last-diagnostics.txt"
-        bounded_tail "$STATE/attempt-$n.$step.log" >>"$STATE/last-diagnostics.txt"
-      done
-    fi
-
-    if [[ -z "$why" ]]; then
-      UNVERIFIED="$still_red"
-      GATE_LEVEL=full
-      [[ -n "$still_red" ]] && GATE_LEVEL=partial
-      record_attempt "$n" green "${still_red:+red before the run and still red: $still_red}" "$elapsed"
-      green=1
-      break
-    fi
-    record_attempt "$n" red "$why" "$elapsed"
-    {
-      printf 'Your file did not pass verification: %s.\n\n' "$why"
-      printf 'Verification output (last lines):\n\n'
-      cat "$STATE/last-diagnostics.txt"
-      printf '\nReturn the complete final contents of `%s`, and nothing else. No diff, no patch, no commentary, no markdown fence around the file.\n' "$TARGET"
-    } >"$STATE/feedback.md"
-    say "attempt $n red: $why"
-  done
-
-  if [[ "$green" != 1 ]]; then
-    OUTCOME=needs_frontier
-    REASON="$MAX_ATTEMPTS attempts spent without passing verification"
-    say "needs_frontier: $REASON. Implement $TARGET with the frontier model."
-    say "packet: $PACKET_REL"
-    finish 10
-  fi
-
-  # -- publish, only if the workspace has not moved under the run
-  list_files "$ROOT" >"$STATE/files-now.nul"
-  manifest "$ROOT" "$STATE/files-now.nul" >"$STATE/workspace-now.manifest"
-  if ! cmp -s "$STATE/workspace.manifest" "$STATE/workspace-now.manifest"; then
-    local kept="$DELEGATE_DIR/results/$RUN_ID/candidate"
-    mkdir -p "$(dirname "$kept")"
-    cp "$TREE/$TARGET" "$kept"
-    integrity "the workspace changed during the run ($(changed_paths "$STATE/workspace.manifest" "$STATE/workspace-now.manifest" | tr '\n' ' ')); green candidate kept at ${kept#"$ROOT"/}, re-run against the current tree"
-  fi
-  no_symlink_path "$ROOT" "$TARGET" || integrity "workspace target path '$TARGET' passes through a symlink"
-  mkdir -p "$(dirname "$ROOT/$TARGET")"
-  local tmp="$ROOT/$TARGET.delegate-run.$$"
-  progress "publishing — $TARGET"
-  cp "$TREE/$TARGET" "$tmp" || infra "could not stage the candidate in the workspace"
-  [[ -x "$ROOT/$TARGET" ]] && chmod +x "$tmp"
-  mv -f "$tmp" "$ROOT/$TARGET" || infra "could not publish the candidate"
-  # Keep the file as published, so record-review can measure what review
-  # changed in it.
-  mkdir -p "$DELEGATE_DIR/results/$RUN_ID"
-  cp "$TREE/$TARGET" "$DELEGATE_DIR/results/$RUN_ID/candidate"
-
-  OUTCOME=green
-  REASON=""
-  say "green: published $TARGET (uncommitted) after attempt $n."
-  if [[ "$GATE_LEVEL" == partial ]]; then
-    say "partial gate: '$UNVERIFIED' were red before the run and still are (other plan files not landed?)."
-    say "  Those steps did not verify this file; the full gate must go green once the plan's files land."
-  fi
-  say "Next: /review-check, then /review over the complete change set."
-  finish 0
-}
-
 # ---- qualify ------------------------------------------------------------------
 
-# The plumbing file: about 270 lines, near the top of the medium bucket, so a
-# setup that truncates, runs out of context, or times out on a real file
-# fails here. The edit asked for is trivial, so grading can be exact.
+# The plumbing file: about 270 lines, so a setup that truncates, runs out of
+# context, or times out on a file of ordinary size fails here. The edit asked
+# for is trivial, so grading can be exact.
 PLUMBING_COUNT=30
 PLUMBING_RENAME=17
 PLUMBING_CONSTANT=23
@@ -1509,7 +995,7 @@ cmd_qualify() {
 
   say "qualifying '$MODEL_NAME' (setup $FINGERPRINT): first response, then a $(plumbing_file | wc -l | tr -d ' ')-line plumbing file"
   printf 'Reply with the single word OK.\n' >"$STATE/warmup.md"
-  request_first "$STATE/warmup.request.json" "$STATE/warmup.md"
+  build_request "$STATE/warmup.request.json" "$STATE/warmup.md"
   if ! call_model warmup "$STATE/warmup.request.json"; then
     record_qualification fail "first response timed out after ${TIMEOUT}s (includes any model load)" "$TIMEOUT" ""
     say "not qualified: no first response within timeout_seconds=$TIMEOUT; raise it if the model needs longer to load"
@@ -1518,24 +1004,24 @@ cmd_qualify() {
   local first="$CALL_SECONDS"
 
   plumbing_packet >"$STATE/plumbing.md"
-  request_first "$STATE/plumbing.request.json" "$STATE/plumbing.md"
+  build_request "$STATE/plumbing.request.json" "$STATE/plumbing.md"
   if ! call_model plumbing "$STATE/plumbing.request.json"; then
     record_qualification fail "plumbing file timed out after ${TIMEOUT}s" "$first" "$TIMEOUT"
     say "not qualified: the plumbing file did not come back within timeout_seconds=$TIMEOUT; raise it or cap the model's reasoning"
     exit 5
   fi
   local gen="$CALL_SECONDS" reason
-  if ! reason="$(extract_candidate plumbing)"; then
+  if ! reason="$(extract_file plumbing)"; then
     record_qualification fail "$reason" "$first" "$gen"
     say "not qualified: $reason"
     exit 5
   fi
   plumbing_expected >"$STATE/expected.py"
   normalize "$STATE/expected.py" >"$STATE/expected.norm"
-  normalize "$STATE/candidate" >"$STATE/candidate.norm"
-  if ! cmp -s "$STATE/expected.norm" "$STATE/candidate.norm"; then
+  normalize "$STATE/returned" >"$STATE/returned.norm"
+  if ! cmp -s "$STATE/expected.norm" "$STATE/returned.norm"; then
     local where
-    where="$(diff "$STATE/expected.norm" "$STATE/candidate.norm" | head -n 6 | tr '\n' ' ')"
+    where="$(diff "$STATE/expected.norm" "$STATE/returned.norm" | head -n 6 | tr '\n' ' ')"
     record_qualification fail "returned file differs from the expected edit: $where" "$first" "$gen"
     say "not qualified: the returned file differs from the expected edit"
     say "  first differences: $where"
@@ -1544,7 +1030,7 @@ cmd_qualify() {
   record_qualification pass "" "$first" "$gen"
   say "qualified: '$MODEL_NAME' — first response ${first}s (includes any model load), plumbing ${gen}s, timeout ${TIMEOUT}s"
   if awk -v a="$first" -v b="$gen" -v t="$TIMEOUT" 'BEGIN { exit !(a + b > 0.6 * t) }'; then
-    say "warning: a cold load plus a medium file took over 60% of timeout_seconds; raise it for this model"
+    say "warning: a cold load plus the plumbing file took over 60% of timeout_seconds; raise it for this model"
   fi
 }
 
@@ -1552,29 +1038,23 @@ cmd_qualify() {
 
 cmd_record_review() {
   local run="${1:-}" verdict="${2:-}"
-  [[ -n "$run" && -n "$verdict" ]] || { say "usage: delegate-run.sh record-review <run> pass|model-defect|packet-defect"; exit 2; }
-  case "$verdict" in pass | model-defect | packet-defect) ;; *) say "unknown verdict: $verdict"; exit 2 ;; esac
+  [[ -n "$run" && -n "$verdict" ]] || { say "usage: delegate-run.sh record-review <run> pass|model-defect|spec-defect"; exit 2; }
+  case "$verdict" in
+    pass | model-defect | spec-defect) ;;
+    packet-defect) verdict="spec-defect" ;;
+    *) say "unknown verdict: $verdict"; exit 2 ;;
+  esac
   require_deps jq awk
   local ledger="$DELEGATE_DIR/ledger.jsonl" rec
   [[ -f "$ledger" ]] || { say "no ledger at $ledger"; exit 2; }
   rec="$(jq -c -s --arg r "$run" 'map(select((.type // "run") == "run" and .run == $r)) | last // empty' "$ledger")"
   [[ -n "$rec" ]] || { say "no run '$run' in the ledger"; exit 2; }
-  [[ "$(jq -r .outcome <<<"$rec")" == green ]] || { say "run '$run' did not publish a candidate; nothing to review"; exit 2; }
-  # How much of the published file survived review: lines review removed
-  # from it and lines review added, against the target as it is now.
-  local cand="$DELEGATE_DIR/results/$run/candidate" target changes='null'
-  target="$(jq -r .target <<<"$rec")"
-  if [[ -f "$cand" && -f "$ROOT/$target" ]]; then
-    local published removed added
-    published="$(wc -l <"$cand" | tr -d ' ')"
-    removed="$( (diff "$cand" "$ROOT/$target" || true) | grep -c '^<' || true)"
-    added="$( (diff "$cand" "$ROOT/$target" || true) | grep -c '^>' || true)"
-    changes="$(jq -c -n --argjson p "$published" --argjson r "$removed" --argjson a "$added" \
-      '{published_lines: $p, kept_lines: ($p - $r), removed_lines: $r, added_lines: $a}')"
-    say "review kept $((published - removed)) of $published published lines in $target, removed $removed, added $added"
-  fi
-  jq -c -n --arg ts "$(now_utc)" --arg run "$run" --arg verdict "$verdict" --argjson changes "$changes" \
-    '{type: "review", ts: $ts, run: $run, verdict: $verdict, review_changes: $changes}' >>"$ledger"
+  # Older ledgers may hold runs from the removed per-file mode (buckets
+  # small and medium); they stay as history and are no longer scored.
+  [[ "$(jq -r '.bucket // ""' <<<"$rec")" == phase:* ]] || { say "run '$run' is from a removed delegation mode and is no longer scored; nothing to record"; exit 2; }
+  [[ "$(jq -r .outcome <<<"$rec")" == green ]] || { say "run '$run' did not end green; nothing to review"; exit 2; }
+  jq -c -n --arg ts "$(now_utc)" --arg run "$run" --arg verdict "$verdict" \
+    '{type: "review", ts: $ts, run: $run, verdict: $verdict}' >>"$ledger"
   local model fingerprint bucket
   model="$(jq -r .model.name <<<"$rec")"
   fingerprint="$(jq -r .fingerprint <<<"$rec")"
@@ -1584,7 +1064,7 @@ cmd_record_review() {
 }
 
 cmd_status() {
-  local profile name state bucket has_handoff=0
+  local profile name state bucket has_harness=0
   profile="$(default_profile)"
   if [[ "${1:-}" == --profile ]]; then
     (($# >= 2)) && [[ -n "$2" ]] || { say "--profile requires a value"; exit 2; }
@@ -1597,16 +1077,15 @@ cmd_status() {
   mkdir -p "$STATE"
   trap cleanup EXIT
   load_profile "$profile"
-  load_handoff_harness && has_handoff=1
+  load_handoff_harness && has_harness=1
+  [[ "$has_harness" == 1 ]] ||
+    say "agent harness unavailable (${DELEGATE_HANDOFF_HARNESS:-pi}): showing qualification only; phase records need its version"
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     load_model "$name"
     state="$(qualification_state "$name" "$FINGERPRINT")"
     printf '%s (%s, setup %s): %s\n' "$name" "$MODEL_ID" "$FINGERPRINT" "$state"
-    for bucket in small medium; do
-      printf '  %s\n' "$(describe_score "$name" "$FINGERPRINT" "$bucket")"
-    done
-    if [[ "$has_handoff" == 1 ]] && handoff_fingerprint; then
+    if [[ "$has_harness" == 1 ]] && handoff_fingerprint; then
       for bucket in phase:implement phase:test-first+implement; do
         printf '  %s\n' "$(describe_score "$name" "$FINGERPRINT" "$bucket")"
       done
@@ -1870,14 +1349,14 @@ cmd_set_policy() {
   load_profile "$profile"
   say "after:  policy = $(project_get policy), activation_approved = $(project_get activation_approved)"
   if [[ "$want" == auto ]]; then
-    say "qualified candidates: $qualified. Each run still picks its delegation mode (direct, files, handoff)."
+    say "qualified candidates: $qualified. Each run still picks its delegation mode (direct or handoff)."
   fi
 }
 
 cmd_reset() {
   local model="${1:-}" bucket="${2:-}"
   [[ -n "$model" && -n "$bucket" ]] || { say "usage: delegate-run.sh reset <model> <bucket>"; exit 2; }
-  case "$bucket" in small | medium | phase:implement | phase:test-first+implement) ;; *) say "unknown bucket: $bucket"; exit 2 ;; esac
+  case "$bucket" in phase:implement | phase:test-first+implement) ;; *) say "unknown bucket: $bucket (phase:implement or phase:test-first+implement)"; exit 2 ;; esac
   require_deps jq
   mkdir -p "$DELEGATE_DIR"
   jq -c -n --arg ts "$(now_utc)" --arg model "$model" --arg bucket "$bucket" \
@@ -3212,7 +2691,6 @@ require_deps() {
 
 case "${1:-}" in
   qualify) shift; cmd_qualify "$@" ;;
-  run) shift; cmd_run "$@" ;;
   record-review) shift; cmd_record_review "$@" ;;
   init) shift; cmd_init "$@" ;;
   discover) shift; cmd_discover "$@" ;;

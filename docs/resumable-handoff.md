@@ -393,7 +393,8 @@ path by default before that evidence exists.
 
 ## Non-goals
 
-- Resuming a one-file non-streaming HTTP generation.
+- Resuming a one-file non-streaming HTTP generation (that mode was
+  removed on 2026-10-17).
 - Running several Pi writers against one worktree.
 - Switching models during resume.
 - Treating a pause as successful delegation.

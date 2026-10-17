@@ -268,61 +268,36 @@ Open:
   Pi cannot append the existing reminder to default compaction, and neither
   project trust nor role allowlists are OS containment; see
   `docs/pi-portability.md`.
-- Local execution has a draft spec and a working runner:
+- Local execution is one mode: `handoff`.
   `workflow/bin/delegate-run.sh` (installed as `.agentic/delegate-run.sh`
   with `--full`) qualifies a model with a plumbing check, discovers what
-  each endpoint serves, runs one packet against a named or selected
-  qualified model, verifies it in a scratch copy, publishes only a passing
-  file, and scores and demotes models from the ledger with `record-review`;
-  with `policy = "auto"` the Implement step hands eligible plan files to it
-  through `/delegate` → "Automatic mode". Smoke-tested against a stub
-  server. Two trials on 2026-10-14 in a TypeScript consumer project ran
-  six packets through one local model: four published on the first
-  attempt, one failed three times (test-framework code placed in a source
-  file), and review found a packet that contradicted its plan and a
-  delegated maze far smaller and plainer than a frontier model built from
-  the same spec. Packet traceability, frontier-decided choices, and
-  intent-pinning tests followed from those. A third trial published all
-  four packets across two models; from it the runner sizes a new file by
-  the packet's `expected_lines`, refuses a bucket labelled smaller than its
-  counts, and keeps each published file so `record-review` logs how much
-  of it review kept. Frontier-token savings are still unmeasured.
-  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md): `handoff`
-  (v1, smoke-tested with a stub harness, no real-model run yet) hands a
-  whole phase to a headless local Pi session in a git worktree; the runner
+  each endpoint serves, and hands a whole phase of an approved spec to a
+  headless local Pi session in a git worktree
+  ([`docs/local-phase-handoff.md`](docs/local-phase-handoff.md)); the runner
   verifies the gate and plan scope, and—only after explicit human approval
   acknowledged with `--allow-commit`—commits on `handoff/<run>` for the
   frontier orchestrator to review and squash-merge; `handoff-clean` removes
-  the worktree. Review fixes bind an isolated Pi provider to the machine
-  profile, audit scope and test paths against the starting commit before
-  and after the gate, reject session/verifier commits and branch changes,
-  and use one harness/configuration fingerprint for phase selection and
-  scoring (`status` and `reset` include phase buckets). Bootstrap migrates
-  the delegation ignore entry without replacing project rules; activation
-  handles both BSD and GNU stat. Regression coverage includes these paths;
-  real-model handoff evidence remains open. Built after a local model
-  (GLM-5.3) ran the full loop well with tools. Delegation is now an explicit
-  per-run mode (`direct`, `files`, `handoff`; `none` was renamed `direct`
-  on 2026-10-16 and stays an alias) rather than implied by
-  `policy = "auto"`. The single-file
-  runner's scratch copy omitted ignored dependencies (`node_modules`), so
-  its TypeScript typecheck and test steps were likely never verified in
-  the trials; it now runs `toolchain.sh install` there (not yet exercised
-  on a real TypeScript run). `init` drafts the machine profile from each server's
-  model list and `project-types.md` carries the founding setup. Coupled
-  packets and optional `calibrate` remain.
-  [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) proposes a
-  stack-neutral runner that sends a self-contained `/delegate` packet to a
-  pinned local model with no tool access and verifies the result. A model
-  qualifies with one plumbing check, then takes real tasks on probation:
-  selection explores new candidates, ranks by recorded outcomes on the
-  project's own tasks, and demotion drops a model the evidence shows
-  failing. Quality rests on the gate and review, not on that evidence. The
-  frontier model stays orchestrator. Candidates are discovered from the
-  machine's inference endpoints (`GET /v1/models`); model size never
-  decides. Scaffold files still name no model.
+  the worktree. It binds an isolated Pi provider to the machine profile,
+  audits scope and test paths against the starting commit before and after
+  the gate, rejects session/verifier commits and branch changes, and scores
+  and demotes models per phase from the ledger with `record-review`, using
+  one harness/configuration fingerprint for selection, status, and reset.
+  Delegation is an explicit per-run mode (`direct` or `handoff`; `none` was
+  renamed `direct` on 2026-10-16 and stays an alias) rather than implied by
+  `policy = "auto"`. `init` drafts the machine profile from each server's
+  model list and `project-types.md` carries the founding setup. Smoke-tested
+  with a stub harness and real Pi against a loopback stub; real-model
+  handoff evidence remains open. Built after a local model (GLM-5.3) ran the
+  full loop well with tools. The earlier per-file mode (`run`: one packet,
+  no tools, scratch-copy verification) was removed on 2026-10-17; why, the
+  evidence against, and when to revisit are in `docs/influences.md`, and
+  [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) keeps its
+  design and trial history. Old ledgers keep those entries; status and
+  selection ignore them. Optional `calibrate` remains. Frontier-token
+  savings are unmeasured. Candidates are discovered from the machine's
+  inference endpoints (`GET /v1/models`); model size never decides.
+  Scaffold files still name no model.
 - [`docs/delegated-progress.md`](docs/delegated-progress.md) is implemented:
-  one-file calls emit elapsed-time heartbeats and verification stages, while
   handoffs render compact live Pi tool, retry, and compaction events. Redirected
   runs stay quiet unless requested; raw reasoning, generated code, and full tool
   output remain out of the summary. Smoke-tested, with no real-model trial yet.

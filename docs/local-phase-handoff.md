@@ -1,5 +1,10 @@
 # Local phase handoff — draft spec
 
+**2026-10-17:** handoff is now the only local delegation mode; the
+single-file runner this spec compares against was removed (see
+`docs/influences.md` → "Single-file delegation removed (2026-10-17)").
+References to it below are history.
+
 **Status:** v1 implemented (2026-10-15) as `delegate-run.sh handoff` and
 `handoff-clean`, including bounded live progress from Pi JSON events;
 smoke-tested with a stub harness, with no real-model run yet.
@@ -90,8 +95,10 @@ frontier: re-run gate -> scope audit -> /review (+ adversarial) -> fix or
 Which phases go local is the human's choice per run: `implement`, or
 `test-first+implement`. Spec, plan, and the final review never do.
 
-The single-file runner stays for leaf modules the tests fully pin; the
-ledger, scored per mode, decides whether it is kept or retired.
+When this was written, the single-file runner stayed for leaf modules the
+tests fully pin, with the ledger to decide whether it was kept. It was
+removed on 2026-10-17 before that evidence existed; see
+`docs/influences.md`.
 
 ## Interface
 

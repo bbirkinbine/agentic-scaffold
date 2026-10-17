@@ -194,8 +194,8 @@ day at a conference, a long meeting. Three steps:
    settle is answered with the human's most likely choice and logged in
    `## Unattended decisions` with its alternatives, reason, files, and how to
    reverse it. Irreversible steps and anything outside the approved plan
-   still stop the run. Local delegation keeps running: a failed file falls
-   back to the frontier model, and an integrity stop is retried once.
+   still stop the run. Local delegation keeps running: a paused handoff is
+   resumed, and a red one falls back to the orchestrating session.
 3. **When you are back: `/unattended reconcile`.** Keep or override each logged
    decision; overrides go through the normal gate and a focused review.
 

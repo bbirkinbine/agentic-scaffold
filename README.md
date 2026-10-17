@@ -117,18 +117,19 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   and implementation record; [`docs/pi-portability.md`](docs/pi-portability.md)
   — remaining evidence and containment gaps. The earlier Codex adapter record
   is in [`docs/codex-portability.md`](docs/codex-portability.md).
-- [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) — design,
-  safety boundaries, and acceptance contract for bounded local-model
-  delegation; its status header records the current implementation state.
-  [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) hands a whole
-  phase to a local session, and
+- [`docs/local-phase-handoff.md`](docs/local-phase-handoff.md) — local
+  delegation: a whole phase of an approved spec handed to a local Pi session
+  in a git worktree, verified and reviewed by the orchestrator;
   [`docs/delegated-progress.md`](docs/delegated-progress.md) specifies its
   bounded live progress, and
   [`docs/resumable-handoff.md`](docs/resumable-handoff.md) makes those sessions
   long-running and recoverable (inactivity lease, detached launch, token-free
-  `handoff-status`, pause and `handoff-resume`). A Claude Code or Codex orchestrator can
-  delegate either way; the handoff session itself, and a fully local loop,
-  run in Pi.
+  `handoff-status`, pause and `handoff-resume`). A Claude Code or Codex
+  orchestrator can hand off; the handoff session itself, and a fully local
+  loop, run in Pi.
+  [`docs/local-delegate-runner.md`](docs/local-delegate-runner.md) holds the
+  runner's qualification, scoring, and selection design, and the history of
+  the per-file mode removed on 2026-10-17.
 
 Local delegation remains optional: without an approved machine profile,
 workflows in `direct` mode need no delegation server or Pi handoff session. Full-profile

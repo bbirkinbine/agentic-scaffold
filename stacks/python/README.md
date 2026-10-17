@@ -30,7 +30,7 @@ python/
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .agentic/
 │   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/test/gate; the one file naming the tools
-│   ├── delegate-run.sh                    # --full: qualify local models, run a /delegate packet, verify, publish, score
+│   ├── delegate-run.sh                    # --full: qualify local models, hand a phase to Pi in a worktree, verify, score
 │   └── hooks/                             # shared hook implementations used by all clients
 ├── .agents/
 │   └── skills/                            # Codex workflow + reusable repository skills
@@ -62,7 +62,7 @@ python/
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
 │   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
 │   │   ├── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
-│   │   ├── delegate.md                    # /delegate — build a handoff packet for a weaker/local executor model
+│   │   ├── delegate.md                    # /delegate — hand an approved phase to a local model session (Pi)
 │   │   └── unattended.md                  # /unattended — ask decisions up front, then reconcile an unattended run's choices
 │   └── skills/
 │       ├── python-module-split/
@@ -267,7 +267,7 @@ as `$<name>`; for example, `/plan` maps to `$plan`.
 | Test-first | `test-first` subagent (Claude Markdown / Codex TOML adapters) | `/test-first [spec-path]` |
 | Analyze (optional consistency check) | Fresh read-only `analyzer` cross-check: every success criterion covered by a test, no undeclared scope, standing rules honored | `/analyze [spec-path]` |
 | Implement | Main client session (`AGENTS.md`; Claude imports it through `CLAUDE.md`) | — |
-| Implement (local delegation, `--full`, opt-in) | With the machine profile's `policy = "auto"`, eligible one-file plan steps go to a qualified local model through `.agentic/delegate-run.sh`, which verifies each file in a scratch copy and publishes only a passing one; setup is in `docs/project-types.md` | `/delegate` |
+| Implement (local delegation, `--full`, opt-in) | With the machine profile's `policy = "auto"` and `handoff` chosen for the run, the approved implement phase goes to a qualified local model in a Pi session in its own git worktree through `.agentic/delegate-run.sh`, which verifies the full gate and the plan's file scope and commits the result on a `handoff/<run>` branch for review; setup is in `docs/project-types.md` | `/delegate` |
 | Unattended run (`--full`, optional) | Before you leave, the agent asks every foreseeable decision at once and records your consent; the run answers the rest for you and logs each; on return (or mid-run) you keep or override each logged decision | `/unattended start` · `/unattended reconcile` |
 | Per-edit quality | Client PostToolUse wiring calls `.agentic/hooks/format-after-edit.sh`; `--strict-hooks` also runs ruff check + mypy | — |
 | Local quality gate (pre-review) | ruff lint + format + mypy + pytest, refuses pass on failure | `/review-check` |

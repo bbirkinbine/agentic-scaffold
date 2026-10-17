@@ -36,20 +36,24 @@ reports of local-model delegation converge on "bounded chores" precisely
 because the people writing them have no mechanical oracle and are
 eyeballing the diff.
 
-## Three tiers, three verdicts
+## Two tiers, two verdicts
 
-"Can a local model code" is three questions.
+"Can a local model code" is two questions here.
 
 | Tier | The job | Model class | Verdict |
 | --- | --- | --- | --- |
 | **1 — inline autocomplete (FIM)** | Complete the line you are typing | 1.5B–7B **base** model | Works. Unrelated to this loop; wire it up and forget it |
-| **2 — one bounded edit** | Rewrite one already-specified file so failing tests pass | instruct, typically 27B and up | Viable *only* behind a green gate |
-| **3 — autonomous agentic loop** | Multi-turn tool use, commands, many files | any open weight today | Unproven on local hardware. Measure it before designing around it |
+| **2 — one phase in a worktree** | Implement an approved plan against failing tests, with repository access and tools, in an isolated git worktree | instruct with reliable tool calling, typically 27B and up | What this scaffold wires, behind an independent gate and scope audit. Unmeasured on real local runs; your recorded handoffs are the evidence |
 
 Tier 1 notes worth carrying: use a **base** model, not an Instruct
 variant — chat tuning suppresses fill-in-the-middle, and model vendors say
 so directly. Serve it on its own endpoint; the autocomplete model and the
 implementation model should never be the same process.
+
+Tier 2 is a bet that a model with the repository and its tools does better
+work than one that sees a fixed excerpt and returns text. That is a stated
+expectation, not a measurement; the record per phase (`status`) and the
+review verdicts are how you find out on your own tasks.
 
 ## Phase-by-phase
 
@@ -57,94 +61,83 @@ implementation model should never be the same process.
 | --- | --- | --- |
 | `/spec`, `/product-spec`, `/adr` | No | No machine oracle, and specification defects are the largest single category of multi-agent failure |
 | `/plan` | No | A weaker planner measurably degrades a stronger executor; the reverse hazard is real |
-| `/test-first` | No | The tests *are* the oracle. Never delegate the grader |
+| `/test-first` | No, by default | The tests *are* the oracle. `--phase test-first+implement` hands it over too; review must then check the tests against the spec |
 | Implement | **Yes, conditionally** | The only phase with mechanical pass/fail |
 | `/review-check` | n/a | Deterministic already — the stack's gate through `.agentic/toolchain.sh` |
 | `/review`, `/review-adversarial` | No | This is the rung that catches "gate green, feature wrong." The model that wrote the code, or one weaker than the orchestrator, is the wrong judge |
 
 ## Conditions on the implement phase
 
-All six, or don't delegate:
+All five, or don't delegate:
 
-1. **One file per call.** A plan that touches several files is delegated
-   as a sequence of one-file calls in dependency order, each quoting the
-   signatures of files already landed. The multi-file failure in field
-   reports is the agentic refactor, where the model navigates and edits
-   many files with tools (Tier 3); a change that only works as a
-   simultaneous multi-file edit stays with the frontier model. Returning
-   several files from one call is a separate, unmeasured task shape: do not
-   assume it from a one-file success rate.
-2. **Single shot, not an agentic loop.** Ask for a complete file back.
-   The edit-test-fix loop still happens, but the runner owns it: it runs
-   the tests and sends the failures back with the next request, so the
-   model never has to emit a tool call — the step where local setups most
-   often break (see below).
-3. **Tests for the file exist and fail before the call.** No oracle, no
-   delegation.
-4. **Capped retries, then escalate to the frontier model.** The cap matters
-   more than its value; three is a reasonable start.
-5. **Prefer whole-file output over diffs.** The same model on the same
-   problems has scored 2x differently on format alone. Diff generation is a
-   separate skill from coding and weak models are bad at it.
-6. **Pin the quadruple** — model, quant, runtime version, harness version —
+1. **An approved plan bounds the scope.** The session may change only the
+   files under the plan's `## Files to touch`, plus the spec's own handoff
+   note. The runner checks this after tool calls and again before and after
+   the gate; anything outside the list, a test edit in the implement phase,
+   or a commit stops the run.
+2. **Tests for the phase exist and fail before the session.** No oracle, no
+   delegation. In the implement phase the tests are read-only to the
+   session.
+3. **The gate is run by the runner, not trusted from the session.** The
+   session runs tests as it works; the runner then runs the full gate
+   itself in the worktree. Red ends the run as `needs_frontier`.
+4. **One session, then escalate.** A red or empty result goes back to the
+   orchestrating session, which implements or hands off once more with a
+   short hint in the spec. A paused session resumes; it does not restart.
+5. **Pin the quadruple** — model, quant, runtime version, harness version —
    plus the request settings (reasoning mode or thinking level, sampling).
    The same weights with reasoning on and off are different executors.
    Local tool-calling breaks on serialization mismatches between model,
    runtime and harness far more often than on reasoning, and every one of
-   those layers ships breaking changes.
+   those layers ships breaking changes. The runner fingerprints the setup
+   with the Pi version, and a change starts a fresh record.
 
-A local executor does what the tests and the packet demand and little more:
+A local executor does what the tests and the spec demand and little more:
 where the spec leaves a choice open, it tends to pick the smallest thing
 the tests accept. In a trial on a Pac-Man-inspired game, a frontier model
 given the same spec built a 15×11 maze in arcade colors; the local model
 built a 7×7 loop with white corridors, and both passed. So pin intent where
 the executor can't miss it: in tests where it is measurable (sizes, counts,
-constants), and as concrete decisions in the packet where it is not.
-Files that are mostly presentation (rendering, styles, copy) are where a
-weaker model's judgment shows most; keep them with the frontier model
-unless tests pin their look.
+constants), and as concrete decisions in the spec where it is not. Files
+that are mostly presentation (rendering, styles, copy) are where a weaker
+model's judgment shows most; keep them with the frontier model unless tests
+pin their look.
 
 ## Running it: `.agentic/delegate-run.sh`
 
-`--full` installs a runner that does the loop above without pasting. It
-needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
+`--full` installs a runner that does the loop above. It needs `curl`, `jq`,
+`perl` (the watchdog that bounds each verifier command), and Pi for the
+session itself:
 
 1. **Profile.** Describe your inference servers and models in
    `~/.config/agentic/local-models.toml`, outside the repository.
    `bash .agentic/delegate-run.sh init <base-url> ...` prints a draft from
    what each server lists; review it and save it yourself
-   (`--help` shows the format). Set
-   `max_tokens` in a model's `request` high enough for a whole file plus
-   any reasoning, and `timeout_seconds` long enough for one call to swap
-   and load the model, think, and reply — a model that connects but runs
-   past it is scored as failing, not excused as a server problem. A server key is named by `credential_env`, never written
-   into the file. `discover` lists what each server serves.
-2. **Qualify.** `qualify <model>` sends one known-answer file about the
-   size of a real task and grades the reply exactly. It needs no project
-   fixture. Any change to the model's setup (weights, quantization,
-   runtime, request settings, server) needs a new pass.
-3. **Run.** `/delegate` writes a packet under `.agentic/delegate/packets/`;
-   `run <packet> --model <name>` sends it, verifies the reply in a scratch
-   copy of the workspace, and publishes only a passing file. Without
-   `--model`, it selects from the project's `[[project]]` candidates.
-4. **Review and record.** After `/review`, `record-review <run>
-   pass|model-defect|packet-defect` scores the model and logs how many of
-   the published lines review kept. Its record decides selection and
-   demotion; `status` shows it.
-5. **Automate.** `activate` sets `policy = "auto"` and
+   (`--help` shows the format). Set `max_tokens` in a model's `request`
+   high enough for its longest response, including any reasoning, and
+   `timeout_seconds` long enough for one qualify call to swap and load the
+   model, think, and reply. A server key is named by `credential_env`,
+   never written into the file. `discover` lists what each server serves.
+2. **Qualify.** `qualify <model>` is a plumbing check: a first response,
+   then one known-answer edit of a generated file of about 270 lines,
+   graded exactly. It needs no project fixture. A handoff uses only a
+   qualified model, and any change to the model's setup (weights,
+   quantization, runtime, request settings, server) needs a new pass.
+3. **Activate.** `activate` sets `policy = "auto"` and
    `activation_approved = true` in this checkout's project entry (it
    refuses without a qualified candidate); `deactivate` sets it back. An
    agent runs either only on the human's explicit yes. Then `policy`
-   prints `auto`. The human then picks a
-   delegation mode per run (`direct`, `files`, or `handoff`; `/delegate` →
-   "Delegation modes"), and the Implement step follows it.
-6. **Phase handoff.** After the human explicitly authorizes its temporary
+   prints `auto`. The human then picks a delegation mode per run
+   (`direct` or `handoff`; `/delegate` → "Delegation modes"), and the
+   Implement step follows it.
+4. **Hand off.** After the human explicitly authorizes its temporary
    handoff-branch commit, `handoff <spec> --allow-commit --phase implement`
    gives the whole implement phase (or `test-first+implement`) to a local
    agent session in a git worktree, verifies the gate and the plan's file
    scope, and commits the result on `handoff/<run>` for review and a squash
    merge. Choosing `handoff` mode alone is not commit authorization; the
-   runner refuses without the acknowledgement flag.
+   runner refuses without the acknowledgement flag. Without `--model`, it
+   selects from the project's `[[project]]` candidates.
    `handoff-clean` removes it afterwards. Supervision, pause and resume,
    and where the logs are: [Supervising a handoff](#supervising-a-handoff).
    The runner generates an isolated Pi provider from the selected machine
@@ -152,32 +145,33 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    credential variable the profile names and stores that variable's name in
    the generated configuration. Scope and test-file checks compare against
    the starting commit before and after the gate; session commits and branch
-   changes fail the run. `status` includes phase records for the installed
-   harness, and `reset <model> phase:implement` (or
+   changes fail the run.
+5. **Review and record.** After `/review`, `record-review <run>
+   pass|model-defect|spec-defect` scores the model for that phase
+   (`spec-defect`: the spec or plan was at fault). Its record decides
+   selection and demotion; `status` shows each model's phase records for
+   the installed harness, and `reset <model> phase:implement` (or
    `phase:test-first+implement`) clears a phase demotion.
 
-Packets, results, and the ledger stay in the gitignored
-`.agentic/delegate/`. In `files` mode the local model sees only the
-packet: no conversation, spec, repository, or tools. In `handoff` mode it
-works in its own worktree with the repository and tools.
+Results and the ledger stay in the gitignored `.agentic/delegate/`. The
+local session works in its own worktree with the repository and tools; it
+never sees this conversation.
 
 ### Which clients can do what
 
 | Role | Claude Code | Codex CLI | Pi |
 |---|---|---|---|
-| Orchestrate with a frontier model and delegate locally (`files` or `handoff`) | yes | yes | yes |
-| `files` mode (plain HTTP calls to the model server; no agent harness) | yes | yes | yes |
+| Orchestrate with a frontier model and delegate locally (`handoff`) | yes | yes | yes |
 | `handoff` session (the local agent itself) | runs Pi | runs Pi | yes |
 | A local model orchestrating the whole loop | not wired by this scaffold | not wired by this scaffold | yes, with a model that handles long tool use |
 
-So local delegation works under any of the three clients; only the
-handoff session and a fully local loop need Pi installed.
+So local delegation works under any of the three clients, as long as Pi is
+installed for the handoff session.
 
 ### Supervising a handoff
 
-The three modes, for context: `direct` keeps implementation with the
-orchestrating session, `files` sends one-file packets through `run`, and
-`handoff` gives a whole phase to a Pi session. When each applies and what
+The two modes, for context: `direct` keeps implementation with the
+orchestrating session, and `handoff` gives a whole phase to a Pi session. When each applies and what
 the agent does around it is `/delegate` policy ("Delegation modes", "Phase
 handoff"); this section covers what a human watching a handoff needs.
 
@@ -212,7 +206,7 @@ Its exit status is the handoff's:
 | Exit | Meaning |
 |---|---|
 | 0 | Verified and committed on `handoff/<run>`; review, then squash-merge |
-| 10 | The session ended with the gate red |
+| 10 | The session ended with the gate red or changed nothing, or no candidate was selectable |
 | 11 | Paused or orphaned; resumable (no gate, no commit) |
 | 4 | Out-of-plan or test-file changes |
 | 3 | Harness, RPC, install, or worktree failure |
@@ -327,8 +321,8 @@ Practical consequences:
 
 ## Honest expectations
 
-The bounded, tested, single-file edit is the cheapest thing a frontier model
-does, so moving it local saves the least. Expect the win to show up as
+Implementing an approved, tested plan is among the cheaper things a
+frontier model does, so moving it local saves less than it seems. Expect the win to show up as
 latency and privacy rather than capability or cost, and expect a meaningful
 fraction of delegated tasks to escalate back.
 
@@ -341,10 +335,10 @@ as one sets up a disappointment.
 - A controlled comparison — same tasks, frontier-only versus frontier-plan
   plus local-execute, with quality and token numbers. No such measurement is
   published as of 2026-08. Running one on your own repo would be novel.
-- Your own recorded runs showing a tool-using harness beating the
-  single-shot runner on the same packets. Published agentic scores have
-  already passed the level this doc once used as its trigger, but only as
-  vendor-reported numbers on setups unlike a local one; a comparison on your
-  own tasks is the evidence that would move Tier 3.
+- Your own recorded handoffs. Published agentic scores are vendor-reported
+  numbers on setups unlike a local one; review verdicts per phase on your
+  own tasks are the evidence that would confirm or retire Tier 2. If the
+  sessions' work on small, well-tested leaf modules keeps failing review,
+  that is the signal to reconsider narrower delegation.
 - Harness-side convergence on one tool-call serialization, which would
   retire most of the failure list above.

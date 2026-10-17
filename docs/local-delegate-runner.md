@@ -1,7 +1,19 @@
 # Local Delegate Runner
 
-**Status:** draft; first slice implemented
-**Last updated:** 2026-10-15
+**Status:** single-file mode removed 2026-10-17; the rest of this document is
+history. The runner keeps `init`, `qualify`, `discover`, `policy`,
+`activate`/`deactivate`, `record-review`, `status`, `reset`, the ledger, the
+Wilson scoring, selection, and demotion, now used only by the phase handoff
+([`local-phase-handoff.md`](local-phase-handoff.md)). The `run <packet>`
+subcommand, the packet format, the scratch-copy verification, the
+three-attempt retry loop, publication, and the `small`/`medium` buckets are
+gone. The human's reason: a model with repository context and tools should
+do better than one restricted to a one-file packet with no tools, even
+locally — a stated expectation, not a measurement. The trials below cut the
+other way for well-pinned leaf files, which survived review in this mode;
+see `docs/influences.md` → "Single-file delegation removed (2026-10-17)" for
+the counter-evidence and the condition for revisiting.
+**Last updated:** 2026-10-17 (status only; body unchanged since 2026-10-15)
 
 **Implemented.** `workflow/bin/delegate-run.sh` (installed as
 `.agentic/delegate-run.sh` with `--full`) provides `init`, `qualify`, `discover`,
