@@ -60,4 +60,6 @@ The analyzer then:
 
 Surface the analyzer's output verbatim. It ends with one line: `consistent` or
 `N findings (M ask-user)`. If there is no unambiguous active spec, stop before
-invoking it — there is nothing reliable to compare.
+invoking it — there is nothing reliable to compare. A stop here or on an
+`[ask-user]` finding ends with a checkpoint report
+(`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**).

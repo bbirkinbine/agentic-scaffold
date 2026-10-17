@@ -30,6 +30,6 @@ After the human answers all five, output a short summary block in this shape:
 **Explicitly out of scope:** <answer 5>
 ```
 
-Tell the human to paste the relevant parts into the spec's `## Goal` and `## Non-goals` sections when they run `/spec`. Do NOT write the spec yourself or invoke `/spec` automatically.
+Tell the human to paste the relevant parts into the spec's `## Goal` and `## Non-goals` sections when they run `/spec`. Do NOT write the spec yourself or invoke `/spec` automatically. End with a checkpoint report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**) whose continue line is `/spec <name>`.
 
 If an answer is vague ("not sure", "depends"), push back once: "what would have to be true for that answer to be concrete?" Don't push twice — ambiguity is a useful signal too, and the human may not have the answer yet.

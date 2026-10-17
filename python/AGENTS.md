@@ -40,6 +40,11 @@ On zero, multiple, ambiguous, or nonexistent matches, stop, list candidates,
 and request an explicit path. Never choose the highest number: numbers are
 identities, not sequence. `0000-product.md` is context, never the active spec.
 
+### Checkpoint report
+
+End every deliberate stop with: what completed; why it stopped; what you need
+from the human; the exact command or reply that continues. Omit empty fields.
+
 ### Semantic change set
 
 All semantic reviews (`/analyze`, both reviewers, and enabled specialists) use

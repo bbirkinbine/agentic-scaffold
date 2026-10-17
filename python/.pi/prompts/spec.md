@@ -82,7 +82,11 @@ Stop after writing the file — in either mode. Do NOT proceed to planning
 or implementation. A drafted spec is a first pass for the human to review
 and edit, not an approved spec: surface the path you wrote, and in draft
 mode list any `<!-- assumption: ... -->` markers you left so they are easy
-to resolve. The human owns the spec before any other phase begins.
+to resolve. The human owns the spec before any other phase begins. End
+with a checkpoint report (`AGENTS.md` → **Shared workflow protocols** →
+**Checkpoint report**): the continue line is approval or edits, then `/plan`
+(or `/test-first` for Small work that skips it), with `/clarify` if open
+questions remain.
 
 The file remains `draft` through spec review. After the human approves it,
 create/select its numbered feature branch. For work that runs `/plan`,

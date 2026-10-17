@@ -100,6 +100,14 @@ with the alternatives considered. Deciding them from a thin description
 would produce a plausible architecture for a project that does not exist
 yet.
 
+**Ending the founding session.** Setup is a bounded handoff into the first
+roadmap unit, not a stop that waits for a fresh request. When setup is
+complete (product spec, toolchain, any local-model setup, setup merged or
+committed) and exactly one next unit is agreed, start it: draft its spec with
+`/spec` and stop at the spec-ownership checkpoint with a checkpoint report.
+When the order is ambiguous, ask which unit is first. `/product-spec` itself
+still stops after writing; the founding orchestrator owns the continuation.
+
 | Ask | Decides for | Example |
 | --- | --- | --- |
 | **Where must it run?** A browser, a Node-hosted platform, a Python-hosted platform, or a single static binary each name a language. | The runtime's language | Browser extension or Cloudflare Worker: TypeScript. Airflow DAG or Jupyter tooling: Python. |

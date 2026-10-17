@@ -42,7 +42,10 @@ carries the latest conventions and is updated first.
       "not decided yet" where that is the truth instead of guessing; and walk me
       through day zero
       (WORKFLOW.md, or the "After bootstrap" list in generic/README.md for the
-      generic flavor).
+      generic flavor). When setup is done and we have agreed on exactly one
+      first unit of work, start it without waiting for me to ask (in a loop
+      flavor, draft its spec and stop for my review); if which unit comes
+      first is not settled, ask me.
       ```
 
 ### If the project will run the loop — use the agentic-workflow scaffolding
@@ -100,6 +103,9 @@ carries the latest conventions and is updated first.
       Then set `TC_CONFIGURED=1` and prove the gate goes red on a defect.
 - [ ] Write your first spec: `docs/specs/0001-<feature>.md`. See
       `docs/specs/README.md` (copied by bootstrap) for the convention.
+      When setup is complete and exactly one first unit is agreed, the
+      founding session drafts this spec unprompted and stops for your
+      review; when the order is open, it asks which unit is first.
 - [ ] Fill in `docs/agent-handoff.md` (dropped by bootstrap as a
       project-owned stub). It's the operational runbook companion to
       the root agent contract — known risks, accepted commands, rollback playbook,

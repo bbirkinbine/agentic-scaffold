@@ -31,7 +31,8 @@ docs drift.
 
 Surface its findings verbatim. Do NOT argue with or rationalize away its calls.
 The orchestrator may apply `[auto-fix]` findings; `[ask-user]` stops for human
-adjudication. The point of running this alongside `/review` is to surface
+adjudication, with a checkpoint report
+(`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**). The point of running this alongside `/review` is to surface
 failure modes a collaborative review misses; if the adversarial reviewer's
 concerns are real, fixing them is cheaper now than after merge.
 

@@ -69,7 +69,8 @@ Run after the plan is approved and persisted, before test-first.
    available even when feature-branch commits are allowed. That
    authorization also covers resuming a paused handoff of the same run.
    Never push or merge.
-5. Print the kickoff instruction the human can leave running, then stop.
+5. Print the kickoff instruction the human can leave running, then stop
+   with a checkpoint report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**).
 
 ## During the run — auto-answering
 
@@ -102,7 +103,7 @@ It still stops, and leaves the run at its last green state, for anything
 irreversible or outside the approved plan: deleting or rewriting history,
 new dependencies, changes to `.agentic/`, CI, or security-relevant
 configuration, files outside the plan, or a spec the run has shown to be
-wrong. Those wait for the human.
+wrong. Those wait for the human, behind a checkpoint report.
 
 ## Back early — the human returns mid-run
 
@@ -129,4 +130,5 @@ When the human says they are back before the run ends:
    review of the delta, then mark the entry `kept` or `overridden → <new
    answer>`. Move decisions worth keeping for future runs into
    `## Standing decisions`.
-3. Report what changed, then stop for commit authorization as usual.
+3. Report what changed, then stop for commit authorization with a
+   checkpoint report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**).

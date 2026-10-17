@@ -51,7 +51,9 @@ Steps:
    `## Non-goals`, `## External references`). Keep the human's voice;
    add, don't rewrite.
 5. When done, show a summary of what changed in the spec and stop. Do
-   NOT continue into `/plan` automatically.
+   NOT continue into `/plan` automatically. End with a checkpoint report
+   (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**)
+   whose continue line is spec approval, then `/plan`.
 
 If the scan finds nothing worth asking, say so explicitly ("spec is
 implementable as written") and stop — do not invent questions to justify
