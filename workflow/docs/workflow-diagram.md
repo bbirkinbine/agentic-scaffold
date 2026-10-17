@@ -26,7 +26,8 @@ The loop has three actors, and most of the design is about keeping them in
 their lanes:
 
 - **You** — drive the loop, own the two checkpoints, write the spec and
-  the commit message. The agent never commits for you.
+  the commit message. The agent never commits without your approval
+  (`AGENTS.md` → **Approval matrix**).
 - **The agent** (main session) — the *orchestrator*: holds the spec, runs
   each phase, delegates focused work to subagents to keep its own context
   clean.

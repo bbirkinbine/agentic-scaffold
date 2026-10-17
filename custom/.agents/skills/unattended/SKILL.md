@@ -102,7 +102,7 @@ the step does, stops as below.
 
 It still stops, and leaves the run at its last green state, for anything
 irreversible or outside the approved plan: deleting or rewriting history,
-new dependencies, changes to `.agentic/`, CI, or security-relevant
+dependencies the plan does not name, changes to `.agentic/`, CI, or security-relevant
 configuration, files outside the plan, or a spec the run has shown to be
 wrong. Those wait for the human, behind a checkpoint report.
 

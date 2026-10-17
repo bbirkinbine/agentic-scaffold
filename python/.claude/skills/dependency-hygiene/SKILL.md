@@ -13,7 +13,7 @@ Dependencies are the easiest place for quality to silently erode. Every dep adds
 
 ## Check before adding
 
-For each new dependency, surface answers to the questions below. Don't add the dep until the check is approved.
+For each new dependency, surface answers to the questions below. Don't add the dep until the check is approved. Run it while planning: approving a plan that names the dep and carries its check approves the add; a dep found mid-implementation is scope expansion, so stop with the check.
 
 ### 1. Is it maintained?
 

@@ -6,8 +6,10 @@ directly; Claude Code loads it through the `@AGENTS.md` import in
 with a one-line reason for each step.
 
 The whole thing is five phases: **Spec → Plan → Test-first → Implement →
-Verify.** Each workflow entry runs one phase and stops, so you stay in
-control. Claude Code and Pi use `/<name>` project prompts; Codex uses
+Verify.** Each workflow entry runs one phase. That ends a command, not
+your permission: you approve the spec, the plan, scope changes, and the
+commit, and the agent drives from plan approval through clean review
+(`AGENTS.md` → **Approval matrix**). Claude Code and Pi use `/<name>` project prompts; Codex uses
 `$<name>` repository skills (or `/skills`). Pi can also use the same portable
 skills as `/skill:<name>`. New to the terms? A *spec* is a short
 design note; a *subagent* is a fresh agent with its own clean context.
@@ -32,7 +34,7 @@ Every feature, in order:
 7. Commit with your own message; open the PR; CI runs the same gate.
 
 The Stop hook will not let the agent end a turn on a red gate, and the
-agent never commits for you. Everything below is the same loop with the
+agent never commits without your approval. Everything below is the same loop with the
 reasons, the options, and the edge cases.
 
 ## Day zero (once per project)
@@ -176,7 +178,7 @@ is already obvious.
 11. **Final checkpoint, then commit and open the PR.** The agent reports the
     spec, complete changed-file set, red → green evidence, latest gate, review
     disposition, and unresolved decisions, then stops for commit approval. You
-    write the commit message. In
+    write or approve the commit message; "commit and push" approves both. In
     issue mode, the PR body says `Closes #<issue>` so merging closes
     the issue; the default local mode omits the closing keyword. A
     change's own close-tasks (the spec `Status` flip above, dashboard regen,
