@@ -128,7 +128,7 @@ bash ~/src/agentic-scaffold/python/bootstrap.sh --help
   run in Pi.
 
 Local delegation remains optional: without an approved machine profile,
-frontier-only workflows need no local server or Pi handoff session. Full-profile
+workflows in `direct` mode need no delegation server or Pi handoff session. Full-profile
 installation and `--update` add the `.agentic/delegate/` ignore entry when
 missing, preserving the project's other ignore rules. Every stack profile also
 gets a `.pi/npm/` entry, where Pi installs the project's Pi packages on first

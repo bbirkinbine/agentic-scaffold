@@ -358,7 +358,7 @@ running; default to no. If yes:
    candidate and prints the before and after; `deactivate` turns it off,
    and the human can run either). Never activate on your own judgment.
    Even then, each run's
-   delegation mode (`none`, `files`, `handoff`) is chosen per run. The
+   delegation mode (`direct`, `files`, `handoff`) is chosen per run. The
    `handoff` mode and a fully local loop need Pi installed; `files` mode
    works from any client.
 

@@ -36,7 +36,7 @@ Run after the plan is approved and persisted, before test-first.
    - verification the run cannot do itself (manual or browser checks):
      defer it to the morning or skip it;
    - failure handling: if a step stays red or local delegation fails,
-     fall back to the frontier model or stop;
+     fall back to `direct` (this session implements) or stop;
    - models: frontier work, subagents included, runs on the session's
      model, so a frontier choice means "start the session on it" and is
      recorded as the session model, never as an override. When local
@@ -44,14 +44,14 @@ Run after the plan is approved and persisted, before test-first.
      `bash .agentic/delegate-run.sh status` with their records and ask
      which to use, one for all files or one per bucket; route each packet
      by the bucket the runner accepts (it refuses a packet labelled smaller
-     than its counts). Ask the delegation mode for this run: `none`, `files`
+     than its counts). Ask the delegation mode for this run: `direct`, `files`
      (one file per call), or `handoff` (implementation, or test-first plus
      implementation, to a local session; `/delegate` → "Delegation modes").
      A verified `handoff` is preserved as a temporary commit on its isolated
      `handoff/<run>` branch, so ask separately whether those temporary commits
      are authorized; choosing the mode alone is not commit approval. If they
-     decline, choose `files` or `none`. Default `none` when this session itself
-     runs on a local model.
+     decline, choose `files` or `direct`. Default `direct` when this session
+     itself runs on a local model.
 2. Ask them in one batch, each naming the spec or plan line it affects and
    offering your best-guess default so "defaults are fine" is a complete
    answer. Ask only what the spec, plan, and `AGENTS.md` do not already

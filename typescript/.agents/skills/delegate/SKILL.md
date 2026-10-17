@@ -184,12 +184,19 @@ missing dependency such as `jq`): tell the human what it printed and
 implement yourself; do not install anything. `policy` printing `auto`
 means the human approved local delegation for this checkout. Which kind, if
 any, is chosen per run, as a standing decision from `/unattended start` or
-the human's direct answer:
+the human's direct answer. Each mode says who writes the code relative to
+this orchestrating session, whatever model the session runs on:
 
-- `none`: implement yourself. Also the answer when the session itself runs
-  on a local model, since delegating to another local model only adds work.
+- `direct`: this session implements. A recorded `none` (the earlier name)
+  means `direct`.
 - `files`: "Automatic mode" below, one file per call through `run`.
 - `handoff`: "Phase handoff" below, a whole phase to a local session.
+
+Delegation was designed around a stronger orchestrator doing the judgment
+and review. When this session itself runs on a local model, review is no
+stronger than the delegated work unless the human switches to a different
+model for review, so `direct` is the sensible default rather than
+delegating to an equivalent local model.
 
 With no choice recorded, ask once at the implement step; never assume one
 from the policy alone.
@@ -258,7 +265,7 @@ committed:
    `handoff/<run>` branch, separate from the feature branch, and ask for
    explicit current-chat authorization for that commit. Choosing delegation
    mode `handoff` by itself is not commit authorization. If the human does
-   not authorize it, use `files` or `none` instead. Once authorized, launch
+   not authorize it, use `files` or `direct` instead. Once authorized, launch
    it:
    `bash .agentic/delegate-run.sh handoff <spec> --allow-commit --phase implement`
    (or `--phase test-first+implement`), with `--model <name>` when the

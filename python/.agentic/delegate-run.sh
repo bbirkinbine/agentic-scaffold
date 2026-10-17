@@ -1863,7 +1863,7 @@ cmd_set_policy() {
   load_profile "$profile"
   say "after:  policy = $(project_get policy), activation_approved = $(project_get activation_approved)"
   if [[ "$want" == auto ]]; then
-    say "qualified candidates: $qualified. Each run still picks its delegation mode (none, files, handoff)."
+    say "qualified candidates: $qualified. Each run still picks its delegation mode (direct, files, handoff)."
   fi
 }
 

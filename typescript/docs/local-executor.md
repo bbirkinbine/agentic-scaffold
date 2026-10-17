@@ -136,7 +136,7 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    refuses without a qualified candidate); `deactivate` sets it back. An
    agent runs either only on the human's explicit yes. Then `policy`
    prints `auto`. The human then picks a
-   delegation mode per run (`none`, `files`, or `handoff`; `/delegate` →
+   delegation mode per run (`direct`, `files`, or `handoff`; `/delegate` →
    "Delegation modes"), and the Implement step follows it.
 6. **Phase handoff.** After the human explicitly authorizes its temporary
    handoff-branch commit, `handoff <spec> --allow-commit --phase implement`
@@ -175,7 +175,7 @@ handoff session and a fully local loop need Pi installed.
 
 ### Supervising a handoff
 
-The three modes, for context: `none` keeps implementation with the
+The three modes, for context: `direct` keeps implementation with the
 orchestrating session, `files` sends one-file packets through `run`, and
 `handoff` gives a whole phase to a Pi session. When each applies and what
 the agent does around it is `/delegate` policy ("Delegation modes", "Phase
