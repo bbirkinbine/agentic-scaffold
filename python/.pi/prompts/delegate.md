@@ -32,7 +32,10 @@ the failure will look like a model problem.
    the failing output. Name the tests that exercise the target; failures
    belonging to other not-yet-implemented plan files are expected and stay
    out of the packet. If the target's tests pass or do not exist, stop and
-   say `/test-first` has not run.
+   say `/test-first` has not run. If the spec replaced a value, name, or
+   behavior, the `/test-first` rejected-value search must be recorded: the
+   executor cannot edit tests, so one stale assertion makes the packet
+   unsatisfiable.
 6. The target file is under 300 lines, or the change is confined to a
    region you can quote in full.
 7. **Every requirement on the target is traced.** Collect, verbatim, each
@@ -249,7 +252,9 @@ implement) can go to a local agent session that reads the repository, edits,
 and runs the tests itself, in its own git worktree. The session runs in Pi
 whichever client orchestrates, so Pi must be installed. Use it with
 delegation `handoff`, the plan approved, the spec `shipping`, and the tree
-committed:
+committed. An implement-only handoff cannot edit tests, so when the spec
+replaced a value, name, or behavior, confirm the `/test-first` rejected-value
+search is recorded before launching.
 
 1. Explain that a verified handoff is stored as a temporary commit on a
    `handoff/<run>` branch, separate from the feature branch, and ask for

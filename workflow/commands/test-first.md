@@ -53,5 +53,18 @@ fail for the expected missing behavior as the stack rule describes it (a
 missing function, attribute, or export; a not-implemented stub; a
 behavior-level assertion — not a typo, broken fixture, collection error, or
 unrelated existing failure).
-Do not rely only on the subagent's reported output. Only a clean scope audit
-plus this cause-specific red result permits implementation.
+Do not rely only on the subagent's reported output.
+
+**Rejected-value search.** When the spec, a review resolution, or a
+remediation replaces constants, behavior, names, or provenance, search
+production code, tests, fixtures, snapshots, and docs for every rejected
+value and name. Each match is updated, left for a planned implementation or
+docs step, or deliberately kept with a reason. A stale assertion that still
+pins the old value passes against the old code, so the red run cannot expose
+it, and no implementation can satisfy both it and the new tests. Record the
+terms searched and any kept matches in the spec next to the test-first result
+(the `## Phase handoff` block when one is written). This checks the oracle's
+consistency; it does not limit which tests may be red.
+
+Only a clean scope audit, this cause-specific red result, and the
+rejected-value search (when it applies) permit implementation.
