@@ -84,8 +84,9 @@ standing decision does not settle no longer stops the run. The orchestrator:
 
 A handoff that pauses (`handoff-status` exit 11) is resumed without
 asking, as often as it pauses, with `handoff-resume <run> --allow-commit`
-under the recorded handoff authorization. Log each pause and resume under
-`## Unattended decisions` with its reason. A configured absolute ceiling is
+under the recorded handoff authorization, and followed as in `/delegate`
+(`handoff-status <run> --wait 540 --interval 60 --since <cursor>`). Log
+each pause and resume under `## Unattended decisions` with its reason. A configured absolute ceiling is
 not raised on the human's behalf: when resume refuses for a spent ceiling,
 fall back as the failure-handling decision says.
 

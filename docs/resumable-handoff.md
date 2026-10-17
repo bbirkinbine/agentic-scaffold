@@ -210,6 +210,22 @@ second writer is impossible by construction. Status reads `state.json`, the
 segment's `status.json` and event log, and the append-only session file,
 which Pi writes entry by entry.
 
+Field trials showed a 540-second wait that printed nothing until it
+returned, then a snapshot whose last progress lines were mostly
+heartbeats. `--interval <s>` adds one bounded line per interval while the
+call waits: runner and Pi alive, seconds since the last activity and the
+last event, the running tool and its age, lease left, and tool calls (by
+sanitized tool name), retries, compactions, and changed paths since the
+previous line. The lines are mechanical: event types and counts only, no
+message, argument, or result content. Each snapshot ends with
+`cursor: <segment>:<byte offset>` into that segment's `events.jsonl`;
+`--since <cursor>` replaces the raw tool lines with counts of the events
+after it, across later segments. The cursor belongs to the caller, not to
+`state.json`, so two observers never move each other's position. Without
+`--interval` the wait stays silent, as before. Whether Claude Code or Codex
+display a command's output before it returns is client behavior, not
+verified here.
+
 `handoff-resume` refuses unless:
 
 - the logical run is `paused` and has no live segment;
@@ -575,7 +591,7 @@ Ordered so that each step leaves the gates green.
 4. **`workflow/commands/delegate.md`** ("Phase handoff") and
    **`workflow/commands/unattended.md`**: one flow for Claude Code, Codex and
    Pi orchestrators: launch (returns at once), then repeat
-   `handoff-status <run> --wait 540` until it is no longer 12 (540 s stays
+   `handoff-status <run> --wait 540 --interval 60 --since <cursor>` until it is no longer 12 (540 s stays
    under Claude Code's 10-minute tool limit), then act on the exit code
    (0/10/11/4/3). Exit 11 handling and `handoff-resume`; unattended behaviour
    per decision 3 below. A **Codex note**: the handoff needs network access

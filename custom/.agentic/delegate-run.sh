@@ -77,11 +77,18 @@
 #                            renewable inactivity lease, not a fixed limit;
 #                            see docs/local-executor.md -> "Supervising a
 #                            handoff" (log locations included).
-#   handoff-status <run-id> [--wait <seconds>]
+#   handoff-status <run-id> [--wait <seconds>] [--interval <seconds>]
+#                            [--since <cursor>]
 #                            Token-free status from local files. Waits up to
 #                            <seconds> for a final or paused state; exits
 #                            with that state's handoff code, or 12 while the
-#                            run is still going.
+#                            run is still going. --interval prints one
+#                            bounded liveness line per interval while it
+#                            waits (processes alive, last activity, running
+#                            tool, lease, tool calls and changed paths since
+#                            the previous line). The snapshot ends with
+#                            `cursor: <segment>:<offset>`; --since <cursor>
+#                            summarizes only the events after it.
 #   handoff-resume <run-id> --allow-commit [--max-total <seconds>]
 #                            [--progress quiet|summary] [--foreground]
 #                            Continue a paused (or orphaned) handoff in the
@@ -1919,7 +1926,7 @@ rpc_start() {
   shift
   RPC_PENDING="" RPC_SETTLED=0 RPC_SETTLED_ABORTED=false RPC_SEQ=0 RPC_PID=""
   RPC_LAST_ACTIVITY="$(date +%s)"
-  RPC_LAST_EVENT="" RPC_LAST_EVENT_AT="$RPC_LAST_ACTIVITY" RPC_ACTIVE_TOOL=""
+  RPC_LAST_EVENT="" RPC_LAST_EVENT_AT="$RPC_LAST_ACTIVITY" RPC_ACTIVE_TOOL="" RPC_ACTIVE_TOOL_AT=0
   RPC_RETRIES=0 RPC_COMPACTIONS=0 RPC_RECOVERING=0 RPC_DIALOGS=0
   RPC_TOOL_ENDED=0 RPC_COMPACTED=0
   mkdir -p "$SEG_DIR/responses" || return 1
@@ -2010,6 +2017,7 @@ rpc_pump() {
       tool_execution_start)
         RPC_LAST_ACTIVITY="$now"
         RPC_ACTIVE_TOOL="$(jq -r '.toolName // "tool"' <<<"$line")"
+        RPC_ACTIVE_TOOL_AT="$now"
         ;;
       tool_execution_end) RPC_LAST_ACTIVITY="$now"; RPC_ACTIVE_TOOL=""; RPC_TOOL_ENDED=1 ;;
       auto_retry_start) RPC_RETRIES=$((RPC_RETRIES + 1)); RPC_RECOVERING=1 ;;
@@ -2186,8 +2194,8 @@ handoff_launch() {
     exit "$code"
   fi
   say "launched $run in the background; log: ${log#"$ROOT"/}"
-  say "follow it with: .agentic/delegate-run.sh handoff-status $run --wait 540"
-  say "  (repeat while it exits 12; then act on its exit status)"
+  say "follow it with: .agentic/delegate-run.sh handoff-status $run --wait 540 --interval 60"
+  say "  (repeat while it exits 12, adding --since <the cursor it printed>; then act on its exit status)"
   printf '%s\n' "$run"
   exit 0
 }
@@ -2380,11 +2388,12 @@ handoff_session_setup() {
 handoff_status_write() {
   TOOL_GROUPS="$(descendant_groups "$RPC_PID" | tr '\n' ' ')"
   state_update '.live = {segment: $seg, pi_pid: $pid, last_event: $ev, last_event_at: $evat,
-      last_activity_at: $act, active_tool: $tool, retries: $retries, compactions: $comp,
+      last_activity_at: $act, active_tool: $tool, active_tool_since: $toolat, retries: $retries, compactions: $comp,
       dialogs_cancelled: $dialogs, lease_expires_at: $lease, checkpoint: $cp,
       checkpoint_requested_at: $cpat, tool_groups: ($groups | split(" ") | map(select(. != "")))}' \
     --arg seg "$SEG_N" --arg pid "$RPC_PID" --arg ev "$RPC_LAST_EVENT" --argjson evat "$RPC_LAST_EVENT_AT" \
-    --argjson act "$RPC_LAST_ACTIVITY" --arg tool "$RPC_ACTIVE_TOOL" --argjson retries "$RPC_RETRIES" \
+    --argjson act "$RPC_LAST_ACTIVITY" --arg tool "$RPC_ACTIVE_TOOL" --argjson toolat "$RPC_ACTIVE_TOOL_AT" \
+    --argjson retries "$RPC_RETRIES" \
     --argjson comp "$RPC_COMPACTIONS" --argjson dialogs "$RPC_DIALOGS" --argjson lease "$1" \
     --arg cp "$2" --argjson cpat "$3" --arg groups "$TOOL_GROUPS"
 }
@@ -2792,30 +2801,185 @@ handoff_state_code() {
   esac
 }
 
-# handoff-status <run> [--wait <seconds>] : token-free; reads local files only.
+# ---- handoff-status: event cursor and interim lines --------------------------
+# A cursor is "<segment>:<byte offset>" into that segment's events.jsonl,
+# always at a line boundary ("0000:0" is before the first segment). Each
+# caller keeps its own; nothing about a viewer is stored in the run.
+
+# events_end <file> : byte offset just past the last complete line.
+events_end() {
+  perl -e '
+    open my $f, "<", $ARGV[0] or do { print "0\n"; exit 0 };
+    my ($pos, $buf) = (-s $f);
+    while ($pos > 0) {
+      my $n = $pos < 65536 ? $pos : 65536;
+      $pos -= $n;
+      seek $f, $pos, 0;
+      read $f, $buf, $n;
+      my $i = rindex $buf, "\n";
+      if ($i >= 0) { print $pos + $i + 1, "\n"; exit 0 }
+    }
+    print "0\n";
+  ' "$1"
+}
+
+handoff_latest_segment() {
+  local d latest=0000
+  for d in "$1"/segments/[0-9][0-9][0-9][0-9]; do [[ -d "$d" ]] && latest="${d##*/}"; done
+  printf '%s\n' "$latest"
+}
+
+# handoff_cursor_valid <run-dir> <cursor> : names a segment of this run and an
+# offset no further than its complete lines.
+handoff_cursor_valid() {
+  local seg off
+  [[ "$2" =~ ^([0-9]{4}):([0-9]{1,15})$ ]] || return 1
+  seg="${BASH_REMATCH[1]}" off="${BASH_REMATCH[2]}"
+  [[ "$seg" == 0000 ]] && { [[ "$off" == 0 ]]; return; }
+  [[ -f "$1/segments/$seg/events.jsonl" ]] && ((10#$off <= $(events_end "$1/segments/$seg/events.jsonl")))
+}
+
+# handoff_events_since <run-dir> <valid cursor> : one JSON object counting the
+# Pi events after the cursor, across later segments too, with the cursor for
+# the next call. Only event types and sanitized tool names are read; message,
+# argument, and result content never leaves events.jsonl. Token deltas and
+# tool updates are dropped before jq.
+handoff_events_since() {
+  local dir="$1" seg="${2%%:*}" off="${2#*:}" latest last_end s file start end n
+  latest="$(handoff_latest_segment "$dir")"
+  # Fixed before reading, so the returned cursor is exactly where this stopped.
+  last_end="$(events_end "$dir/segments/$latest/events.jsonl")"
+  for ((n = 10#$seg; n <= 10#$latest; n++)); do
+    s="$(printf '%04d' "$n")"
+    file="$dir/segments/$s/events.jsonl"
+    [[ -f "$file" ]] || continue
+    start=0
+    [[ "$s" == "$seg" ]] && start=$((10#$off))
+    end="$last_end"
+    [[ "$s" == "$latest" ]] || end="$(events_end "$file")"
+    ((end > start)) && tail -c "+$((start + 1))" "$file" | head -c "$((end - start))"
+  done | grep -v -e '^{"type":"message_update"' -e '^{"type":"tool_execution_update"' |
+    jq -R -n -c --arg cursor "$latest:$last_end" --argjson segs "$((10#$latest - 10#$seg))" '
+      reduce (inputs | fromjson? | objects) as $e ({tools: {}, calls: 0, failed: 0, turns: 0, retries: 0,
+          compactions: 0, dialogs: 0};
+        if $e.type == "tool_execution_end" then
+          .calls += 1 | .failed += (if $e.isError == true then 1 else 0 end)
+          | .tools[($e.toolName | tostring | if test("^[A-Za-z0-9_.-]{1,32}$") then . else "other" end)] += 1
+        elif $e.type == "turn_end" then .turns += 1
+        elif $e.type == "auto_retry_start" then .retries += 1
+        elif $e.type == "compaction_end" then .compactions += 1
+        elif $e.type == "extension_ui_request" then .dialogs += 1
+        else . end)
+      | .segments_started = $segs | .cursor = $cursor
+      | .tool_list = (.tools | to_entries | sort_by(-.value, .key)
+          | (.[:5] | map("\(.key) \(.value)")) + (if length > 5 then ["+\(length - 5) more"] else [] end)
+          | join(", "))'
+}
+
+handoff_changed_count() {
+  local file="$1" wt
+  wt="$(jq -r .worktree "$file")"
+  [[ -d "$wt" ]] || { echo 0; return; }
+  { GIT_OPTIONAL_LOCKS=0 git -C "$wt" diff --name-only "$(jq -r .snapshot "$file")" -- 2>/dev/null
+    GIT_OPTIONAL_LOCKS=0 git -C "$wt" ls-files --others --exclude-standard 2>/dev/null; } | sort -u | grep -c . || true
+}
+
+# handoff_interim_line <state.json> <state> <elapsed> <events-json> <changed> <delta>
+# : one bounded liveness line from local files. It reports that processes are
+# alive and when they last emitted anything, never what the session wrote.
+handoff_interim_line() {
+  local file="$1" state="$2" runner="gone" pi="gone" pid stage="" line
+  pid="$(jq -r '.runner_pid // ""' "$file")"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && runner=alive
+  pid="$(jq -r '.live.pi_pid // ""' "$file")"
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && pi=alive
+  if [[ "$state" == verifying && -f "${file%/state.json}/runner.log" ]]; then
+    stage="$(grep -oE 'progress: independently verifying — (plan scope|full gate)$' "${file%/state.json}/runner.log" | tail -n 1)"
+    stage="${stage##*— }"
+  fi
+  line="$(jq -r --arg state "$state" --arg runner "$runner" --arg pi "$pi" --arg stage "$stage" \
+    --argjson now "$(date +%s)" --argjson el "$3" --argjson ev "$4" --argjson ch "$5" --argjson d "$6" '
+    def ago($t): if ($t | type) == "number" and $t > 0 then "\($now - $t)s ago" else "n/a" end;
+    def tool: tostring | if test("^[A-Za-z0-9_.-]{1,32}$") then . else "other" end;
+    # Most useful first: the 200-character bound trims the tool list.
+    [ "[+\($el)s] \($state)\(if $stage != "" then " (\($stage))" else "" end): runner \($runner)\(if .live then ", pi \($pi)" else "" end)",
+      (if .live then
+        "last activity \(ago(.live.last_activity_at)), last event \(ago(.live.last_event_at))",
+        (if (.live.active_tool // "") == "" then "no tool running"
+         else "tool \(.live.active_tool | tool)\(if (.live.active_tool_since // 0) > 0 then " for \($now - .live.active_tool_since)s" else "" end)" end),
+        "lease \((.live.lease_expires_at // $now) - $now)s left",
+        (if (.live.checkpoint // "") != "" then "checkpoint requested" else empty end)
+       else empty end),
+      "changed paths \($ch) (\(if $d >= 0 then "+" else "" end)\($d))",
+      ([ "since previous: \($ev.calls) tool calls\(if $ev.calls > 0 then " (\($ev.tool_list)\(if $ev.failed > 0 then "; \($ev.failed) failed" else "" end))" else "" end)",
+         (if $ev.retries > 0 then "retries +\($ev.retries)" else empty end),
+         (if $ev.compactions > 0 then "compactions +\($ev.compactions)" else empty end),
+         (if $ev.segments_started > 0 then "segments +\($ev.segments_started)" else empty end)
+       ] | join(", "))
+    ] | join("; ")' "$file")"
+  printf '%s\n' "${line:0:200}"
+}
+
+# handoff-status <run> [--wait <s>] [--interval <s>] [--since <cursor>]
+# : token-free; reads local files only.
 cmd_handoff_status() {
-  local run="" wait=0 file state deadline now code
+  local run="" wait=0 interval=0 since="" file dir state deadline now code started next_line=0
+  local mark="" events changed=0 changed_now since_ok=0
   while (($#)); do
     case "$1" in
       --wait)
         (($# >= 2)) && [[ "$2" =~ ^[0-9]+$ ]] || { say "--wait requires whole seconds"; exit 2; }
         wait="$2"; shift 2 ;;
+      --interval)
+        (($# >= 2)) && [[ "$2" =~ ^[1-9][0-9]*$ ]] || { say "--interval requires a positive whole number of seconds"; exit 2; }
+        interval="$2"; shift 2 ;;
+      --since)
+        (($# >= 2)) || { say "--since requires the cursor printed by a previous handoff-status"; exit 2; }
+        since="$2"; shift 2 ;;
       -*) say "unknown option: $1"; exit 2 ;;
       *) run="$1"; shift ;;
     esac
   done
-  [[ -n "$run" ]] || { say "usage: delegate-run.sh handoff-status <run-id> [--wait <seconds>]"; exit 2; }
+  [[ -n "$run" ]] || { say "usage: delegate-run.sh handoff-status <run-id> [--wait <seconds>] [--interval <seconds>] [--since <cursor>]"; exit 2; }
   require_deps jq
   file="$(state_path "$run")"
   [[ -f "$file" ]] || { say "no handoff run '$run' (no ${file#"$ROOT"/})"; exit 2; }
-  deadline=$(($(date +%s) + wait))
+  dir="${file%/state.json}"
+  # A bad cursor never changes the exit status, which is the run's state.
+  if [[ -n "$since" ]]; then
+    if handoff_cursor_valid "$dir" "$since"; then
+      since_ok=1
+    else
+      say "note: cursor '$(bounded_progress_field "$since")' does not match this run's events; showing the usual progress lines"
+    fi
+  fi
+  started="$(date +%s)"
+  deadline=$((started + wait))
+  if ((interval > 0 && wait > 0)); then
+    next_line=$((started + interval))
+    mark="$(handoff_latest_segment "$dir")"
+    mark="$mark:$(events_end "$dir/segments/$mark/events.jsonl")"
+    changed="$(handoff_changed_count "$file")"
+  fi
   while :; do
     state="$(handoff_effective_state "$file")"
     code="$(handoff_state_code "$state")"
     [[ "$code" != 12 ]] && break
     now="$(date +%s)"
     ((now < deadline)) || break
-    sleep 2
+    if ((next_line > 0 && now >= next_line)); then
+      # Re-read the state: a runner that just finished would otherwise be
+      # reported as gone in a line for a state it already left.
+      state="$(handoff_effective_state "$file")"
+      [[ "$(handoff_state_code "$state")" == 12 ]] || continue
+      events="$(handoff_events_since "$dir" "$mark")"
+      mark="$(jq -r .cursor <<<"$events")"
+      changed_now="$(handoff_changed_count "$file")"
+      handoff_interim_line "$file" "$state" "$((now - started))" "$events" "$changed_now" "$((changed_now - changed))"
+      changed="$changed_now"
+      next_line=$((now + interval))
+    fi
+    if ((interval > 0)); then sleep 1; else sleep 2; fi
   done
   now="$(date +%s)"
   jq -r --arg state "$state" --argjson now "$now" '
@@ -2832,13 +2996,7 @@ cmd_handoff_status() {
       "lease expires in \((.live.lease_expires_at // $now) - $now)s\(if (.live.checkpoint // "") != "" then "; checkpoint requested: \(.live.checkpoint)" else "" end)"
      else empty end)' "$file"
   if [[ "$state" == running || "$state" == orphaned || "$state" == paused ]]; then
-    local wt changed
-    wt="$(jq -r .worktree "$file")"
-    if [[ -d "$wt" ]]; then
-      changed="$({ GIT_OPTIONAL_LOCKS=0 git -C "$wt" diff --name-only "$(jq -r .snapshot "$file")" -- 2>/dev/null
-        GIT_OPTIONAL_LOCKS=0 git -C "$wt" ls-files --others --exclude-standard 2>/dev/null; } | sort -u | grep -c . || true)"
-      say "changed paths in the worktree: $changed"
-    fi
+    [[ -d "$(jq -r .worktree "$file")" ]] && say "changed paths in the worktree: $(handoff_changed_count "$file")"
   fi
   if [[ "$state" == orphaned ]]; then
     local g alive=""
@@ -2847,8 +3005,23 @@ cmd_handoff_status() {
     done
     say "the runner and Pi are gone without a final state${alive:+; tool process groups still alive:$alive}"
   fi
-  if [[ -f "$DELEGATE_DIR/results/$run/runner.log" ]]; then
-    grep 'progress:' "$DELEGATE_DIR/results/$run/runner.log" | tail -n 5 | sed 's/^/  /'
+  if ((since_ok)); then
+    # Counts since the caller's cursor replace the raw tool lines; runner
+    # notes (lease, checkpoint, verification) still follow, without heartbeats.
+    events="$(handoff_events_since "$dir" "$since")"
+    jq -r --arg since "$since" '"since \($since): \(.calls) tool calls\(if .calls > 0 then " (\(.tool_list)\(if .failed > 0 then "; \(.failed) failed" else "" end))" else "" end); \(.turns) turns; retries \(.retries); compactions \(.compactions); dialogs \(.dialogs); segments started \(.segments_started)"' <<<"$events"
+    if [[ -f "$dir/runner.log" ]]; then
+      grep 'progress:' "$dir/runner.log" |
+        grep -v -e 'progress: tool start:' -e 'progress: tool end:' -e 'progress: turn started' -e 'progress: session running —' |
+        tail -n 5 | sed 's/^/  /'
+    fi
+    printf 'cursor: %s\n' "$(jq -r .cursor <<<"$events")"
+  else
+    if [[ -f "$dir/runner.log" ]]; then
+      grep 'progress:' "$dir/runner.log" | tail -n 5 | sed 's/^/  /'
+    fi
+    mark="$(handoff_latest_segment "$dir")"
+    printf 'cursor: %s:%s\n' "$mark" "$(events_end "$dir/segments/$mark/events.jsonl")"
   fi
   case "$state" in
     paused | orphaned) say "next: delegate-run.sh handoff-resume $run --allow-commit (or handoff-clean $run)" ;;
@@ -2868,7 +3041,7 @@ cmd_handoff_stop() {
   [[ "$(handoff_effective_state "$file")" == running && "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null ||
     { say "run '$run' has no live session to stop"; exit 2; }
   kill -TERM "$pid" || { say "could not signal the runner ($pid)"; exit 3; }
-  say "asked $run to checkpoint and pause; follow it with: delegate-run.sh handoff-status $run --wait 540"
+  say "asked $run to checkpoint and pause; follow it with: delegate-run.sh handoff-status $run --wait 540 --interval 60"
 }
 
 # Kill process groups a dead run's tools left behind (recorded while live).

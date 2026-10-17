@@ -186,7 +186,7 @@ run id, and returns. Pi runs in RPC mode; nothing streams into the
 conversation. Follow it with `handoff-status`:
 
 ```bash
-bash .agentic/delegate-run.sh handoff-status <run> --wait 540
+bash .agentic/delegate-run.sh handoff-status <run> --wait 540 --interval 60 [--since <cursor>]
 ```
 
 It reads local files only (no model tokens), polls until the run reaches a
@@ -195,6 +195,18 @@ reason, spec and phase, model, worktree and branch, segment count and active
 time, the ceiling, the live segment's last event, active tool, retries,
 compactions, and seconds until the lease expires, the number of changed
 paths in the worktree, and the last five progress lines from `runner.log`.
+With `--interval`, it also prints one line (at most 200 characters) per
+interval while it waits: whether the runner and Pi are alive, seconds since
+the last activity and the last event, the running tool and how long it has
+run, lease seconds left, and tool calls (by tool name), retries,
+compactions, and changed paths since the previous line. These say the
+processes are alive and emitting; they are not a claim of progress, and
+they never include messages, commands, or tool output. The snapshot ends
+with `cursor: <segment>:<offset>`; pass it back as `--since` and the next
+snapshot counts only the events after it (across a resume too) in place of
+the raw tool lines. A cursor that does not fit the run is reported and
+ignored; it never changes the exit status. Whether a client shows the
+interim lines before the command returns depends on the client.
 Its exit status is the handoff's:
 
 | Exit | Meaning |

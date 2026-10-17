@@ -922,7 +922,7 @@ start() {
       echo "$!" >"$WORK/tool.pid"
       emit '{"type":"tool_execution_start","toolCallId":"t1","toolName":"bash","args":{"command":"sleep 300"}}'
       ;;
-    busy) ;;
+    busy | slow) ;;
     early-tests | early-outside)
       # Breaks scope with its first tool call, then keeps working for two
       # minutes; the in-flight check must abort it long before that.
@@ -947,6 +947,14 @@ tick() {
       ((ticks >= 6)) && complete
       ;;
     checkpoint) emit '{"type":"tool_execution_update","toolCallId":"c1","toolName":"bash","partialResult":{}}' ;;
+    slow)
+      # One tool call a second, with content that status must never show.
+      emit '{"type":"tool_execution_start","toolCallId":"s1","toolName":"bash","args":{"command":"echo RAW-COMMAND-MARKER"}}'
+      emit '{"type":"message_update","assistantMessageEvent":{"delta":"RAW-CONTENT-SENTINEL"}}'
+      emit '{"type":"tool_execution_end","toolCallId":"s1","toolName":"bash","result":{"content":"RAW-CONTENT-SENTINEL"},"isError":false,"durationMs":5}'
+      emit '{"type":"turn_end","message":{"role":"assistant","content":"RAW-CONTENT-SENTINEL"}}'
+      ((ticks >= 20)) && complete
+      ;;
     early-tests | early-outside)
       emit '{"type":"tool_execution_update","toolCallId":"e2","toolName":"bash","partialResult":{}}'
       ((ticks >= 120)) && complete
@@ -1264,6 +1272,10 @@ got=0; hrunner handoff-resume "$run_id" --allow-commit --max-total 600 --foregro
   fail "a paused and resumed handoff did not produce one ledger outcome with both segments"
 [[ "$(git show "handoff/$run_id:lib/greet.sh")" == 'greet() { echo "hello $1"; }' ]] || fail "the resumed work was not committed"
 runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept the resumed run id"
+# A cursor from the first segment summarizes across the resume.
+got=0; hrunner handoff-status "$run_id" --since 0001:0 >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] && grep -q '^since 0001:0: 1 tool calls (write 1); .*segments started 1$' "$WORK/status.out" &&
+  grep -q '^cursor: 0002:[0-9]*$' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "--since did not span the resumed segment"; }
 drop_worktrees
 
 # Detached by default: launch returns at once; status waits token-free.
@@ -1290,6 +1302,51 @@ got=0; hrunner handoff-status "$run_id" --wait 1 >"$WORK/status.out" 2>&1 || got
 hrunner handoff-stop "$run_id" >/dev/null 2>&1 || fail "handoff-stop failed"
 got=0; hrunner handoff-status "$run_id" --wait 60 >"$WORK/status.out" 2>&1 || got=$?
 [[ "$got" == 11 ]] && grep -q 'operator stop' "$WORK/status.out" || { cat "$WORK/status.out" >&2; fail "an operator stop did not pause the run"; }
+drop_worktrees
+
+# Following a slow session: without --interval nothing is printed while
+# waiting; with it, bounded liveness lines appear before the call returns.
+# Each call prints a cursor, and --since counts only the events after it.
+# No raw message, result, or (in the new output) command text reaches status.
+echo slow >"$WORK/harness-mode"
+hrunner handoff docs/specs/0002-greet.md --allow-commit --model stub-coder >"$WORK/launch.out" 2>&1 || fail "slow launch failed"
+grep -q -- '--wait 540 --interval 60' "$WORK/launch.out" || fail "the launch did not suggest --interval"
+run_id="$(tail -n 1 "$WORK/launch.out")"
+for _ in $(seq 1 100); do [[ -n "$(state_of "$run_id" '.live.pi_pid // empty')" ]] && break; sleep 0.2; done
+got=0; hrunner handoff-status "$run_id" --wait 2 >"$WORK/status1.out" 2>&1 || got=$?
+[[ "$got" == 12 ]] || { cat "$WORK/status1.out" >&2; fail "slow run: expected status exit 12, got $got"; }
+if grep -q '^\[+' "$WORK/status1.out"; then fail "status printed interim lines without --interval"; fi
+cursor1="$(sed -n 's/^cursor: //p' "$WORK/status1.out")"
+[[ "$cursor1" =~ ^0001:[0-9]+$ ]] || { cat "$WORK/status1.out" >&2; fail "status printed no cursor"; }
+got=0; hrunner handoff-status "$run_id" --wait 4 --interval 1 --since "$cursor1" >"$WORK/status2.out" 2>&1 || got=$?
+[[ "$got" == 12 ]] || { cat "$WORK/status2.out" >&2; fail "slow run with --interval: expected exit 12, got $got"; }
+[[ "$(grep -c '^\[+' "$WORK/status2.out" || true)" -ge 2 ]] || { cat "$WORK/status2.out" >&2; fail "--interval printed fewer than two interim lines"; }
+grep '^\[+' "$WORK/status2.out" | grep -q 'running: runner alive, pi alive; last activity [0-9]*s ago.*since previous: [0-9]* tool calls' ||
+  { cat "$WORK/status2.out" >&2; fail "an interim line lacks liveness or counts"; }
+grep '^\[+' "$WORK/status2.out" | awk 'length($0) > 200 { bad = 1 } END { exit bad }' || fail "an interim line exceeded 200 characters"
+grep -q "^since $cursor1: " "$WORK/status2.out" || fail "--since printed no summary"
+cursor2="$(sed -n 's/^cursor: //p' "$WORK/status2.out")"
+got=0; hrunner handoff-status "$run_id" --wait 120 --interval 1 --since "$cursor2" >"$WORK/status3.out" 2>&1 || got=$?
+[[ "$got" == 0 ]] && grep -q '^state: green' "$WORK/status3.out" || { cat "$WORK/status3.out" >&2; fail "the slow run did not finish green"; }
+events=".agentic/delegate/results/$run_id/segments/0001/events.jsonl"
+total="$(grep -c '"type":"tool_execution_end"' "$events" || true)"
+before="$(head -c "${cursor2#*:}" "$events" | grep -c '"type":"tool_execution_end"' || true)"
+((before > 0 && total > before)) || fail "the cursor did not split the slow run's events ($before of $total)"
+grep -q "^since $cursor2: $((total - before)) tool calls" "$WORK/status3.out" ||
+  { cat "$WORK/status3.out" >&2; fail "--since did not count only the $((total - before)) newer tool calls"; }
+if grep -q 'RAW-CONTENT-SENTINEL' "$WORK"/status[123].out; then fail "status exposed raw message or tool content"; fi
+if grep -q 'RAW-COMMAND-MARKER' "$WORK"/status[23].out; then fail "interim or --since output exposed a tool command"; fi
+# --interval is validated like --wait; a cursor that does not fit the run is
+# a note, never a change to the exit status.
+for bad in 0 -1 x; do
+  got=0; hrunner handoff-status "$run_id" --wait 1 --interval "$bad" >"$WORK/status.out" 2>&1 || got=$?
+  [[ "$got" == 2 ]] || fail "--interval $bad was not refused"
+done
+for bad in garbage 0009:5 0001:999999999; do
+  got=0; hrunner handoff-status "$run_id" --since "$bad" >"$WORK/status.out" 2>&1 || got=$?
+  [[ "$got" == 0 ]] && grep -q 'does not match this run' "$WORK/status.out" && grep -q '^cursor: 0001:' "$WORK/status.out" ||
+    { cat "$WORK/status.out" >&2; fail "--since $bad was not handled as a note"; }
+done
 drop_worktrees
 
 # Orphaned: the runner dies (SIGKILL). Pi sees EOF and exits, the lock is

@@ -339,7 +339,10 @@ Open:
   out-of-plan or implement-phase test edit (an integrity stop, not a
   settle-time refusal), and restates the scope rules as a steer after each
   compaction; smoke-tested with a stub, no real-model run yet. Under Codex the handoff needs network access, which
-  `/delegate` documents.
+  `/delegate` documents. `handoff-status --interval` prints bounded,
+  content-free liveness lines during a wait, and `--since <cursor>` limits the
+  snapshot to events after the previous call; whether a client shows the
+  interim lines before the call returns is unverified.
 - `/unattended` (`--full`) prepares one feature to run with nobody
   watching (overnight or a day away): `start` asks every foreseeable
   decision up front and records standing consent in the spec, the run
