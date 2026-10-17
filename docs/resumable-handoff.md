@@ -7,8 +7,11 @@ coverage drives an RPC stub harness and real Pi 1.3.0 against a loopback
 stub (green, graceful pause at a ceiling, resume to one ledger outcome).
 The real local-model trial that pauses and resumes (acceptance plan, final
 paragraph) is still open. Spike evidence:
-[Plumbing spike](#plumbing-spike-2026-10-15).
-**Last updated:** 2026-10-15
+[Plumbing spike](#plumbing-spike-2026-10-15). The consumer-facing guide
+(controls, exit codes, log locations) is
+[`workflow/docs/local-executor.md`](../workflow/docs/local-executor.md#supervising-a-handoff),
+installed as `docs/local-executor.md`; the runner's help points there.
+**Last updated:** 2026-10-16
 
 ## Goal
 

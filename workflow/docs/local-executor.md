@@ -145,8 +145,8 @@ needs `curl`, `jq`, and `perl` (the watchdog that bounds each test run):
    scope, and commits the result on `handoff/<run>` for review and a squash
    merge. Choosing `handoff` mode alone is not commit authorization; the
    runner refuses without the acknowledgement flag.
-   `handoff-clean` removes it afterwards
-   (design: `docs/local-phase-handoff.md` in agentic-scaffold).
+   `handoff-clean` removes it afterwards. Supervision, pause and resume,
+   and where the logs are: [Supervising a handoff](#supervising-a-handoff).
    The runner generates an isolated Pi provider from the selected machine
    profile; no matching global Pi provider is needed. It passes only the
    credential variable the profile names and stores that variable's name in
@@ -172,6 +172,118 @@ works in its own worktree with the repository and tools.
 
 So local delegation works under any of the three clients; only the
 handoff session and a fully local loop need Pi installed.
+
+### Supervising a handoff
+
+The three modes, for context: `none` keeps implementation with the
+orchestrating session, `files` sends one-file packets through `run`, and
+`handoff` gives a whole phase to a Pi session. When each applies and what
+the agent does around it is `/delegate` policy ("Delegation modes", "Phase
+handoff"); this section covers what a human watching a handoff needs.
+
+**Launch and follow.** `handoff` launches detached by default, prints the
+run id, and returns. Pi runs in RPC mode; nothing streams into the
+conversation. Follow it with `handoff-status`:
+
+```bash
+bash .agentic/delegate-run.sh handoff-status <run> --wait 540
+```
+
+It reads local files only (no model tokens), polls until the run reaches a
+final or paused state or the wait ends, and prints a snapshot: state and
+reason, spec and phase, model, worktree and branch, segment count and active
+time, the ceiling, the live segment's last event, active tool, retries,
+compactions, and seconds until the lease expires, the number of changed
+paths in the worktree, and the last five progress lines from `runner.log`.
+Its exit status is the handoff's:
+
+| Exit | Meaning |
+|---|---|
+| 0 | Verified and committed on `handoff/<run>`; review, then squash-merge |
+| 10 | The session ended with the gate red |
+| 11 | Paused or orphaned; resumable (no gate, no commit) |
+| 4 | Out-of-plan or test-file changes |
+| 3 | Harness, RPC, install, or worktree failure |
+| 2 | Refused, or no such run |
+| 12 | Still running when the wait ended; run it again |
+
+`--foreground` on `handoff` or `handoff-resume` runs attached and exits
+with the same codes (12 aside).
+
+**Progress.** A detached run writes `summary` progress to `runner.log`:
+a heartbeat every 15 seconds (`DELEGATE_PROGRESS_INTERVAL` changes it) with
+elapsed time, seconds since the last activity, and the running tool, plus
+bounded lines for tool start/end, retries, and compactions. Lines are
+truncated and obvious credentials redacted; reasoning, generated code, and
+full tool output are not printed there.
+
+**The lease.** There is no fixed time limit. The session holds a renewable
+inactivity lease; all values are whole seconds, set in the environment that
+launches the run:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DELEGATE_HANDOFF_LEASE_SECONDS` | 3600 | Inactivity lease, renewed by model or tool activity; at expiry, worktree content not seen before renews it |
+| `DELEGATE_HANDOFF_RECOVERY_SECONDS` | 900 | One extension while Pi is in retry or compaction recovery |
+| `DELEGATE_HANDOFF_GRACE_SECONDS` | 600 | How long a checkpoint may take before the runner aborts the session |
+| `DELEGATE_HANDOFF_ABORT_SECONDS` | 60 | How long abort and shutdown may take before signals |
+| `DELEGATE_HANDOFF_MAX_TOTAL_SECONDS` | unset | Optional ceiling on active time across segments |
+
+When the lease runs out with nothing new, or the ceiling is reached, or an
+operator stops the run, the runner asks the session to checkpoint: finish
+the operation in progress, append a `### Paused handoff` note under
+`## Phase handoff` in the spec, and stop. It then audits scope and exits 11
+without running the gate or committing. A session that does not settle
+within the grace is aborted and recorded as a forced pause.
+
+**Controls.**
+
+- `handoff-stop <run>` asks a live run to checkpoint and pause.
+- `handoff-resume <run> --allow-commit` continues a paused run in the same
+  worktree and Pi session after checking the spec, plan, snapshot, branch,
+  model fingerprint, and scope. `--max-total <seconds>` raises the ceiling.
+- An **orphaned** run is one whose state is not final but whose runner and
+  Pi are both gone (a reboot, a killed terminal). `handoff-status` reports
+  it with exit 11 and names any tool process groups still alive;
+  `handoff-resume` treats it as a forced pause and kills those leftovers
+  first.
+- `handoff-clean` lists handoff worktrees; `handoff-clean <run>` (or
+  `--all`) removes the worktree and its `handoff/` branch, skipping a live
+  run.
+
+**Where the logs are.** Per run, under the ignored
+`.agentic/delegate/results/<run>/`:
+
+| Path | Contents |
+|---|---|
+| `runner.log` | The detached runner's output and progress lines |
+| `state.json` | The logical run: state, worktree, branch, segments, live status |
+| `prompt.md` | The handoff prompt sent to Pi |
+| `install.log`, `gate.log` | Worktree install and final gate output |
+| `segments/NNNN/events.jsonl` | Raw Pi RPC events for segment `NNNN` (0001, 0002, ...) |
+| `segments/NNNN/harness.log` | Pi's stderr for that segment |
+| `segments/NNNN/status.json` | How the segment ended |
+| `session/` | Pi's session JSONL; `state.json` names the file as `session_file` |
+
+The worktree itself is at `${DELEGATE_HANDOFF_DIR:-$TMPDIR/agentic-handoff}/<run>`
+(`/tmp` when `TMPDIR` is unset); `handoff-status` prints it.
+
+```bash
+r=.agentic/delegate/results/<run>
+tail -f "$r/runner.log"                                   # bounded progress
+tail -f "$r/segments/0001/harness.log"                    # Pi stderr
+tail -f "$r/segments/0001/events.jsonl" | jq -c '{type}'  # event types only
+```
+
+`runner.log` is bounded but still names files and commands; the rest is
+raw. `events.jsonl`, `harness.log`, the session JSONL, and `prompt.md` can
+hold prompts, source code, model
+reasoning, tool arguments and results, and local paths. Keep
+`.agentic/delegate/` ignored, do not paste these files into issues or
+commits, and delete runs you no longer need. They are the client side's
+record of the session, not an HTTP capture of the traffic to the model and
+not the inference server's logs; what the server saw is visible only
+through the server's own logging, if it has any.
 
 ## What breaks, and it is not what you expect
 
