@@ -75,8 +75,8 @@
 #                            --foreground runs it attached and exits with the
 #                            outcome. The session is supervised by a
 #                            renewable inactivity lease, not a fixed limit;
-#                            see docs/local-phase-handoff.md and
-#                            docs/resumable-handoff.md.
+#                            see docs/local-executor.md -> "Supervising a
+#                            handoff" (log locations included).
 #   handoff-status <run-id> [--wait <seconds>]
 #                            Token-free status from local files. Waits up to
 #                            <seconds> for a final or paused state; exits
@@ -94,14 +94,14 @@
 #                            with its handoff/ branch after merging or
 #                            abandoning it.
 #
-# Scoring (docs/local-delegate-runner.md in agentic-scaffold): a success is
-# a published candidate that passed review; a failure is needs_frontier or
-# a model-defect review. A model is demoted for a bucket after a
-# model-defect review, or when it has at least 5 scored runs and the upper
-# bound of the 95% Wilson interval over its last 20 is below 50%. Demotion
-# warns but does not block a manual run. Selection explores candidates with
-# fewer than 5 scored runs in list order, then ranks by the interval's lower
-# bound; unqualified, demoted, and unreachable candidates are skipped.
+# Scoring: a success is a published candidate that passed review; a failure
+# is needs_frontier or a model-defect review. A model is demoted for a
+# bucket after a model-defect review, or when it has at least 5 scored runs
+# and the upper bound of the 95% Wilson interval over its last 20 is below
+# 50%. Demotion warns but does not block a manual run. Selection explores
+# candidates with fewer than 5 scored runs in list order, then ranks by the
+# interval's lower bound; unqualified, demoted, and unreachable candidates
+# are skipped.
 #
 # Profile: ${AGENTIC_DELEGATE_PROFILE:-${XDG_CONFIG_HOME:-~/.config}/agentic/local-models.toml}
 # (outside the repository; it names private endpoints). Example:
@@ -164,8 +164,8 @@ HARNESS_VERSION="delegate-run-v2"
 MAX_ATTEMPTS=3
 # Ranking and demotion use the Wilson score interval (E. B. Wilson, JASA 22,
 # 1927; see docs/influences.md in agentic-scaffold). Scoring and bucket
-# parameters are unsourced starting points
-# (docs/local-delegate-runner.md -> "Unsourced starting points"); tune them
+# parameters are unsourced starting points (docs/local-delegate-runner.md
+# in agentic-scaffold -> "Unsourced starting points"); tune them
 # from the ledger, and bump HARNESS_VERSION when the retry rules change.
 EXPLORE_MIN=5
 WINDOW=20
@@ -1887,7 +1887,7 @@ cmd_reset() {
 # zombie). Closing Pi's stdin during a run abandons the run, so the runner
 # closes it only after agent_settled or a completed abort. Never call rpc_*
 # inside $(...): the subshell would consume events from fd 9 and lose the
-# state it parsed. See docs/resumable-handoff.md.
+# state it parsed. Design: docs/resumable-handoff.md in agentic-scaffold.
 
 CHECKPOINT_MESSAGE='Checkpoint requested by the handoff supervisor. Do not start new implementation work. Finish only the operation in progress, inspect the worktree, append a concise "### Paused handoff" entry under "## Phase handoff" in the spec (what is done, what is next, anything left red), do not commit, and stop.'
 
