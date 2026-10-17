@@ -100,6 +100,13 @@ with the alternatives considered. Deciding them from a thin description
 would produce a plausible architecture for a project that does not exist
 yet.
 
+**Ask once about a local inference server.** Before running a loop
+flavor's bootstrap, ask whether this machine runs a local inference server
+(Ollama, llama.cpp, vLLM, LM Studio, or similar). If it does, explain that
+the frontier session can hand bounded, test-pinned files to local models
+(local delegation, section 6), that this needs `--full`, and offer it; the
+human decides. If it does not, say nothing more about it.
+
 **Ending the founding session.** Setup is a bounded handoff into the first
 roadmap unit, not a stop that waits for a fresh request. When setup is
 complete (product spec, toolchain, any local-model setup, setup merged or
@@ -107,6 +114,11 @@ committed) and exactly one next unit is agreed, start it: draft its spec with
 `/spec` and stop at the spec-ownership checkpoint with a checkpoint report.
 When the order is ambiguous, ask which unit is first. `/product-spec` itself
 still stops after writing; the founding orchestrator owns the continuation.
+The final setup report states whether `main` is protected, checked read-only
+(`gh api repos/<owner>/<repo>/rulesets`, or `.../branches/main/protection`
+for classic protection); when it is not, name the scaffold's
+`scripts/protect-main.sh` as the human's step. Never change repository
+settings without the human's explicit go.
 
 | Ask | Decides for | Example |
 | --- | --- | --- |
@@ -167,8 +179,9 @@ wholesale; Claude reads the
 canonical `AGENTS.md` through the scaffold-managed `CLAUDE.md` import shim.
 
 Bootstrap records the selected profile, hook mode, advanced-docs option, and
-managed-file checksums under `.agentic/`. A flagless `bootstrap.sh --update`
-reuses those choices. Updates also checksum-protect `.claude/settings.json`,
+managed-file checksums under `.agentic/`, plus the scaffold revision that
+wrote them (informational; updates never read it). A flagless
+`bootstrap.sh --update` reuses those choices. Updates also checksum-protect `.claude/settings.json`,
 `.codex/config.toml`, `.codex/hooks.json`, and `.pi/settings.json`: unchanged
 scaffold copies
 receive template improvements, while project-customized copies remain intact

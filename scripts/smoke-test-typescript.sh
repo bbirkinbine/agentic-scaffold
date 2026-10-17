@@ -28,7 +28,8 @@ fail() {
 git init -q
 args=(--core)
 [[ -n "$STRICT" ]] && args+=("$STRICT")
-bash "$REPO_DIR/typescript/bootstrap.sh" "${args[@]}"
+boot_out="$(bash "$REPO_DIR/typescript/bootstrap.sh" "${args[@]}")"
+printf '%s\n' "$boot_out"
 
 must() { [[ -e "$1" ]] || fail "expected file missing: $1"; }
 must_not() { [[ ! -e "$1" ]] || fail "file should not be installed: $1"; }
@@ -69,6 +70,10 @@ grep -q 'External-reference provenance' AGENTS.md || fail "AGENTS.md lost the ne
 ! grep -q '# Python code conventions' AGENTS.md || fail "AGENTS.md carries the Python rule"
 ! grep -q 'pytest' AGENTS.md || fail "AGENTS.md mentions pytest"
 grep -Fxq 'PROFILE=core' .agentic/scaffold-state || fail "persisted profile is not core"
+grep -Eq '^SCAFFOLD_REVISION=([0-9a-f]{40}(-dirty)?|unknown)$' .agentic/scaffold-state || fail "scaffold-state lacks SCAFFOLD_REVISION"
+grep -q 'scripts/protect-main.sh' <<<"$boot_out" || fail "bootstrap did not print the protect-main reminder"
+! grep -q 'delegate-run.sh init' <<<"$boot_out" || fail "--core printed delegation next steps"
+grep -q '"@types/node"' .github/dependabot.yml || fail "Dependabot does not hold @types/node majors"
 if [[ "$STRICT" == "--no-stop-gate" ]]; then
   ! grep -q 'gate-on-stop.sh' .claude/settings.json || fail "Claude Stop hook wired despite --no-stop-gate"
 else

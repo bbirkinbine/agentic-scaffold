@@ -113,6 +113,24 @@ sync_config_from() {
   echo "  updated: $target"
 }
 
+# Informational provenance next to the config hashes: the scaffold commit
+# that last wrote this project (-dirty for uncommitted changes), or unknown
+# for an archive install. Update decisions never read it.
+record_scaffold_revision() {
+  local state_dir="$DST_DIR/.agentic/scaffold-state"
+  local top rev
+
+  [[ -d "$state_dir" ]] || return 0
+  top="$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "$top" || "$top" != "$(cd "$REPO_DIR" && pwd -P)" ]] ||
+    ! rev="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)"; then
+    rev=unknown
+  elif [[ -n "$(git -C "$REPO_DIR" status --porcelain 2>/dev/null)" ]]; then
+    rev="$rev-dirty"
+  fi
+  printf 'SCAFFOLD_REVISION=%s\n' "$rev" >"$state_dir/scaffold-revision"
+}
+
 copy_readme() {
   local destination="$DST_DIR/README.md"
   if [[ -e "$destination" ]]; then
@@ -239,6 +257,7 @@ sync_from "$GENERIC_DIR/docs/pi-agent.md" "docs/pi-agent.md"
 install_commit_msg_hook
 
 migrate_legacy_pointer
+record_scaffold_revision
 
 echo
 if [[ "$MODE" == "update" ]]; then
@@ -248,6 +267,8 @@ else
   echo "CLAUDE.md imports AGENTS.md; keep shared policy in AGENTS.md."
   echo "For Codex, trust the project .codex layer and review hooks with /hooks."
   echo "For Pi, approve project trust, restart or /reload, and verify the local extension."
+  echo "Protect main once the GitHub repo exists (never changed automatically):"
+  echo "  bash $REPO_DIR/scripts/protect-main.sh --dry-run   (or confirm a ruleset exists)"
   echo "Day-zero steps: $GENERIC_DIR/README.md -> After bootstrap."
   echo "This flavor installs no spec/plan/review loop; for that, run"
   echo "  bash $(dirname "$GENERIC_DIR")/custom/bootstrap.sh"

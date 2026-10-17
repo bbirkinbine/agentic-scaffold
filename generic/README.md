@@ -58,6 +58,9 @@ This is the generic flavor's day zero; there is no `WORKFLOW.md` to walk.
    (`docs/pi-agent.md`). A sandboxed founding session may need approval to write `.codex/` and
    `.git/hooks/`; re-running the bootstrap after approval is safe.
 5. Make the one scaffolding commit on `main`, then branch for real work.
+6. Once the GitHub repository exists, protect `main`: run the scaffold's
+   `scripts/protect-main.sh` (preview with `--dry-run`), or confirm a
+   ruleset already exists. Skip on a repository with no GitHub remote.
 
 Re-run with `--update` to refresh managed client configuration and hooks.
 The bootstrap records hashes under `.agentic/scaffold-state/`; if a client
