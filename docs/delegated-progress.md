@@ -1,7 +1,11 @@
 # Delegated run progress
 
-**Status:** implemented and smoke-tested; no real-model progress trial yet
-**Last updated:** 2026-10-15
+**Status:** implemented and smoke-tested; no real-model progress trial yet.
+On 2026-10-17 the one-file `run` mode was removed (see `docs/influences.md`
+→ "Single-file delegation removed (2026-10-17)"); its heartbeat and
+verification-stage progress went with it, and the handoff progress below is
+what remains. Passages about one-file runs are history.
+**Last updated:** 2026-10-17
 
 ## Goal
 

@@ -222,6 +222,27 @@ being re-proposed.
     scaffold ships one optional MCP (serena) and no connectors, so there is
     nothing to convert.
 
+- **Single-file delegation removed (2026-10-17).** Adopted 2026-10, then
+  withdrawn: `delegate-run.sh run` sent one `/delegate` packet (format 2,
+  sized into `small`/`medium` buckets, `expected_lines` for new files) to a
+  local model with no tools, verified the returned file in a scratch copy
+  with up to three attempts, and published only a passing file. Local
+  delegation is now `direct` or `handoff` only; `qualify`, the ledger, Wilson
+  scoring, selection, and demotion stay for the phase handoff, and old ledger
+  entries are kept but no longer scored. The human's reason, stated as a
+  guess rather than a measurement: a model with repository context and
+  tools should produce better results than one restricted to a single-file
+  packet with no tools, even locally. Evidence against, kept so the
+  reversal is not read as proven: in the 2026-10-14 trials well-pinned leaf
+  files survived review in this mode (a renderer kept about 99% of its
+  published lines) while glue and timing files did not (about 16% and 33%);
+  the space-invaders field trial that preceded the removal ran no
+  single-file packet, so there is no head-to-head comparison. Revisit if
+  handoff quality on small, well-tested leaf modules disappoints in
+  recorded review verdicts. The design and trial history remain in
+  [`local-delegate-runner.md`](local-delegate-runner.md) and
+  [`local-phase-handoff.md`](local-phase-handoff.md).
+
 ## Corrections
 
 - **Gloaguen et al., 2026** (resolved 2026-07-22). This citation sat in

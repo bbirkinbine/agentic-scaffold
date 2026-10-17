@@ -1,22 +1,16 @@
 #!/usr/bin/env bash
 # Smoke-test the local delegate runner (.agentic/delegate-run.sh) against a
-# stub OpenAI-compatible server. Bootstraps the custom flavor with --full,
-# fills its runner with a small shell toolchain, writes a one-file packet,
-# and drives: init (a draft profile, never written, readable by the
-# runner, skipping what exists); qualification (pass, wrong edit, fence,
-# truncation, inline reasoning, unreachable endpoint, a setup change
-# revoking it); runs (green
-# on the first call, red then green with retry feedback, three reds to
-# needs_frontier, fenced and truncated responses, a lint regression, a
-# partial gate, a candidate whose gate run writes outside the target, an
-# already-green baseline, an unconfigured gate, a missing credential, an
-# HTTP error, a workspace that changes mid-run, a model that connects but
-# answers past timeout_seconds); scoring (pending until
-# review, review verdicts, demotion by interval and by review defect, the
-# demoted warning, reset); and discovery and selection (explore in list
-# order, rank by record, skip unqualified, demoted, and unreachable
-# candidates, needs_frontier when none is selectable). CI never calls a
-# real model.
+# stub OpenAI-compatible server and a stub Pi harness. Bootstraps the custom
+# flavor with --full, fills its runner with a small shell toolchain, and
+# drives: init (a draft profile, never written, readable by the runner,
+# skipping what exists); qualification (pass, wrong edit, fence, truncation,
+# inline reasoning, unreachable endpoint, HTTP error, missing credential, a
+# slow first response, a setup change revoking it); discovery, policy, and
+# activation; the removed `run` subcommand and old per-file ledger
+# entries; and handoffs (scope and test-file audits, phase scoring, review,
+# demotion, reset, selection, supervision, pause and resume, detached
+# status with --interval and --since, and the same through real Pi when it
+# is installed). CI never calls a real model.
 #
 # Usage:
 #   scripts/smoke-test-delegate.sh
@@ -65,8 +59,6 @@ import subprocess
 
 runner = ".agentic/delegate-run.sh"
 cases = [
-    ["run", "packet", "--model"],
-    ["run", "packet", "--progress"],
     ["qualify", "model", "--profile"],
     ["init", "--key-env"],
     ["handoff", "spec", "--phase"],
@@ -91,16 +83,19 @@ for args in cases:
         )
 PY
 
-for command in run handoff; do
-  got=0
-  bash .agentic/delegate-run.sh "$command" placeholder --progress noisy >"$WORK/progress-option.out" 2>&1 || got=$?
-  [[ "$got" == 2 ]] && grep -q 'unknown progress mode' "$WORK/progress-option.out" ||
-    fail "$command accepted an unknown progress mode"
-done
+got=0
+bash .agentic/delegate-run.sh handoff placeholder --progress noisy >"$WORK/progress-option.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'unknown progress mode' "$WORK/progress-option.out" ||
+  fail "handoff accepted an unknown progress mode"
 help="$(bash .agentic/delegate-run.sh --help)"
-[[ "$help" == *'run <packet> [--model <name>] [--progress quiet|summary]'* &&
-  "$help" == *'handoff <spec> --allow-commit'* && "$help" == *'Progress is `summary`'* ]] ||
-  fail "runner help omitted the progress interface"
+[[ "$help" == *'qualify <model>'* && "$help" == *'handoff <spec> --allow-commit'* && "$help" == *'Progress is `summary`'* ]] ||
+  fail "runner help omitted the qualify, handoff, or progress interface"
+[[ "$help" != *'run <packet>'* ]] || fail "runner help still documents the removed run subcommand"
+# Single-file delegation was removed: `run` is an unknown subcommand.
+got=0
+bash .agentic/delegate-run.sh run .agentic/delegate/packets/0001.md --model stub-coder >"$WORK/run.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'unknown subcommand: run' "$WORK/run.out" ||
+  { cat "$WORK/run.out" >&2; fail "the removed run subcommand was not refused as unknown"; }
 
 # An existing project owns .gitignore. Updating adds only the new runtime
 # entries, preserving custom content and remaining idempotent.
@@ -109,7 +104,7 @@ sed '/^\.agentic\/delegate\/$/d; /^\.pi\/npm\/$/d' .gitignore >"$WORK/ignore.bef
 printf '\n# Project-specific rule\nlocal-output/\n' >>"$WORK/ignore.before"
 cp "$WORK/ignore.before" .gitignore
 bash "$REPO_DIR/custom/bootstrap.sh" --update >/dev/null
-git check-ignore -q .agentic/delegate/packets/probe.md || fail "--update did not ignore delegation state"
+git check-ignore -q .agentic/delegate/results/probe.json || fail "--update did not ignore delegation state"
 git check-ignore -q .pi/npm/.gitignore || fail "--update did not ignore Pi's package directory"
 head -n "$(wc -l <"$WORK/ignore.before" | tr -d ' ')" .gitignore >"$WORK/ignore.prefix"
 cmp -s "$WORK/ignore.before" "$WORK/ignore.prefix" || fail "--update changed existing ignore rules"
@@ -169,24 +164,7 @@ bash .agentic/toolchain.sh ready || fail "filled runner is not ready"
 git add -A >/dev/null
 git -c user.name=smoke -c user.email=smoke@example.invalid commit -qm baseline
 
-mkdir -p .agentic/delegate/packets
-PACKET=.agentic/delegate/packets/0001-lib-greet-sh.md
-cat >"$PACKET" <<'MD'
----
-format: 2
-targets: [lib/greet.sh]
-target_lines: 1
-contract_items: 1
-visible_tests: 1
-test_targets: [tests/test_greet.sh]
-new_dependencies: false
-bucket: small
----
-## Task
-
-`greet NAME` prints `hello NAME`.
-MD
-git check-ignore -q "$PACKET" || fail ".agentic/delegate/ is not gitignored in a fresh project"
+git check-ignore -q .agentic/delegate/results/probe.json || fail ".agentic/delegate/ is not gitignored in a fresh project"
 
 # --- stub server and profile ----------------------------------------------------
 QUEUE="$WORK/queue"
@@ -242,9 +220,6 @@ TOML
 export AGENTIC_DELEGATE_PROFILE="$PROFILE"
 export STUB_TOKEN="smoke-secret-value"
 
-GOOD='greet() { echo "hello $1"; }'
-BAD='greet() { echo "hi $1"; }'
-
 # respond <NN> <content> [finish_reason]
 respond() {
   jq -n --arg c "$2" --arg f "${3:-stop}" \
@@ -258,19 +233,9 @@ reset_case() {
   mkdir -p "$QUEUE/requests"
 }
 
-# expect_run <status> <model> : runs the runner, asserts its exit status.
-expect_run() {
-  local want="$1" model="$2" got=0
-  shift 2
-  bash .agentic/delegate-run.sh run "$PACKET" --model "$model" "$@" >"$WORK/run.out" 2>&1 || got=$?
-  [[ "$got" == "$want" ]] || {
-    cat "$WORK/run.out" >&2
-    fail "expected exit $want, got $got (model $model)"
-  }
-}
-
 last_result() { jq -c 'select((.type // "run") == "run")' .agentic/delegate/ledger.jsonl | tail -n 1; }
 greet_is() { [[ "$(cat lib/greet.sh)" == "$1" ]]; }
+qualified_line() { runner status 2>/dev/null | grep "^$1 (" || true; }
 runner() { bash .agentic/delegate-run.sh "$@"; }
 
 # The plumbing file and its expected edit, regenerated from the runner itself.
@@ -295,15 +260,6 @@ qualify_with() {
   [[ "$got" == "$1" ]] || { cat "$WORK/qualify.out" >&2; fail "qualify $2: expected exit $1, got $got"; }
 }
 
-# state_of <model> <bucket> : the bucket line from `status`.
-state_of() {
-  local out
-  out="$(runner status 2>&1)"
-  grep -A2 "^$1 " <<<"$out" | grep "^  $2:" || true
-}
-# state_has <model> <bucket> <text>
-state_has() { [[ "$(state_of "$1" "$2")" == *"$3"* ]]; }
-
 # --- 0a. init drafts a profile and never writes one -------------------------------
 draft="$WORK/draft.toml"
 runner init --profile "$WORK/none.toml" --key-env STUB_TOKEN "http://127.0.0.1:$PORT/v1" >"$draft" 2>&1 ||
@@ -324,10 +280,7 @@ runner init "ftp://nope" >/dev/null 2>&1 && fail "init accepted a non-http URL"
 runner init --key-env 'sk-123 abc' "http://127.0.0.1:$PORT/v1" >/dev/null 2>&1 && fail "init accepted a key in --key-env"
 
 # --- 0. qualification -----------------------------------------------------------
-reset_case
-expect_run 2 stub-coder
-grep -q 'unqualified' "$WORK/run.out" || fail "an unqualified model was not refused"
-[[ -z "$(ls "$QUEUE/requests")" ]] || fail "an unqualified model was called"
+[[ "$(qualified_line stub-coder)" == *": unqualified" ]] || fail "a model was qualified before qualify ran"
 
 EXPECTED="$(plumbing plumbing_expected)"
 qualify_with 5 stub-coder "$(plumbing plumbing_file)"
@@ -377,220 +330,22 @@ new_fp="$(jq -r 'select(.model == "stub-coder" and .result == "pass") | .fingerp
   fail "qualification did not record the new harness version"
 cp "$WORK/local-models-qualified.jsonl" "$WORK/qualification.new"
 jq -c --arg old "$old_fp" 'if .model == "stub-coder" and .result == "pass" then .fingerprint = $old else . end' "$WORK/qualification.new" >"$WORK/local-models-qualified.jsonl"
-# The old pass alone cannot authorize a run. Restore the new pass afterward.
-reset_case
-expect_run 2 stub-coder
-grep -q 'unqualified' "$WORK/run.out" || fail "old harness qualification remained valid"
+# The old pass alone cannot qualify the model. Restore the new pass afterward.
+[[ "$(qualified_line stub-coder)" == *": unqualified" ]] || fail "old harness qualification remained valid"
 cp "$WORK/qualification.new" "$WORK/local-models-qualified.jsonl"
 
 # A setup change (here, the request settings) needs a new qualification.
 sed -i.bak 's/"temperature": 0.2/"temperature": 0.3/' "$PROFILE"
-reset_case
-expect_run 2 stub-coder
-grep -q 'unqualified' "$WORK/run.out" || fail "a changed setup kept its qualification"
+[[ "$(qualified_line stub-coder)" == *": unqualified" ]] || fail "a changed setup kept its qualification"
 mv "$PROFILE.bak" "$PROFILE"
+[[ "$(qualified_line stub-coder)" == *": qualified" ]] || fail "restoring the setup did not restore its qualification"
 
-# --- 1. green on the first call ---------------------------------------------------
+# --- 1. qualify: credential, unreachable endpoint, HTTP error, slow first reply ---
 reset_case
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-greet_is "$GOOD" || fail "green candidate was not published"
-[[ "$(last_result | jq -r .outcome)" == green ]] || fail "ledger outcome is not green"
-[[ "$(last_result | jq -r .mode)" == manual ]] || fail "ledger record is not labelled manual"
-[[ "$(last_result | jq '.attempts | length')" == 1 ]] || fail "green run used more than one attempt"
-grep -q "summary: green — 'stub-coder' on lib/greet.sh (small)" "$WORK/run.out" || fail "the run summary was not printed"
-grep -q "gate steps passed: lint format-check typecheck test" "$WORK/run.out" || fail "the summary did not list passing steps"
-[[ "$(last_result | jq '.wall_seconds | type')" == '"number"' ]] || fail "wall time was not recorded"
-[[ "$(cat "$QUEUE/requests/01.auth")" == "Bearer smoke-secret-value" ]] || fail "credential not sent"
-jq -e '.temperature == 0.2 and .model == "stub-model" and .stream == false' "$QUEUE/requests/01.json" >/dev/null ||
-  fail "request settings from the profile were not applied"
-assert_raw_system "$QUEUE/requests/01.json"
-jq -e '[.messages[].role] == ["system", "user"]' "$QUEUE/requests/01.json" >/dev/null || fail "initial message order changed"
-jq -e '.messages[1].content | contains("targets:") | not' "$QUEUE/requests/01.json" >/dev/null ||
-  fail "packet front matter was sent to the model"
-for want in '## The file as it exists now' 'greet() { echo "TODO"; }' '## The failing tests' \
-  'tests/test_greet.sh' "expected 'hello bob'" '## Output contract' 'complete final contents of `lib/greet.sh`'; do
-  jq -e --arg w "$want" '.messages[1].content | contains($w)' "$QUEUE/requests/01.json" >/dev/null ||
-    fail "the runner did not add to the packet: $want"
-done
-run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
-cmp -s <(jq -j '.messages[1].content' "$QUEUE/requests/01.json") "$run_dir/prompt.md" ||
-  fail "prompt.md is not the message the model received"
-cmp -s "$run_dir/candidate" lib/greet.sh || fail "the published candidate was not kept in the result"
-if grep -rq smoke-secret-value .agentic/delegate; then fail "credential value leaked into delegation state"; fi
-git diff --cached --quiet || fail "runner staged changes"
-
-# Byte-count framing must not treat an in-file end marker (or missing final
-# newline) as a boundary; the user packet must reproduce both source files.
-reset_case
-printf 'greet() { echo "TODO"; }\n# End of byte-counted source file lib/greet.sh.' >lib/greet.sh
-cp lib/greet.sh "$WORK/collision-source"
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-python3 - "$QUEUE/requests/01.json" "$WORK/collision-source" tests/test_greet.sh <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-packet = json.loads(Path(sys.argv[1]).read_text())["messages"][1]["content"].encode()
-for label, path in [("lib/greet.sh", sys.argv[2]), ("tests/test_greet.sh", sys.argv[3])]:
-    header = f"Source file {label}: the next ".encode()
-    start = packet.index(header) + len(header)
-    count = re.match(rb"[0-9]+", packet[start:])
-    assert count, f"missing byte count for {label}"
-    content_start = packet.index(b"\n", start + count.end()) + 1
-    content = Path(path).read_bytes()
-    assert int(count[0]) == len(content), f"wrong byte count for {label}"
-    assert packet[content_start:content_start + len(content)] == content, f"source not literal: {label}"
-    assert packet[content_start + len(content):].startswith(b"\nEnd of byte-counted source file "), f"bad boundary: {label}"
-PY
-
-# --- 1b. bounded progress for a delayed one-file call ----------------------------
-reset_case
-respond 01 "$GOOD"
-started="$(date +%s)"
-DELEGATE_PROGRESS_INTERVAL=15 expect_run 0 stub-coder --progress summary
-elapsed="$(($(date +%s) - started))"
-((elapsed < 10)) || fail "stopping a heartbeat delayed a fast response (${elapsed}s)"
-
-reset_case
-respond 01 "$GOOD"
-printf '3\n' >"$QUEUE/01.delay"
-DELEGATE_PROGRESS_INTERVAL=1 expect_run 0 stub-coder --progress summary
-grep -q 'progress: run .*logs: .agentic/delegate/results/' "$WORK/run.out" ||
-  fail "summary mode did not print the run and result path before the call"
-grep -q 'progress: generating .*attempt 1/3.*[1-9][0-9]*s elapsed' "$WORK/run.out" ||
-  fail "a delayed one-file call emitted no heartbeat"
-grep -q 'progress: extracting candidate' "$WORK/run.out" || fail "one-file progress omitted extraction"
-grep -q 'progress: verifying — format' "$WORK/run.out" || fail "one-file progress omitted verification stages"
-greet_is "$GOOD" || fail "progress changed one-file publication"
-[[ "$(last_result | jq -r .outcome)" == green ]] || fail "progress changed the one-file ledger outcome"
-if grep -q smoke-secret-value "$WORK/run.out"; then fail "progress printed the endpoint credential"; fi
-
-reset_case
-respond 01 "$GOOD"
-printf '2\n' >"$QUEUE/01.delay"
-DELEGATE_PROGRESS_INTERVAL=1 expect_run 0 stub-coder --progress quiet
-if grep -q 'progress:' "$WORK/run.out"; then fail "quiet mode emitted progress lines"; fi
-greet_is "$GOOD" || fail "quiet progress changed one-file publication"
-
-# --- 2. red, then green with feedback ------------------------------------------------
-reset_case
-respond 01 "$BAD"
-respond 02 "$GOOD"
-expect_run 0 stub-coder
-greet_is "$GOOD" || fail "second-attempt green was not published"
-assert_raw_system "$QUEUE/requests/02.json"
-jq -e '[.messages[].role] == ["system", "user", "assistant", "user"]' "$QUEUE/requests/02.json" >/dev/null ||
-  fail "retry message order changed"
-run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
-cmp -s <(jq -j '.messages[1].content' "$QUEUE/requests/02.json") "$run_dir/prompt.md" ||
-  fail "retry lost the original user packet"
-jq -e '.messages[2].content | contains("hi $1")' "$QUEUE/requests/02.json" >/dev/null ||
-  fail "retry did not carry the previous candidate"
-jq -e '.messages[3].content | contains("expected '"'"'hello bob'"'"'")' "$QUEUE/requests/02.json" >/dev/null ||
-  fail "retry did not carry the failure output"
-
-# --- 3. three reds: needs_frontier, nothing published ----------------------------
-reset_case
-respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
-expect_run 10 stub-coder
-cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "a red candidate was published"
-[[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "outcome is not needs_frontier"
-grep -q needs_frontier "$WORK/run.out" || fail "needs_frontier was not announced"
-run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
-[[ ! -e "$run_dir/candidate" ]] || fail "failed local code was kept for the orchestrator"
-
-# --- 4. fenced, truncated, then inline reasoning + green -------------------------
-reset_case
-respond 01 $'```bash\n'"$GOOD"$'\n```'
-respond 02 "$GOOD" length
-respond 03 $'<think>\nplan the function\n</think>\n'"$GOOD"
-expect_run 0 stub-coder
-greet_is "$GOOD" || fail "reasoning block was not stripped from the candidate"
-[[ "$(last_result | jq -r '[.attempts[].outcome] | join(",")')" == "format,format,green" ]] ||
-  fail "fence and truncation were not rejected as format failures"
-
-# --- 4b. a candidate that hangs its tests times out and is retried --------------
-reset_case
-respond 01 'greet() { sleep 60; echo "hello $1"; }'
-respond 02 "$GOOD"
-DELEGATE_STEP_TIMEOUT=3 expect_run 0 stub-coder
-greet_is "$GOOD" || fail "the run did not recover after a timed-out attempt"
-jq -e '.messages[3].content | contains("timed out after 3s")' "$QUEUE/requests/02.json" >/dev/null ||
-  fail "the timeout was not reported back to the model"
-
-# --- 5a. focused tests pass but a step green before the run goes red -------------
-reset_case
-respond 01 'greet() { echo "hello $1"; } # FIXME'
-respond 02 "$GOOD"
-expect_run 0 stub-coder
-[[ "$(last_result | jq -r '.attempts[0].detail')" == *"now fail: lint"* ]] ||
-  fail "a lint regression was not caught"
-[[ "$(last_result | jq -r .gate)" == full ]] || fail "a fully green run was not reported as full"
-
-# --- 5b. another plan file not landed: partial gate, still published ------------
-reset_case
-cat >tests/test_other.sh <<'SH'
-source lib/other.sh 2>/dev/null && other || exit 1
-SH
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-greet_is "$GOOD" || fail "partial-gate candidate was not published"
-[[ "$(last_result | jq -r .gate)" == partial ]] || fail "pre-existing red step was not reported as partial"
-[[ "$(last_result | jq -r '.unverified_steps | join(",")')" == test ]] || fail "unverified steps not named"
-grep -q 'partial gate' "$WORK/run.out" || fail "partial gate was not announced"
-rm tests/test_other.sh
-
-# --- 5c. a candidate whose gate run writes outside the target --------------------
-reset_case
-respond 01 'greet() { echo "hello $1"; }; echo tampered >tests/run.sh'
-expect_run 4 stub-coder
-cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "tampering candidate was published"
-[[ "$(last_result | jq -r .outcome)" == integrity ]] || fail "tampering was not an integrity stop"
-grep -q 'tests/run.sh' "$WORK/run.out" || fail "integrity stop did not name the changed file"
-git diff --quiet tests/ || fail "tampering reached the real workspace"
-
-# --- 6. already-green baseline is refused before any call ------------------------
-reset_case
-printf '%s\n' "$GOOD" >lib/greet.sh
-expect_run 2 stub-coder
-[[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called for an already-green task"
-grep -q 'already pass' "$WORK/run.out" || fail "already-green refusal reason missing"
-
-# --- 7. unconfigured gate is refused ----------------------------------------------
-reset_case
-sed -i.bak 's/^TC_CONFIGURED=1/TC_CONFIGURED=0/' .agentic/toolchain.sh
-expect_run 2 stub-coder
-grep -q 'unconfigured' "$WORK/run.out" || fail "unconfigured gate was not named"
-mv .agentic/toolchain.sh.bak .agentic/toolchain.sh
-
-# --- 7b. bucket: a small label on medium counts is refused; a larger label stays --
-reset_case
-SAVED_PACKET="$PACKET"
-PACKET=.agentic/delegate/packets/0001-lib-greet-sh-bucket.md
-sed 's/^contract_items: 1$/contract_items: 12/' "$SAVED_PACKET" >"$PACKET"
-expect_run 2 stub-coder
-[[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called for a mislabelled bucket"
-grep -q "make it 'medium'" "$WORK/run.out" || fail "the bucket refusal did not name the corrected bucket"
-sed -e 's/^bucket: small$/bucket: medium/' "$SAVED_PACKET" >"$PACKET"
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-[[ "$(last_result | jq -r .bucket)" == medium ]] || fail "a declared medium bucket was lowered to small"
-reset_case
-awk '/^bucket:/ { next } { print } /^target_lines:/ { print "expected_lines: 200" }' "$SAVED_PACKET" >"$PACKET"
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-[[ "$(last_result | jq -r .bucket)" == medium ]] || fail "expected_lines did not size the bucket"
-PACKET="$SAVED_PACKET"
-rm -f .agentic/delegate/packets/0001-lib-greet-sh-bucket.md
-
-# --- 8. missing credential, unreachable endpoint, HTTP error ---------------------
-reset_case
-respond 01 "$GOOD"
-STUB_TOKEN="" expect_run 2 stub-coder
-grep -q "STUB_TOKEN" "$WORK/run.out" || fail "missing credential variable was not named"
+got=0
+STUB_TOKEN="" runner qualify stub-coder >"$WORK/qualify.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q "STUB_TOKEN" "$WORK/qualify.out" || fail "a missing credential variable was not named"
+[[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called without its credential"
 got=0
 runner qualify dead-coder >"$WORK/qualify.out" 2>&1 || got=$?
 [[ "$got" == 3 ]] || { cat "$WORK/qualify.out" >&2; fail "unreachable endpoint: expected exit 3, got $got"; }
@@ -600,37 +355,13 @@ grep -q unreachable "$WORK/qualify.out" || fail "unreachable endpoint was not na
 reset_case
 respond 01 '{}'
 echo 500 >"$QUEUE/01.status"
-expect_run 3 stub-coder
-cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "HTTP error published something"
-
-# --- 9. the workspace changes while the model runs --------------------------------
-reset_case
-respond 01 "$GOOD"
-echo 2 >"$QUEUE/01.delay"
 got=0
-bash .agentic/delegate-run.sh run "$PACKET" --model stub-coder >"$WORK/run.out" 2>&1 &
-runner=$!
-for _ in $(seq 1 100); do [[ -e "$QUEUE/requests/01.json" ]] && break; sleep 0.05; done
-echo "# edited during the run" >>tests/run.sh
-wait "$runner" || got=$?
-[[ "$got" == 4 ]] || { cat "$WORK/run.out" >&2; fail "stale workspace: expected exit 4, got $got"; }
-cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "candidate was published over a changed workspace"
-grep -q '# edited during the run' tests/run.sh || fail "the user's edit was lost"
-run_dir=".agentic/delegate/results/$(last_result | jq -r .run)"
-[[ -f "$run_dir/candidate" ]] || fail "green candidate was not kept after a stale-workspace stop"
-git checkout -q tests/run.sh
+runner qualify stub-coder >"$WORK/qualify.out" 2>&1 || got=$?
+[[ "$got" == 3 ]] && grep -q 'HTTP 500' "$WORK/qualify.out" || { cat "$WORK/qualify.out" >&2; fail "an HTTP error was not an infrastructure failure"; }
+[[ "$(qualified_line stub-coder)" == *": qualified" ]] || fail "an infrastructure failure revoked a qualification"
+if grep -rqs smoke-secret-value .agentic/delegate "$WORK/local-models-qualified.jsonl"; then fail "credential value leaked into delegation state"; fi
 
-# --- 9b. a model that connects but answers too slowly -----------------------------
 qualify_with 0 slow-coder "$EXPECTED"
-reset_case
-respond 01 "$GOOD"
-echo 4 >"$QUEUE/01.delay"
-expect_run 10 slow-coder
-cmp -s lib/greet.sh "$WORK/greet.baseline" || fail "a timed-out run published something"
-[[ "$(last_result | jq -r '.attempts | map(.outcome) | join(",")')" == timeout ]] ||
-  fail "a post-connect timeout was not one timeout attempt: $(last_result | jq -c .attempts)"
-grep -q 'raise timeout_seconds' "$WORK/run.out" || fail "the timeout did not suggest raising timeout_seconds"
-state_has slow-coder small '0/1 passed' || fail "a model timeout was not scored: $(state_of slow-coder small)"
 reset_case
 respond 01 "OK"
 echo 4 >"$QUEUE/01.delay"
@@ -641,58 +372,30 @@ status_out="$(runner status 2>&1)"
 [[ "$status_out" == *"slow-coder (stub-model, setup "*"): unqualified"* ]] ||
   { echo "$status_out" >&2; fail "a timed-out qualify left the model qualified"; }
 
-# --- 10. scoring, review, demotion, reset ----------------------------------------
-# Fresh record for these checks.
-runner reset stub-coder small >/dev/null 2>&1
-reset_case
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-run_id="$(last_result | jq -r .run)"
-[[ "$(last_result | jq -r .bucket)" == small ]] || fail "bucket was not computed from the file"
-state_has stub-coder small '0/0 passed, 1 awaiting review' || fail "a published run was not pending: $(state_of stub-coder small)"
-grep -q "record-review $run_id" "$WORK/run.out" || fail "the run did not print its record-review command"
-printf '%s\n' "$GOOD" '# review added this' >lib/greet.sh
-runner record-review "$run_id" pass >"$WORK/review.out" 2>&1 || fail "record-review pass failed"
-grep -q 'review kept 1 of 1 published lines in lib/greet.sh, removed 0, added 1' "$WORK/review.out" ||
-  { cat "$WORK/review.out" >&2; fail "record-review did not measure review's changes"; }
-jq -s -e --arg r "$run_id" 'map(select(.type == "review" and .run == $r)) | last | .review_changes.added_lines == 1' \
-  .agentic/delegate/ledger.jsonl >/dev/null || fail "review changes were not recorded in the ledger"
-state_has stub-coder small '1/1 passed' || fail "a review pass was not scored: $(state_of stub-coder small)"
+# --- 2. a ledger with entries from the removed per-file mode ----------------------
+# Old per-file runs, their reviews, and resets stay in the ledger as
+# history. Status ignores them, and record-review refuses them.
+mkdir -p .agentic/delegate
+jq -c -n '{type: "run", ts: "2026-10-14T00:00:00Z", run: "0001-lib-greet-sh-20261014T000000Z-1", mode: "manual",
+  selection: null, fingerprint: "0000000000000000", qualified: true, packet: ".agentic/delegate/packets/0001-lib-greet-sh.md",
+  packet_sha256: "x", target: "lib/greet.sh", bucket: "small", snapshot_sha256: "x", harness: "delegate-run-v2",
+  model: {name: "stub-coder", model_id: "stub-model", quant: "Q8_0", runtime: "stub 1", endpoint: "stub", request: ""},
+  attempts: [{attempt: 1, outcome: "green", detail: "", seconds: 3}], outcome: "green", reason: "", gate: "partial",
+  unverified_steps: ["test"], wall_seconds: 9, review: null}' >>.agentic/delegate/ledger.jsonl
+printf '%s\n' '{"type":"review","ts":"2026-10-14T00:01:00Z","run":"0001-lib-greet-sh-20261014T000000Z-1","verdict":"pass","review_changes":{"published_lines":1,"kept_lines":1,"removed_lines":0,"added_lines":0}}' \
+  '{"type":"reset","ts":"2026-10-14T00:02:00Z","model":"stub-coder","bucket":"medium"}' >>.agentic/delegate/ledger.jsonl
+got=0
+runner status >"$WORK/status.out" 2>&1 || got=$?
+[[ "$got" == 0 && "$(qualified_line stub-coder)" == *": qualified" ]] ||
+  { cat "$WORK/status.out" >&2; fail "an old per-file ledger entry broke status"; }
+if grep -qE '^  (small|medium):' "$WORK/status.out"; then fail "status still reports per-file buckets"; fi
+got=0
+runner record-review 0001-lib-greet-sh-20261014T000000Z-1 pass >"$WORK/review.out" 2>&1 || got=$?
+[[ "$got" == 2 ]] && grep -q 'no longer scored' "$WORK/review.out" || { cat "$WORK/review.out" >&2; fail "record-review accepted a per-file run"; }
 runner record-review nope pass >/dev/null 2>&1 && fail "record-review accepted an unknown run"
+runner reset stub-coder small >/dev/null 2>&1 && fail "reset accepted a removed per-file bucket"
 
-for _ in 1 2 3 4 5; do
-  reset_case
-  respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
-  expect_run 10 stub-coder
-done
-state_has stub-coder small '1/6 passed' || fail "needs_frontier runs were not scored: $(state_of stub-coder small)"
-if state_has stub-coder small DEMOTED; then fail "1/6 demoted (upper bound is above 50%)"; fi
-for _ in 6 7 8; do
-  reset_case
-  respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
-  expect_run 10 stub-coder
-done
-state_has stub-coder small 'DEMOTED' || fail "1/9 was not demoted: $(state_of stub-coder small)"
-reset_case
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-grep -q 'demoted for small tasks' "$WORK/run.out" || fail "a manual run of a demoted model did not warn"
-runner reset stub-coder small >/dev/null 2>&1
-if state_has stub-coder small DEMOTED; then fail "reset did not clear the demotion"; fi
-
-reset_case
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-runner record-review "$(last_result | jq -r .run)" model-defect >/dev/null 2>&1
-state_has stub-coder small 'DEMOTED' || fail "a model-defect review did not demote"
-runner reset stub-coder small >/dev/null 2>&1
-reset_case
-respond 01 "$GOOD"
-expect_run 0 stub-coder
-runner record-review "$(last_result | jq -r .run)" packet-defect >/dev/null 2>&1
-state_has stub-coder small '0/0 passed' || fail "a packet-defect review was scored against the model"
-
-# --- 11. discover and selection ----------------------------------------------------
+# --- 3. discover, policy, activation ----------------------------------------------------
 cat >>"$PROFILE" <<TOML
 
 [[project]]
@@ -753,64 +456,14 @@ dead_fp="$(runner status 2>&1 | sed -n 's/^dead-coder (.*, setup \([0-9a-f]*\)).
 [[ -n "$dead_fp" ]] || fail "status did not print dead-coder's setup"
 jq -c -n --arg f "$dead_fp" '{model: "dead-coder", fingerprint: $f, result: "pass"}' >>"$WORK/local-models-qualified.jsonl"
 
-expect_select() { # <status>
-  local want="$1" got=0
-  runner run "$PACKET" >"$WORK/run.out" 2>&1 || got=$?
-  [[ "$got" == "$want" ]] || { cat "$WORK/run.out" >&2; fail "selected run: expected exit $want, got $got"; }
-}
 selected() { last_result | jq -r '"\(.selection.phase) \(.selection.chosen)"'; }
-
-runner reset stub-coder small >/dev/null 2>&1
-reset_case
-respond 01 "$GOOD"
-expect_select 0
-[[ "$(selected)" == "explore stub-coder" ]] || fail "first selection was not explore stub-coder: $(selected)"
-[[ "$(last_result | jq -r .mode)" == selected ]] || fail "selected run not labelled"
-last_result | jq -e '.selection.considered[] | select(.model == "dead-coder") | .why == "unreachable"' >/dev/null ||
-  fail "an unreachable candidate was not skipped as unreachable"
-last_result | jq -e '.selection.considered[] | select(.model == "stub-coder-b") | .why == "unqualified"' >/dev/null ||
-  fail "an unqualified candidate was not skipped"
-runner record-review "$(last_result | jq -r .run)" pass >/dev/null 2>&1
-for _ in 2 3 4 5; do
-  reset_case
-  respond 01 "$GOOD"
-  expect_select 0
-  runner record-review "$(last_result | jq -r .run)" pass >/dev/null 2>&1
-done
-state_has stub-coder small '5/5 passed' || fail "stub-coder did not reach five scored runs: $(state_of stub-coder small)"
 
 qualify_with 0 stub-coder-b "$EXPECTED"
 assert_raw_system "$QUEUE/requests/02.json"
 jq -e '[.messages[].role] == ["system", "user"] and (has("temperature") | not)' "$QUEUE/requests/02.json" >/dev/null ||
   fail "a profile without request settings broke qualification"
-reset_case
-respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
-expect_select 10
-[[ "$(selected)" == "explore stub-coder-b" ]] || fail "a new qualified candidate was not explored: $(selected)"
-[[ "$(last_result | jq -r .selection.runner_up)" == stub-coder ]] || fail "runner-up not recorded"
-for _ in 2 3 4 5; do
-  reset_case
-  respond 01 "$BAD"; respond 02 "$BAD"; respond 03 "$BAD"
-  expect_select 10
-done
-state_has stub-coder-b small DEMOTED || fail "0/5 was not demoted: $(state_of stub-coder-b small)"
-reset_case
-respond 01 "$GOOD"
-expect_select 0
-[[ "$(selected)" == "rank stub-coder" ]] || fail "selection did not rank stub-coder after exploration: $(selected)"
-grep -q "selected 'stub-coder' by record" "$WORK/run.out" || fail "the selection reason was not printed"
 
-# Nothing selectable: needs_frontier before any model call. A review defect
-# on stub-coder's last run demotes it; stub-coder-b is already demoted and
-# dead-coder is unreachable.
-runner record-review "$(last_result | jq -r .run)" model-defect >/dev/null 2>&1
-reset_case
-respond 01 "$GOOD"
-expect_select 10
-grep -q 'no selectable candidate' "$WORK/run.out" || fail "an empty selection did not say why"
-[[ -z "$(ls "$QUEUE/requests")" ]] || fail "a model was called with nothing selectable"
-
-# --- 13. handoff: a whole phase to a stub agent harness in a worktree -------------
+# --- 4. handoff: a whole phase to a stub agent harness in a worktree -------------
 reset_case
 git config user.name smoke
 git config user.email smoke@example.invalid
@@ -1095,7 +748,13 @@ jq -e --arg url "http://127.0.0.1:$PORT/v1" \
   '.providers.stub | .baseUrl == $url and .api == "openai-completions" and .apiKey == "$STUB_TOKEN" and .models[0].id == "stub-model" and .models[0].samplingParams.temperature == 0.2' \
   "$agent_dir/models.json" >/dev/null || fail "Pi provider does not match the selected profile model"
 ! grep -q "$STUB_TOKEN" "$agent_dir/models.json" || fail "Pi provider file contains the credential value"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
+grep -q '^  phase:implement: 0/0 passed, [0-9]* awaiting review' "$WORK/phase-status" ||
+  { cat "$WORK/phase-status" >&2; fail "verified handoffs were not pending review"; }
+grep -q "record-review $run_id" "$WORK/handoff.out" || fail "the handoff did not print its record-review command"
 runner record-review "$run_id" pass >/dev/null 2>&1 || fail "record-review did not accept a handoff run"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
+grep -q '^  phase:implement: 1/1 passed' "$WORK/phase-status" || { cat "$WORK/phase-status" >&2; fail "a review pass was not scored"; }
 runner handoff-clean | grep -q "${run_id}" || fail "handoff-clean did not list the kept worktree"
 runner handoff-clean "$run_id" >/dev/null 2>&1 || fail "handoff-clean could not remove one run"
 [[ -z "$(git branch --list 'handoff/*')" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
@@ -1116,6 +775,17 @@ handoff 4 branch
 wt="$(git worktree list --porcelain | sed -n '\|^worktree .*handoffs/|s/^worktree //p' | head -n 1)"
 git -C "$wt" checkout -q "handoff/$(last_result | jq -r .run)"
 git branch -D unexpected-handoff-branch >/dev/null
+drop_worktrees
+
+# A spec or plan defect is not scored against the model; packet-defect is
+# accepted as its older name.
+handoff 0 good
+run_id="$(last_result | jq -r .run)"
+runner record-review "$run_id" packet-defect >/dev/null 2>&1 || fail "record-review refused the packet-defect alias"
+jq -s -e --arg r "$run_id" 'map(select(.type == "review" and .run == $r)) | last | .verdict == "spec-defect"' \
+  .agentic/delegate/ledger.jsonl >/dev/null || fail "packet-defect was not recorded as spec-defect"
+DELEGATE_HANDOFF_HARNESS="$HARNESS" runner status >"$WORK/phase-status" 2>&1
+grep -q '^  phase:implement: 1/1 passed' "$WORK/phase-status" || { cat "$WORK/phase-status" >&2; fail "a spec-defect review was scored against the model"; }
 drop_worktrees
 
 # Handoff scoring uses the same fingerprint during selection, status, and
@@ -1146,6 +816,15 @@ drop_worktrees
 handoff 10 red
 [[ "$(last_result | jq -r .outcome)" == needs_frontier ]] || fail "a red gate after the session was not needs_frontier"
 drop_worktrees
+# Nothing selectable: needs_frontier before any worktree or model call.
+sed 's/^candidates = .*/candidates = ["dead-coder"]/' "$PROFILE" >"$WORK/dead-only.toml"
+reset_case
+got=0
+hrunner handoff docs/specs/0002-greet.md --allow-commit --foreground --profile "$WORK/dead-only.toml" >"$WORK/handoff.out" 2>&1 || got=$?
+[[ "$got" == 10 ]] && grep -q 'no selectable candidate' "$WORK/handoff.out" ||
+  { cat "$WORK/handoff.out" >&2; fail "an empty selection did not end needs_frontier with its reason"; }
+[[ -z "$(ls "$QUEUE/requests")" && "$(git worktree list | wc -l | tr -d ' ')" == 1 ]] ||
+  fail "a model was called or a worktree created with nothing selectable"
 handoff 3 crash --progress summary
 [[ "$(last_result | jq -r .outcome)" == infrastructure ]] || fail "progress changed the crash ledger outcome"
 drop_worktrees
@@ -1155,7 +834,7 @@ handoff 3 wrong-model
 grep -q "resolved model 'stub/other-model'" "$WORK/handoff.out" || fail "a model mismatch was not reported"
 drop_worktrees
 
-# --- 13b. supervision: lease, checkpoint, pause, resume -------------------------
+# --- 4b. supervision: lease, checkpoint, pause, resume -------------------------
 export DELEGATE_PROGRESS_INTERVAL=1 DELEGATE_HANDOFF_ABORT_SECONDS=3 DELEGATE_HANDOFF_GRACE_SECONDS=3
 
 # Steady activity renews a short lease; the run completes without a pause.
@@ -1364,7 +1043,7 @@ got=0; hrunner handoff-resume "$run_id" --allow-commit --foreground >"$WORK/resu
 drop_worktrees
 unset DELEGATE_PROGRESS_INTERVAL DELEGATE_HANDOFF_ABORT_SECONDS DELEGATE_HANDOFF_GRACE_SECONDS
 
-# --- 13c. the same through real Pi RPC (loopback stub, no real model) -----------
+# --- 4c. the same through real Pi RPC (loopback stub, no real model) -----------
 # tool_call <NN> <tool> <args-json> : a queued streamed tool call.
 tool_call() {
   jq -n --arg n "$2" --argjson a "$3" \
@@ -1443,7 +1122,7 @@ handoff 2 good
 grep -q 'not clean' "$WORK/handoff.out" || fail "a dirty tree was not refused"
 reset_case
 
-# --- 12. lock and ledger --------------------------------------------------------
+# --- 5. lock and ledger --------------------------------------------------------
 [[ ! -e .agentic/delegate/lock ]] || fail "lock was left behind"
 [[ "$(wc -l <.agentic/delegate/ledger.jsonl | tr -d ' ')" -ge 9 ]] || fail "not every run reached the ledger"
 jq -e . .agentic/delegate/ledger.jsonl >/dev/null || fail "ledger has malformed records"

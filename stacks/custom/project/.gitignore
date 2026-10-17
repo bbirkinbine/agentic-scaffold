@@ -22,7 +22,7 @@ dist/
 .claude/settings.local.json
 CLAUDE.local.md
 
-# Local delegation state — /delegate packets and runner scratch data.
+# Local delegation state — /delegate handoff results, ledger, and runner scratch data.
 # Per-run and machine-specific; never committed.
 .agentic/delegate/
 

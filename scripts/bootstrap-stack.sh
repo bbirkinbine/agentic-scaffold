@@ -1220,7 +1220,7 @@ if [[ "$PROFILE" == full ]]; then
   # Project-owned .gitignore is never replaced. Migrate just this runtime
   # entry when installing the runner into an older or customized project.
   if ! grep -qxF '.agentic/delegate/' "$DST_DIR/.gitignore"; then
-    printf '\n# Local delegation packets, results, and machine-specific state.\n.agentic/delegate/\n' >>"$DST_DIR/.gitignore"
+    printf '\n# Local delegation results, ledger, and machine-specific state.\n.agentic/delegate/\n' >>"$DST_DIR/.gitignore"
     echo "  added: .agentic/delegate/ ignore entry"
   fi
   sync .claude/commands/security.md
