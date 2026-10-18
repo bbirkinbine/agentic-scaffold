@@ -396,6 +396,10 @@ def hook_matrix(
                 if matcher != "Bash":
                     fail(f"{client} PreToolUse matcher must be 'Bash': {source}")
                 normalized_matcher = "shell"
+            elif event == "SessionStart" and matcher is not None:
+                if matcher != "compact":
+                    fail(f"{client} SessionStart matcher must be 'compact': {source}")
+                normalized_matcher = "compact"
             else:
                 if matcher is not None:
                     fail(f"unexpected matcher for {event}: {source}")
@@ -424,7 +428,6 @@ def hook_matrix(
                     re.search(r"(^|\s)--codex(\s|$)", command)
                 )
                 needs_codex_flag = client == "codex" and script in {
-                    "context-reminder.sh",
                     "gate-on-stop.sh",
                 }
                 if has_codex_flag != needs_codex_flag:
@@ -458,7 +461,7 @@ python_default: list[HookEntry] = [
     ("PreToolUse", "shell", "block-destructive.sh", ()),
     ("PostToolUse", "edit", "format-after-edit.sh", ()),
     ("PostToolUse", "edit", "specs-status.sh", ("--hook",)),
-    ("PreCompact", "*", "context-reminder.sh", ()),
+    ("SessionStart", "compact", "context-reminder.sh", ()),
     ("Stop", "*", "gate-on-stop.sh", ()),
 ]
 python_strict = [
@@ -476,7 +479,7 @@ python_no_stop = [
 generic_default: list[HookEntry] = [
     ("SessionStart", "*", "branch-check.sh", ()),
     ("PreToolUse", "shell", "block-destructive.sh", ()),
-    ("PreCompact", "*", "context-reminder.sh", ()),
+    ("SessionStart", "compact", "context-reminder.sh", ()),
 ]
 
 python_claude_path = root / ".claude" / "settings.json"
@@ -547,8 +550,11 @@ bash "$REPO_DIR/scripts/validate-safety-guardrails.sh"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-bash "$PYTHON_DIR/.agentic/hooks/context-reminder.sh" --codex \
-  | python3 -m json.tool >/dev/null
+# SessionStart stdout reaches the model only as plain text; JSON-looking
+# output that is not a valid hook object is dropped by Codex.
+reminder="$(bash "$PYTHON_DIR/.agentic/hooks/context-reminder.sh")"
+[[ "$reminder" == "Context was just compacted."* ]] \
+  || fail "context-reminder.sh did not print the plain-text reminder"
 
 fixture_project="$tmp_dir/project"
 mkdir -p "$fixture_project/.agentic/hooks" "$fixture_project/docs/specs"

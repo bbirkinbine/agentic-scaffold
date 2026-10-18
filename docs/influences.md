@@ -284,6 +284,21 @@ being re-proposed.
   `## External references` rule exists to prevent, and it had taken root
   here.
 
+- **The compaction reminder ran on `PreCompact`** (resolved 2026-10-18). It
+  shipped as plain `PreCompact` stdout for Claude Code and a `PreCompact`
+  `systemMessage` for Codex, on the assumption that either reached the
+  model. Neither does: Codex ignores plain stdout there and surfaces
+  `systemMessage` only as a UI or event-stream warning
+  ([Codex hooks](https://learn.chatgpt.com/docs/hooks), confirmed against
+  the `codex-rs` hooks source), and Claude Code writes `PreCompact` stdout
+  to its debug log ([Claude Code hooks](https://code.claude.com/docs/en/hooks)).
+  Both clients add a `SessionStart` hook's plain stdout to model context and
+  fire it with source `compact` after compaction, so the reminder moved
+  there and now tells the agent to rebuild state from the repository; no
+  hook on either client can steer the summary itself. Retrieved 2026-10-18;
+  vendor text referenced, not copied. The payload test had proved the JSON
+  was well formed, not that anything read it.
+
 - **The "> 5 files, stop and ask" rule** (resolved 2026-10-06). It shipped
   in the first commit with no source. It traces to a personal research note
   of example `CLAUDE.md` templates, where it was a style line in a file with

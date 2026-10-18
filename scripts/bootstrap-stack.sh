@@ -859,6 +859,7 @@ refresh_managed_contract_rules() {
   echo "  refreshed: managed standing rules in AGENTS.md"
 }
 
+
 render_strict_settings() {
   local dst="$1"
   cat > "$dst" <<'JSON'
@@ -884,6 +885,16 @@ render_strict_settings() {
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/branch-check.sh"
+          }
+        ]
+      }
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/context-reminder.sh"
           }
         ]
       }
@@ -915,16 +926,6 @@ render_strict_settings() {
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/specs-status.sh --hook"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/context-reminder.sh"
           }
         ]
       }
@@ -976,6 +977,16 @@ render_no_stop_settings() {
           }
         ]
       }
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/context-reminder.sh"
+          }
+        ]
+      }
     ],
     "PreToolUse": [
       {
@@ -1004,16 +1015,6 @@ render_no_stop_settings() {
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/specs-status.sh --hook"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/context-reminder.sh"
           }
         ]
       }

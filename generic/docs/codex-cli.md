@@ -39,9 +39,10 @@ human review.
 ## Switch clients
 
 Before switching, write durable state into the repository: current branch,
-changed files, validation status, and unresolved decisions. The PreCompact
-hook reminds Claude Code and Codex to preserve that state. Pi cannot append to
-its default compaction prompt; write the handoff before manual compaction. The next client reads the
+changed files, validation status, and unresolved decisions. After compaction
+a SessionStart hook tells Claude Code and Codex to rebuild that state from the
+repository. Pi cannot append to its default compaction prompt; write the
+handoff before manual compaction. The next client reads the
 same root contract and working tree; conversation history and client UI state
 do not transfer.
 

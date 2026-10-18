@@ -337,4 +337,7 @@ Open:
   authenticated `scripts/acceptance-workflow-live.sh` run, the trusted
   hook-load flow, and the remaining negative acceptance fixtures are still
   manual and unrun. Both live harnesses are opt-in and cost tokens; CI does
-  not run them, so a green CI is narrower than it looks.
+  not run them, so a green CI is narrower than it looks. The post-compaction
+  reminder moved to `SessionStart` (matcher `compact`) on 2026-10-18 on
+  docs and Codex source evidence; no live compaction has exercised it in
+  either client yet.
