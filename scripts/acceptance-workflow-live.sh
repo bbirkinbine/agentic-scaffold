@@ -278,7 +278,8 @@ replacements = {
     "{{WHAT_IS_IN_PROGRESS_OR_BLOCKED}}": "Spec 0001 is the acceptance feature.",
     "{{WHAT_THE_NEXT_SPEC_IS — e.g., \"Spec for the next feature lives at `docs/specs/0001-<feature>.md`\"}}": "Spec 0001 is active.",
 }
-for relative in ("AGENTS.md", "README.md", "pyproject.toml", "src/shop/__init__.py"):
+for relative in ("AGENTS.md", "README.md", "pyproject.toml", "src/shop/__init__.py",
+                 "tests/test_smoke.py"):
     path = root / relative
     text = path.read_text()
     for old, new in replacements.items():

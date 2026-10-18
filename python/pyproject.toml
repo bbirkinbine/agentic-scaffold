@@ -4,6 +4,15 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = []
 
+# A build backend makes `uv sync` install src/{{PACKAGE_NAME}} into the venv,
+# so tests can import it. Without one uv treats the project as virtual.
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "{{PACKAGE_NAME}}"
+
 [dependency-groups]
 dev = [
   "pytest>=8",
