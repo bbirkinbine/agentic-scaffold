@@ -426,6 +426,34 @@ run_strict_flagless_update() {
     echo "SMOKE FAIL (update): legacy context pair did not migrate to Claude import" >&2
     exit 1
   fi
+  if grep -q 'lacks contract sections' "$log"; then
+    echo "SMOKE FAIL (update): protocol warning fired on a current contract" >&2
+    exit 1
+  fi
+}
+
+# An older contract that predates a protocol subsection gets refreshed
+# workflow files that cite it; --update must name the missing heading.
+run_missing_protocol_warning() {
+  local root="$SCRATCH/missing-protocol"
+  local log="$SCRATCH/missing-protocol.log"
+
+  mkdir -p "$root"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --core >/dev/null
+    sed -i.bak '/^### Approval matrix$/d' AGENTS.md
+    rm -f AGENTS.md.bak
+    bash "$REPO_DIR/python/bootstrap.sh" --update > "$log"
+  )
+  grep -q 'lacks contract sections' "$log" && grep -q '### Approval matrix' "$log" || {
+    echo "SMOKE FAIL (update): missing Approval matrix section was not reported" >&2
+    exit 1
+  }
+  if grep -q '### Checkpoint report' "$log"; then
+    echo "SMOKE FAIL (update): protocol warning named a section that is present" >&2
+    exit 1
+  fi
 }
 
 run_preserved_stop_gate_update() {
@@ -552,6 +580,7 @@ if [[ "$PROFILE" == full && -z "$STRICT" ]]; then
   run_profile_transition_matrix
 elif [[ "$PROFILE" == core && "$STRICT" == --strict-hooks ]]; then
   run_strict_flagless_update
+  run_missing_protocol_warning
   run_custom_pi_install_reporting
 elif [[ "$PROFILE" == minimal && -z "$STRICT" ]]; then
   run_preserved_stop_gate_update

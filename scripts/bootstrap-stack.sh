@@ -859,6 +859,28 @@ refresh_managed_contract_rules() {
   echo "  refreshed: managed standing rules in AGENTS.md"
 }
 
+# The refreshed commands, skills, and roles cite the contract's "Shared
+# workflow protocols" subsections by name, but only the standing-rules block
+# is refreshed. Name any subsection an older contract lacks so the human can
+# copy it from the scaffold instead of the agent following a dangling link.
+warn_missing_contract_protocols() {
+  local agents="$DST_DIR/AGENTS.md"
+  local heading missing=()
+
+  [[ "$MODE" == update ]] || return 0
+  [[ -f "$agents" ]] || return 0
+  while IFS= read -r heading; do
+    grep -Fqx -- "$heading" "$agents" || missing+=("$heading")
+  done < <(
+    awk '/^## Shared workflow protocols$/ { print; on = 1; next }
+         on && /^## / { exit }
+         on && /^### / { print }' "$SRC_DIR/AGENTS.md"
+  )
+  ((${#missing[@]})) || return 0
+  echo "  WARNING: AGENTS.md lacks contract sections the updated workflow files cite:"
+  printf '           %s\n' "${missing[@]}"
+  echo "           Copy them from $SRC_DIR/AGENTS.md."
+}
 
 render_strict_settings() {
   local dst="$1"
@@ -1413,6 +1435,7 @@ migrate_duplicate_contract
 sync_claude_import
 migrate_stray_claude_rules
 refresh_managed_contract_rules
+warn_missing_contract_protocols
 write_bootstrap_state
 
 echo
