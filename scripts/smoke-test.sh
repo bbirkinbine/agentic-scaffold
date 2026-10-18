@@ -607,6 +607,28 @@ bash .agentic/toolchain.sh gate --quiet || {
   exit 1
 }
 
+# --- the edit hook formats only the edited files ---
+# A whole-tree format on a test-only edit rewrites implementation files and
+# fails the test-first scope audit. Claude/Pi send file_path; Codex sends an
+# apply_patch body with literal \n separators.
+unformatted='VALUE   =  1\n'
+printf "$unformatted" > src/smoketest/untouched.py
+printf "$unformatted" > tests/test_edited.py
+printf "$unformatted" > src/smoketest/patched.py
+printf '{"cwd":"%s","tool_input":{"file_path":"%s/tests/test_edited.py"}}' "$PWD" "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh
+printf '{"cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: src/smoketest/patched.py\\n*** End Patch"}}' "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh
+[[ "$(cat tests/test_edited.py)" == 'VALUE = 1' && "$(cat src/smoketest/patched.py)" == 'VALUE = 1' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook did not format the edited files" >&2
+  exit 1
+}
+[[ "$(cat src/smoketest/untouched.py)" == 'VALUE   =  1' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook formatted a file the edit did not name" >&2
+  exit 1
+}
+rm -f src/smoketest/untouched.py src/smoketest/patched.py tests/test_edited.py
+
 # --- close-out gate behavior ---
 # The rule this enforces was written, specific, and skipped anyway, so the
 # check itself gets tested rather than merely installed. CLOSEOUT_BRANCH

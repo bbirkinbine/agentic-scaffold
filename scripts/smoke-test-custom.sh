@@ -116,7 +116,7 @@ printf '#!/usr/bin/env bash\necho hello\n' >scripts/hello.sh
 printf '#!/usr/bin/env bash\n[[ "$(bash scripts/hello.sh)" == hello ]]\n' >tests/run.sh
 stop_output="$(printf '{"stop_hook_active":false}\n' | bash .agentic/hooks/gate-on-stop.sh)"
 [[ -z "$stop_output" ]] || fail "Stop hook decided on an unfilled runner: $stop_output"
-bash .agentic/hooks/format-after-edit.sh || fail "edit hook failed on an unfilled runner"
+bash .agentic/hooks/format-after-edit.sh </dev/null || fail "edit hook failed on an unfilled runner"
 
 # A half-filled runner is still not ready: no gate on steps nobody chose.
 fill() {
@@ -160,7 +160,7 @@ bash -e ci-gate.sh >"$WORK/ci.out" || fail "CI failed on a clean active project"
 for step in format lint; do
   bash "commit-$step.sh" || fail "pre-commit $step failed on a clean active project"
 done
-bash .agentic/hooks/format-after-edit.sh --strict || fail "strict edit hook failed on a clean active project"
+bash .agentic/hooks/format-after-edit.sh --strict </dev/null || fail "strict edit hook failed on a clean active project"
 git add -A
 git -c user.email=smoke@example.com -c user.name=Smoke commit -qm "fill the runner" --no-verify
 
@@ -203,7 +203,7 @@ for defect in missing-tests missing-source syntax runtime-error missing-function
   for step in format lint; do
     bash "commit-$step.sh" >"$WORK/commit.out" 2>&1 && fail "pre-commit $step skipped $defect"
   done
-  bash .agentic/hooks/format-after-edit.sh >"$WORK/edit.out" 2>&1 && fail "edit hook skipped $defect"
+  bash .agentic/hooks/format-after-edit.sh </dev/null >"$WORK/edit.out" 2>&1 && fail "edit hook skipped $defect"
   stop_output="$(printf '{"stop_hook_active":false}\n' | bash .agentic/hooks/gate-on-stop.sh 2>/dev/null)"
   [[ "$stop_output" == *'"decision":"block"'* ]] || fail "Stop hook skipped $defect"
   [[ ! -d "$WORK/tests" ]] || mv "$WORK/tests" tests

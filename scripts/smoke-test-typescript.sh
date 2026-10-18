@@ -95,6 +95,17 @@ bash .agentic/toolchain.sh install
 bash .agentic/toolchain.sh gate
 bash .agentic/toolchain.sh test tests/index.test.ts >/dev/null
 
+# --- the edit hook formats only the edited file ---
+printf 'export const a   =  1\n' > src/untouched.ts
+printf 'export const b   =  2\n' > src/edited.ts
+printf '{"cwd":"%s","tool_input":{"file_path":"%s/src/edited.ts"}}' "$PWD" "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh
+[[ "$(cat src/edited.ts)" == 'export const b = 2;' ]] || fail "edit hook did not format the edited file"
+[[ "$(cat src/untouched.ts)" == 'export const a   =  1' ]] || fail "edit hook formatted a file the edit did not name"
+printf '{"tool_input":{"file_path":"%s/README.md"}}' "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh || fail "edit hook failed on a file Biome does not handle"
+rm -f src/untouched.ts src/edited.ts
+
 # --- the gate must go red on a real defect and name the failing step ---
 printf 'export const broken: number = "not a number";\n' > src/broken.ts
 gate_output="$(bash .agentic/toolchain.sh gate --quiet)" \

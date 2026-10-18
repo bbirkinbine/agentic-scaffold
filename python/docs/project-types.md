@@ -207,7 +207,7 @@ Read top-down: everything in a tier includes the tiers above it.
   `gate-on-stop` (block turn-end while the source tree is dirty and
   `.agentic/toolchain.sh gate` is red — remove with `--no-stop-gate`),
   `strip-ai-attribution` (commit-msg backstop); default settings run
-  `.agentic/toolchain.sh format` on edit
+  `.agentic/toolchain.sh format <edited files>` on edit
 - **Gate runner:** `.agentic/toolchain.sh` — the one file naming the stack's
   tools (Python: ruff, mypy, pytest; TypeScript: Biome, tsc, Vitest; custom:
   a project-owned template, quiet until filled); hooks, `/review-check`, and

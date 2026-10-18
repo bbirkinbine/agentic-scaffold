@@ -26,7 +26,7 @@ this one ships a template the project fills.
 | Runner subcommand | In the template | You write |
 | --- | --- | --- |
 | `install` | `unfilled` | the dependency/toolchain install, or `no_tool` |
-| `format` / `format-check` | `unfilled` | the formatter in write and check mode, or `no_tool` |
+| `format [path ...]` / `format-check` | `unfilled` | the formatter in write and check mode, or `no_tool`; `format` formats only the paths the edit hook passes, or the whole project when given none |
 | `lint` | `unfilled` | the linter, warnings as errors |
 | `typecheck` | `unfilled` | a type check, compile, or elaboration that fails on a broken tree |
 | `test [target]` | `unfilled` | the suite, and one focused target when an argument is given |

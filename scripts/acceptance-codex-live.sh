@@ -161,8 +161,8 @@ PATH="$postdir/bin:$PATH" run_codex "$postdir" bypass \
   "Use apply_patch exactly once to change VALUE = 1 to VALUE = 2 in src/probe.py, then stop." \
   >"$WORK_DIR/post-tool-probe.out" || true
 
-grep -q '^run ruff format \\.$' "$postdir/uv-hook.log" \
-  || fail "shipped PostToolUse formatter hook did not run after apply_patch"
+grep -q '^run ruff format --force-exclude /.*/src/probe\.py$' "$postdir/uv-hook.log" \
+  || fail "shipped PostToolUse formatter hook did not format the patched file"
 grep -q 'VALUE = 2' "$postdir/src/probe.py" \
   || fail "PostToolUse fixture was not edited as requested"
 echo "PASS: shipped PostToolUse apply_patch matcher invokes formatter hook"
