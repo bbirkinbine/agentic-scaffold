@@ -22,7 +22,12 @@ If any step fails:
 - Do NOT declare the gate passed.
 - Show the failing output verbatim (the failing test names, the type
   errors, the lint findings).
-- Stop with a checkpoint report (`AGENTS.md` → **Shared workflow protocols** → **Checkpoint report**). The human decides whether to fix or accept.
+- Inside an approved plan, fix in-scope failures and re-run the gate
+  (`AGENTS.md` → **Approval matrix**).
+- Stop with a checkpoint report (`AGENTS.md` → **Shared workflow
+  protocols** → **Checkpoint report**) when the fix would change the
+  approved approach, touch a file or behavior the plan does not name, or
+  needs a human decision, or when no plan is approved.
 
 If all steps pass:
 
