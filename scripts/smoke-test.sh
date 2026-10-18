@@ -19,7 +19,10 @@ STRICT="${2:-}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# Side fixtures live outside the project so its gate never lints their
+# unfilled starters.
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$WORK" "$SCRATCH"' EXIT
 cd "$WORK"
 
 args=("--$PROFILE")
@@ -290,9 +293,9 @@ transition_must_not() {
 }
 
 run_profile_transition_matrix() {
-  local root="$WORK/profile-transition"
-  local custom_copy="$WORK/custom-security-command.md"
-  local log="$WORK/profile-transition.log"
+  local root="$SCRATCH/profile-transition"
+  local custom_copy="$SCRATCH/custom-security-command.md"
+  local log="$SCRATCH/profile-transition.log"
 
   mkdir -p "$root"
   (
@@ -353,13 +356,13 @@ run_profile_transition_matrix() {
 }
 
 run_strict_flagless_update() {
-  local root="$WORK/strict-flagless"
-  local log="$WORK/strict-flagless.log"
-  local agents_copy="$WORK/strict-AGENTS.md"
-  local claude_settings_copy="$WORK/strict-claude-settings.json"
-  local codex_config_copy="$WORK/strict-codex-config.toml"
-  local codex_hooks_copy="$WORK/strict-codex-hooks.json"
-  local pi_settings_copy="$WORK/strict-pi-settings.json"
+  local root="$SCRATCH/strict-flagless"
+  local log="$SCRATCH/strict-flagless.log"
+  local agents_copy="$SCRATCH/strict-AGENTS.md"
+  local claude_settings_copy="$SCRATCH/strict-claude-settings.json"
+  local codex_config_copy="$SCRATCH/strict-codex-config.toml"
+  local codex_hooks_copy="$SCRATCH/strict-codex-hooks.json"
+  local pi_settings_copy="$SCRATCH/strict-pi-settings.json"
 
   mkdir -p "$root"
   (
@@ -423,15 +426,43 @@ run_strict_flagless_update() {
     echo "SMOKE FAIL (update): legacy context pair did not migrate to Claude import" >&2
     exit 1
   fi
+  if grep -q 'lacks contract sections' "$log"; then
+    echo "SMOKE FAIL (update): protocol warning fired on a current contract" >&2
+    exit 1
+  fi
+}
+
+# An older contract that predates a protocol subsection gets refreshed
+# workflow files that cite it; --update must name the missing heading.
+run_missing_protocol_warning() {
+  local root="$SCRATCH/missing-protocol"
+  local log="$SCRATCH/missing-protocol.log"
+
+  mkdir -p "$root"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --core >/dev/null
+    sed -i.bak '/^### Approval matrix$/d' AGENTS.md
+    rm -f AGENTS.md.bak
+    bash "$REPO_DIR/python/bootstrap.sh" --update > "$log"
+  )
+  grep -q 'lacks contract sections' "$log" && grep -q '### Approval matrix' "$log" || {
+    echo "SMOKE FAIL (update): missing Approval matrix section was not reported" >&2
+    exit 1
+  }
+  if grep -q '### Checkpoint report' "$log"; then
+    echo "SMOKE FAIL (update): protocol warning named a section that is present" >&2
+    exit 1
+  fi
 }
 
 run_preserved_stop_gate_update() {
   local client root config expected log
 
   for client in claude codex; do
-    root="$WORK/no-stop-preserved-$client"
-    expected="$WORK/no-stop-preserved-$client.json"
-    log="$WORK/no-stop-preserved-$client.log"
+    root="$SCRATCH/no-stop-preserved-$client"
+    expected="$SCRATCH/no-stop-preserved-$client.json"
+    log="$SCRATCH/no-stop-preserved-$client.log"
     mkdir -p "$root"
     (
       cd "$root"
@@ -480,8 +511,8 @@ run_preserved_stop_gate_update() {
 }
 
 run_claude_only_contract_migration() {
-  local root="$WORK/claude-only"
-  local expected="$WORK/claude-only-contract.md"
+  local root="$SCRATCH/claude-only"
+  local expected="$SCRATCH/claude-only-contract.md"
 
   mkdir -p "$root"
   printf '# Existing project policy\n\nKeep this project-specific rule.\n' \
@@ -504,9 +535,9 @@ run_claude_only_contract_migration() {
 }
 
 run_custom_pi_install_reporting() {
-  local root="$WORK/custom-pi-install"
-  local log="$WORK/custom-pi-install.log"
-  local expected="$WORK/custom-pi-settings.json"
+  local root="$SCRATCH/custom-pi-install"
+  local log="$SCRATCH/custom-pi-install.log"
+  local expected="$SCRATCH/custom-pi-settings.json"
 
   mkdir -p "$root/.pi"
   printf '%s\n' '{"extensions": []}' >"$root/.pi/settings.json"
@@ -525,7 +556,7 @@ run_custom_pi_install_reporting() {
 }
 
 run_profile_alias() {
-  local root="$WORK/profile-alias"
+  local root="$SCRATCH/profile-alias"
   mkdir -p "$root"
   (
     cd "$root"
@@ -549,6 +580,7 @@ if [[ "$PROFILE" == full && -z "$STRICT" ]]; then
   run_profile_transition_matrix
 elif [[ "$PROFILE" == core && "$STRICT" == --strict-hooks ]]; then
   run_strict_flagless_update
+  run_missing_protocol_warning
   run_custom_pi_install_reporting
 elif [[ "$PROFILE" == minimal && -z "$STRICT" ]]; then
   run_preserved_stop_gate_update
@@ -559,10 +591,11 @@ fi
 
 # --- day-zero placeholder fill (the steps WORKFLOW.md prescribes) ---
 # sed -i.bak works on both BSD (macOS) and GNU sed.
-sed -i.bak 's/{{PROJECT_NAME}}/smoketest/' pyproject.toml
+sed -i.bak -e 's/{{PROJECT_NAME}}/smoketest/' -e 's/{{PACKAGE_NAME}}/smoketest/' pyproject.toml
 mv 'src/{{PACKAGE_NAME}}' src/smoketest
 sed -i.bak 's/{{PACKAGE_NAME}}/smoketest/' src/smoketest/__init__.py
-rm -f pyproject.toml.bak src/smoketest/__init__.py.bak
+sed -i.bak 's/{{PACKAGE_NAME}}/smoketest/g' tests/test_smoke.py
+rm -f pyproject.toml.bak src/smoketest/__init__.py.bak tests/test_smoke.py.bak
 
 # --- the quality gate a fresh project must pass ---
 # Through the runner, the same entry point the Stop hook, /review-check, and
@@ -602,6 +635,28 @@ bash .agentic/toolchain.sh gate --quiet || {
   echo "SMOKE FAIL ($PROFILE): gate stayed red after the defect was removed" >&2
   exit 1
 }
+
+# --- the edit hook formats only the edited files ---
+# A whole-tree format on a test-only edit rewrites implementation files and
+# fails the test-first scope audit. Claude/Pi send file_path; Codex sends an
+# apply_patch body with literal \n separators.
+unformatted='VALUE   =  1\n'
+printf "$unformatted" > src/smoketest/untouched.py
+printf "$unformatted" > tests/test_edited.py
+printf "$unformatted" > src/smoketest/patched.py
+printf '{"cwd":"%s","tool_input":{"file_path":"%s/tests/test_edited.py"}}' "$PWD" "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh
+printf '{"cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: src/smoketest/patched.py\\n*** End Patch"}}' "$PWD" \
+  | bash .agentic/hooks/format-after-edit.sh
+[[ "$(cat tests/test_edited.py)" == 'VALUE = 1' && "$(cat src/smoketest/patched.py)" == 'VALUE = 1' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook did not format the edited files" >&2
+  exit 1
+}
+[[ "$(cat src/smoketest/untouched.py)" == 'VALUE   =  1' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook formatted a file the edit did not name" >&2
+  exit 1
+}
+rm -f src/smoketest/untouched.py src/smoketest/patched.py tests/test_edited.py
 
 # --- close-out gate behavior ---
 # The rule this enforces was written, specific, and skipped anyway, so the

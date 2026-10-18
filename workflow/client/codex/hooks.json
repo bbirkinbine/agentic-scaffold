@@ -9,6 +9,15 @@
             "command": "bash \"$(git rev-parse --show-toplevel)/.agentic/hooks/branch-check.sh\""
           }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.agentic/hooks/context-reminder.sh\""
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -38,16 +47,6 @@
           {
             "type": "command",
             "command": "bash \"$(git rev-parse --show-toplevel)/.agentic/hooks/specs-status.sh\" --hook"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.agentic/hooks/context-reminder.sh\" --codex"
           }
         ]
       }

@@ -8,7 +8,8 @@
 # Usage: .agentic/toolchain.sh <subcommand> [args]
 #
 #   install               install the toolchain and dependencies
-#   format                format in place
+#   format [path ...]     format the given paths in place, or the whole
+#                         project when none are given
 #   format-check          fail if formatting would change anything
 #   lint                  lint
 #   typecheck             type-check the source tree
@@ -34,7 +35,7 @@ TC_SOURCE_DIRS="src"
 TC_TEST_DIRS="tests"
 
 usage() {
-  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # Exit 3 is the shared consumer protocol for an uninitialized project;
@@ -54,7 +55,10 @@ tc_install() {
     npm install
   fi
 }
-tc_format() { npx biome format --write --reporter concise .; }
+tc_format() {
+  npx biome format --write --reporter concise --files-ignore-unknown=true \
+    --no-errors-on-unmatched "${@:-.}"
+}
 tc_format_check() { npx biome format --reporter concise .; }
 tc_lint() { npx biome lint --error-on-warnings --reporter concise .; }
 tc_typecheck() { npx tsc --noEmit --pretty false; }
@@ -90,7 +94,7 @@ gate() {
 run_step() {
   case "$1" in
     install) tc_install ;;
-    format) tc_format ;;
+    format) shift; tc_format "$@" ;;
     format-check) tc_format_check ;;
     lint) tc_lint ;;
     typecheck) tc_typecheck ;;

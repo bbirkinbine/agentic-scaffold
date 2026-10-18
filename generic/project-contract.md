@@ -208,9 +208,10 @@ Don't claim a change is "ready" without at least:
   `master`.
 - The PreToolUse hook blocks a narrow set of unrecoverable shell commands.
   It is a backstop, not a substitute for the client's sandbox.
-- Claude Code and Codex PreCompact hooks preserve branch, changed-file,
-  validation, and unresolved-decision state. Pi cannot append to its default
-  compaction prompt; write a durable handoff before manual compaction.
+- After compaction, a Claude Code and Codex SessionStart hook (matcher
+  `compact`) tells the agent to rebuild branch, changed-file, validation, and
+  spec state from the repository rather than trust the summary. Pi has no
+  equivalent hook; write a durable handoff before manual compaction.
 - All clients show branch, model, and context state in their configured
   status line. Pi project trust and extension guards are not an OS sandbox.
 - Codex command rules prompt for commit and push and forbid a small set of

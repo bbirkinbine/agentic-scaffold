@@ -107,8 +107,8 @@ fi
 grep -q 'BLOCKED' "$WORK_DIR/block.err" \
   || fail "destructive-command hook returned no reason"
 
-bash "$fresh/.agentic/hooks/context-reminder.sh" --codex \
-  | python3 -m json.tool >/dev/null
+[[ "$(bash "$fresh/.agentic/hooks/context-reminder.sh")" == "Context was just compacted."* ]] \
+  || fail "context reminder did not print plain text"
 
 # The branch warning must fire on main before the first commit (the founding
 # session, where it is the first evidence that hooks loaded), on main after

@@ -8,7 +8,8 @@
 # Usage: .agentic/toolchain.sh <subcommand> [args]
 #
 #   install               install the toolchain and dependencies
-#   format                format in place
+#   format [path ...]     format the given paths in place, or the whole
+#                         project when none are given
 #   format-check          fail if formatting would change anything
 #   lint                  lint
 #   typecheck             type-check, compile, or elaborate the source tree
@@ -52,7 +53,9 @@ TC_TEST_DIRS=""   # e.g. "tests" | "sim"; empty only when tc_test is no_tool
 # ---- FILL: one command per step -------------------------------------------
 # Examples are for orientation (Go, then Verilog); use this project's tools.
 tc_install() { unfilled install; }           # go mod download | no_tool
-tc_format() { unfilled format; }             # gofmt -w . | verible-verilog-format --inplace rtl/*.v
+# "$@" is the list of edited files when the edit hook calls format; format
+# only those, and the whole project when it is empty.
+tc_format() { unfilled format; }             # gofmt -w "${@:-.}" | verible-verilog-format --inplace "${@:-rtl/*.v}"
 tc_format_check() { unfilled format-check; } # test -z "$(gofmt -l .)"
 tc_lint() { unfilled lint; }                 # go vet ./... | verilator --lint-only -Wall rtl/top.v
 tc_typecheck() { unfilled typecheck; }       # go build ./... | yosys -q -p 'read_verilog rtl/*.v; hierarchy -check'
@@ -122,7 +125,7 @@ gate() {
 run_step() {
   case "$1" in
     install) tc_install ;;
-    format) tc_format ;;
+    format) shift; tc_format "$@" ;;
     format-check) tc_format_check ;;
     lint) tc_lint ;;
     typecheck) tc_typecheck ;;

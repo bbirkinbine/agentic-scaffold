@@ -183,7 +183,7 @@ flowchart LR
     RL["reading src/** or tests/**"] --> RLb["AGENTS.md standing rules<br/>+ Claude path-scoped adapters"] --> W
     W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
     W --> POST["after each edit tool<br/>(Claude Edit/Write · Codex apply_patch)"] --> POSTb["toolchain.sh format<br/>(+ lint · typecheck with --strict-hooks)"]
-    W --> CMP["before compaction<br/>(PreCompact)"] --> CMPb["preserve spec path · branch ·<br/>modified files · gate state"]
+    W --> CMP["after compaction<br/>(SessionStart compact)"] --> CMPb["rebuild spec · branch ·<br/>modified files · gate state from the repo"]
     W --> STOP["turn end<br/>(Stop — default; --no-stop-gate removes)"] --> STOPb["shared gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(one automatic retry)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
     W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: the four toolchain.sh steps + dependency audit — non-skippable<br/>+ claude-review.yml if enabled"]

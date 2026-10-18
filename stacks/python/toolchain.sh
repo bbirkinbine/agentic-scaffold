@@ -8,7 +8,8 @@
 # Usage: .agentic/toolchain.sh <subcommand> [args]
 #
 #   install               install the toolchain and dependencies
-#   format                format in place
+#   format [path ...]     format the given paths in place, or the whole
+#                         project when none are given
 #   format-check          fail if formatting would change anything
 #   lint                  lint
 #   typecheck             type-check the source tree
@@ -46,7 +47,7 @@ ready() {
 }
 
 tc_install() { uv sync; }
-tc_format() { uv run ruff format .; }
+tc_format() { uv run ruff format --force-exclude "${@:-.}"; }
 tc_format_check() { uv run ruff format --check .; }
 tc_lint() { uv run ruff check .; }
 tc_typecheck() { uv run mypy $TC_SOURCE_DIRS; }
@@ -82,7 +83,7 @@ gate() {
 run_step() {
   case "$1" in
     install) tc_install ;;
-    format) tc_format ;;
+    format) shift; tc_format "$@" ;;
     format-check) tc_format_check ;;
     lint) tc_lint ;;
     typecheck) tc_typecheck ;;

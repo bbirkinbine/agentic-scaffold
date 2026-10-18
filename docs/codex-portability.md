@@ -434,7 +434,7 @@ wiring and payload tests. The Codex layer should cover:
 - session-start branch warning;
 - pre-tool destructive-command block;
 - post-edit formatting and spec-dashboard refresh;
-- pre-compaction context-preservation reminder;
+- post-compaction context-recovery reminder;
 - stop-time quality gate when strict hooks are enabled.
 
 It must also preserve or explicitly classify the non-hook behavior currently
@@ -461,9 +461,12 @@ In particular:
   `Write`, but Codex reports the canonical tool name as `apply_patch`. The
   existing spec-dashboard hook expects Claude's `file_path` field and needs a
   Codex payload adapter rather than a path-only copy.
-- Codex ignores plain stdout from `PreCompact`. The current inline `echo`
-  must become valid Codex JSON output, such as a `systemMessage`, and receive
-  a payload test.
+- Codex ignores plain stdout from `PreCompact`, and its `systemMessage` is
+  only a UI warning that never reaches the model or the summarizer; Claude
+  Code likewise writes `PreCompact` stdout only to its debug log. The
+  reminder therefore runs as `SessionStart` with matcher `compact`, whose
+  plain stdout both clients add to model context (corrected 2026-10-18; the
+  first implementation used a `PreCompact` `systemMessage`).
 - The Stop adapter must honor `stop_hook_active` so a red quality gate causes
   at most one automatic continuation before the failure is returned to the
   user.
