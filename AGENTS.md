@@ -231,7 +231,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-15)
+## Current state (updated 2026-10-20)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -246,6 +246,10 @@ check, agent-configuration re-runs) are settled there.
 
 Open:
 
+- The unused product-eval layer and its LLM-product guide were removed on
+  2026-10-20; coding-agent quality remains covered by review gates, the
+  delegate runner's `record-review` ledger, and private task sets rather than
+  a scaffold-wide product rubric.
 - The multi-stack split is on `main` (2026-09-30): `workflow/` +
   `stacks/<name>/` rendered into `python/`, `typescript/`, and `custom/`,
   one `.agentic/toolchain.sh` gate runner per stack, the `--core` profile

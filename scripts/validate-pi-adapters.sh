@@ -92,7 +92,7 @@ for flavor in python typescript custom; do
 
     tools="$(frontmatter tools "$rendered")"
     case "${name%.md}" in
-      test-first|evaluator)
+      test-first)
         [[ "$tools" == 'read, grep, find, ls, bash, edit, write' ]] || fail "$flavor writer role tools mismatch: $name"
         [[ "$(frontmatter acceptanceRole "$rendered")" == writer ]] || fail "$flavor writer role acceptance mismatch: $name"
         ;;

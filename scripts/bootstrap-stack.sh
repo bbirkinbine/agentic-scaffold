@@ -22,8 +22,8 @@
 #                  rename.)
 #   --full         Everything in core plus optional-reviewer command stubs
 #                  and advanced docs (parallel agents, plugin path, serena,
-#                  evals, llm-product, local-executor). Optional reviewer
-#                  agents are still not copied; enable them per project.
+#                  local-executor). Optional reviewer agents are still not
+#                  copied; enable them per project.
 #
 # Options:
 #   --strict-hooks  Make Claude/Codex hook wiring and Pi's shared mode enforce
@@ -84,9 +84,8 @@
 #     review-adversarial, docs/adr/README.md, docs/workflow-diagram.md,
 #     docs/agent-handoff.md, and Dependabot.
 #   - full or --advanced-docs: docs/parallel-agents.md,
-#     docs/plugin-packaging.md, docs/serena-setup.md, docs/evals.md,
-#     docs/llm-product.md, docs/local-executor.md.
-#   - full only: command stubs for security / performance / eval / delegate,
+#     docs/plugin-packaging.md, docs/serena-setup.md, docs/local-executor.md.
+#   - full only: command stubs for security / performance / delegate,
 #     the .agentic/delegate-run.sh local delegate runner,
 #     and the inert Claude PR-review workflow example.
 #
@@ -343,7 +342,7 @@ infer_existing_state() {
   if [[ "$PREVIOUS_PROFILE" != full ]] &&
     [[ -e "$DST_DIR/docs/parallel-agents.md" ||
       -e "$DST_DIR/docs/plugin-packaging.md" ||
-      -e "$DST_DIR/docs/llm-product.md" ]]; then
+      -e "$DST_DIR/docs/serena-setup.md" ]]; then
     PREVIOUS_ADVANCED_DOCS=1
   fi
 }
@@ -637,6 +636,7 @@ client_config_references_stop_gate() {
 
 prune_managed_file() {
   local rel="$1"
+  local reason="${2:-excluded by selected profile}"
   local dst="$DST_DIR/$rel"
   local recorded_hash current_hash
   local safe_to_remove=0
@@ -655,9 +655,11 @@ prune_managed_file() {
 
   if [[ "$safe_to_remove" == 1 ]]; then
     rm -f "$dst"
-    echo "  removed (excluded by selected profile): $rel"
-  else
+    echo "  removed ($reason): $rel"
+  elif [[ "$reason" == "excluded by selected profile" ]]; then
     echo "  WARNING: preserving customized or unverified excluded file: $rel"
+  else
+    echo "  WARNING: preserving customized or unverified retired file: $rel"
   fi
 }
 
@@ -1234,8 +1236,6 @@ if [[ "$EFFECTIVE_ADVANCED_DOCS" == 1 ]]; then
   sync docs/parallel-agents.md
   sync docs/plugin-packaging.md
   sync docs/serena-setup.md
-  sync docs/evals.md
-  sync docs/llm-product.md
   sync docs/local-executor.md
 fi
 
@@ -1252,9 +1252,6 @@ if [[ "$PROFILE" == full ]]; then
   sync .claude/commands/performance.md
   sync .agents/skills/performance/SKILL.md
   sync .pi/prompts/performance.md
-  sync .claude/commands/eval.md
-  sync .agents/skills/eval/SKILL.md
-  sync .pi/prompts/eval.md
   sync .claude/commands/delegate.md
   sync .agents/skills/delegate/SKILL.md
   sync .pi/prompts/delegate.md
@@ -1308,9 +1305,6 @@ prune_profile_transition() {
     .claude/commands/performance.md
     .agents/skills/performance/SKILL.md
     .pi/prompts/performance.md
-    .claude/commands/eval.md
-    .agents/skills/eval/SKILL.md
-    .pi/prompts/eval.md
     .claude/commands/delegate.md
     .agents/skills/delegate/SKILL.md
     .pi/prompts/delegate.md
@@ -1324,8 +1318,6 @@ prune_profile_transition() {
     docs/parallel-agents.md
     docs/plugin-packaging.md
     docs/serena-setup.md
-    docs/evals.md
-    docs/llm-product.md
     docs/local-executor.md
   )
 
@@ -1364,6 +1356,26 @@ prune_profile_transition() {
       prune_managed_file "$rel"
     done
   fi
+}
+
+prune_retired_managed_files() {
+  local rel
+  local retired_files=(
+    docs/evals.md
+    docs/llm-product.md
+    .claude/commands/eval.md
+    .agents/skills/eval/SKILL.md
+    .pi/prompts/eval.md
+  )
+
+  [[ "$MODE" == update ]] || return 0
+  for rel in "${retired_files[@]}"; do
+    # Only files recorded as managed by the previous scaffold are eligible.
+    # A customized file is warned about once, preserved, and omitted from the
+    # new manifest so later updates treat it as project-owned.
+    [[ -n "$(previous_managed_hash "$rel")" ]] || continue
+    prune_managed_file "$rel" "retired from scaffold"
+  done
 }
 
 # Informational provenance: the scaffold commit that last wrote this project,
@@ -1408,6 +1420,7 @@ write_bootstrap_state() {
 }
 
 prune_profile_transition
+prune_retired_managed_files
 if [[ "$MODE" == update && "$NO_STOP_GATE" == 1 ]] &&
   ! client_config_references_stop_gate; then
   prune_managed_file .agentic/hooks/gate-on-stop.sh
@@ -1423,11 +1436,6 @@ fi
 #   .pi/agents/optional/performance-reviewer.md      — matching Pi adapter
 #     DB queries on user-sized data, async code, migrations on large tables, or any
 #     latency SLO.
-#   .claude/agents/optional/evaluator.md             — for projects whose product
-#   .codex/agents/optional/evaluator.toml            — matching Codex adapter
-#   .pi/agents/optional/evaluator.md                 — matching Pi adapter
-#     contains an LLM/AI surface (summarizer, RAG answer, chatbot, agent trajectory);
-#     authors and runs evals that judge output quality. See docs/evals.md.
 #   See $SRC_DIR/.claude/agents/optional/ for what's available.
 
 migrate_legacy_contract

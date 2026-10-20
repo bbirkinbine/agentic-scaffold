@@ -44,8 +44,7 @@ python/
 │   │   ├── reviewer-adversarial.md        # Independent diff reviewer (adversarial framing)
 │   │   └── optional/
 │   │       ├── security-reviewer.md       # App-sec review (opt-in, not auto-copied)
-│   │       ├── performance-reviewer.md    # Perf review (opt-in, not auto-copied)
-│   │       └── evaluator.md               # Eval suite for an LLM/AI surface (opt-in, not auto-copied)
+│   │       └── performance-reviewer.md    # Perf review (opt-in, not auto-copied)
 │   ├── commands/
 │   │   ├── product-spec.md                # /product-spec — interview to create/refresh docs/specs/0000-product.md
 │   │   ├── spec.md                        # /spec <name> — create docs/specs/NNNN-<slug>.md
@@ -61,7 +60,6 @@ python/
 │   │   ├── review-adversarial.md          # /review-adversarial — invoke reviewer-adversarial
 │   │   ├── security.md                    # /security — invoke security-reviewer (if installed)
 │   │   ├── performance.md                 # /performance — invoke performance-reviewer (if installed)
-│   │   ├── eval.md                        # /eval — author/run an LLM-feature eval suite (if evaluator installed)
 │   │   ├── delegate.md                    # /delegate — hand an approved phase to a local model session (Pi)
 │   │   └── unattended.md                  # /unattended — ask decisions up front, then reconcile an unattended run's choices
 │   └── skills/
@@ -100,8 +98,6 @@ python/
 │   ├── parallel-agents.md                 # Degrees of autonomy, worktree parallelism, agent teams, completion ladder, unattended runs (managed)
 │   ├── plugin-packaging.md                # Plugin/marketplace distribution path — documented, not yet adopted (managed)
 │   ├── serena-setup.md                    # Optional serena MCP — install / verify / update / teardown (managed)
-│   ├── evals.md                           # When to add evals (opt-in, LLM/AI-surface projects) + how to keep them honest (managed)
-│   ├── llm-product.md                     # Building an LLM/agent surface: call seam, testing without live calls, prompt versioning, model pinning (managed)
 │   ├── local-executor.md                  # Delegating the implement phase to a weaker/local model: the rule, the tiers, what breaks (managed)
 │   ├── adr/
 │   │   └── README.md                      # Architecture Decision Records: spec-vs-ADR, numbering, status, template (managed)
@@ -152,7 +148,7 @@ agent / skill / command", see [`docs/project-types.md`](docs/project-types.md)
 | --- | --- | --- |
 | `--minimal` | Small repos that want the core loop without the full doctrine surface | `AGENTS.md` + `CLAUDE.md`, `WORKFLOW.md`, pyproject, pre-commit, CI, shared format/safety hooks, Claude/Codex/Pi configuration, specs convention, core commands/skills/prompts, and all clients' roles |
 | `--core` (default) | Normal attended Python agentic workflow | Minimal + skills, status dashboard, ADRs, product/scope/clarify/analyze/review-adversarial commands, workflow diagram, Dependabot |
-| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, evals, llm-product, local-executor), opt-in reviewer command stubs, `/delegate` with the local delegate runner, `/unattended`, and the inert Claude PR-review workflow example |
+| `--full` | The author's full workflow bundle | Python-core + advanced docs (`parallel-agents`, plugin packaging, serena, local-executor), opt-in reviewer command stubs, `/delegate` with the local delegate runner, `/unattended`, and the inert Claude PR-review workflow example |
 
 Options compose with profiles:
 
@@ -230,21 +226,6 @@ After bootstrap:
    ```
    See the [opt-in subagents](#opt-in-subagents) section below for the
    trigger list.
-10. **If the product itself contains an LLM/AI surface** (summarizer, RAG
-   answer, chatbot, agent trajectory, NL classifier) — add the opt-in
-   evaluator:
-   ```
-   cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
-      .claude/agents/evaluator.md
-   cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
-      .codex/agents/evaluator.toml
-   cp path/to/agentic-scaffold/python/.pi/agents/optional/evaluator.md \
-      .pi/agents/evaluator.md
-   ```
-   Most projects ship no LLM surface and skip this. `docs/evals.md` is the
-   decision rule and the discipline that keeps evals from grading
-   themselves.
-
 ## The agentic loop this scaffolding enables
 
 [`docs/workflow-diagram.md`](docs/workflow-diagram.md) draws this whole
@@ -276,7 +257,6 @@ as `$<name>`; for example, `/plan` maps to `$plan`.
 | Verify (adversarial — pair with `/review` on meaningful PRs) | `reviewer-adversarial` on the same complete change set | `/review-adversarial [spec-path] [<base>..<head>]` |
 | Verify (security) | `security-reviewer` (opt-in subagent) | `/security [spec-path] [<base>..<head>]` |
 | Verify (performance) | `performance-reviewer` (opt-in subagent) | `/performance [spec-path] [<base>..<head>]` |
-| Verify (evals — LLM/AI-surface projects only) | `evaluator` (opt-in subagent) judges non-deterministic output quality against a rubric; most projects skip it | `/eval [spec-path]` |
 | CI gate (every PR) | GitHub Actions runs ruff + mypy + pytest — the non-skippable backstop | `.github/workflows/ci.yml` |
 | Public-repo hygiene (every PR) | CI runs the non-quality pre-commit hooks over the full tree: secret/key, YAML/TOML, merge-marker, large-file, and client-contract checks | `.github/workflows/ci.yml` |
 | Supply-chain gate (every PR) | A second CI job runs `pip-audit` on the locked dep tree; Dependabot opens the weekly fix PRs | `.github/workflows/ci.yml` · `.github/dependabot.yml` |
@@ -345,9 +325,8 @@ review only — no `pip-audit` / `bandit` / `semgrep` shell-outs.
   third-party API responses that pass through to internal use).
 - Handles secrets — fetches, stores, rotates, or routes them.
 - Deserializes external data (pickle, yaml, xml, jwt, custom binary).
-- Calls an LLM — prompts assembled from untrusted content, or model
-  output feeding tools, shell, SQL, or file paths (see
-  `docs/llm-product.md`).
+- Calls an LLM — prompts assembled from untrusted content, or model output
+  feeding tools, shell, SQL, or file paths.
 
 To enable for a project:
 
@@ -391,57 +370,6 @@ cp path/to/agentic-scaffold/python/.codex/agents/optional/performance-reviewer.t
    .codex/agents/performance-reviewer.toml
 cp path/to/agentic-scaffold/python/.pi/agents/optional/performance-reviewer.md \
    .pi/agents/performance-reviewer.md
-```
-
-Then add a one-line mention in `AGENTS.md`; every client reads that canonical
-contract (Claude through the existing import).
-
-### `evaluator.md`
-
-The quality counterpart to `test-first`, for the subset of projects whose
-*product* contains an LLM/AI surface. Tests assert deterministic behavior;
-the `evaluator` authors and runs **evals** that judge non-deterministic
-output quality against a rubric (task success, tool-use quality, trajectory
-compliance, hallucination rate, response quality). It authors cases from
-the spec (never the implementation), keeps the rubric, inputs, and ground
-truth external, and runs the LM-judge pass independent of the generator —
-so an eval measures correctness, not the model's agreement with itself.
-Driven by `/eval`; full doctrine and the decision rule live in
-`docs/evals.md`.
-
-The evaluator repeats each case using the approved run count and aggregation
-policy, reports mixed outcomes, and applies the spec's acceptance threshold.
-If those settings are missing, including in an existing suite, it proposes
-them (3 runs per case when unspecified) and waits for confirmation before
-execution. Passing every run is required only when the approved policy says so.
-
-**Copy it in only when the product itself contains an LLM/AI surface:**
-
-- A text-generating feature whose output varies run to run (summarizer,
-  rewriter, chatbot).
-- A RAG / retrieval-grounded answerer where faithfulness to the source
-  matters.
-- An agent whose tool-use trajectory or task completion is the thing under
-  test.
-- An LLM classifier / extractor over natural-language input.
-
-A deterministic CLI, library, or IaC/homelab tool needs none of this —
-tests suffice. This is the most-skipped opt-in of the three.
-
-The evaluator judges the LLM surface; `docs/llm-product.md` (installed
-with `--full` / `--advanced-docs`) covers building it — the single call
-seam, testing without live API calls, prompt versioning, model pinning,
-and when the surface also trips the `security-reviewer` opt-in.
-
-To enable for a project:
-
-```bash
-cp path/to/agentic-scaffold/python/.claude/agents/optional/evaluator.md \
-   .claude/agents/evaluator.md
-cp path/to/agentic-scaffold/python/.codex/agents/optional/evaluator.toml \
-   .codex/agents/evaluator.toml
-cp path/to/agentic-scaffold/python/.pi/agents/optional/evaluator.md \
-   .pi/agents/evaluator.md
 ```
 
 Then add a one-line mention in `AGENTS.md`; every client reads that canonical

@@ -141,10 +141,10 @@ If there are no findings, output:
 - Comments that reference internal infrastructure ("# TODO: rotate the prod key", "# only works on bastion-1").
 - Test fixtures with real-looking credentials (even if intended as fakes, they'll be indexed by GitHub once the repo is public).
 
-### 11. LLM surface (only when the product calls a model — see `docs/llm-product.md`)
+### 11. LLM surface (only when the product calls a model)
 
 - **Prompt injection.** Untrusted content — user input, retrieved documents, file contents, fetched web pages, tool results — concatenated into a prompt that also carries instructions or grants tool access. Look for f-string/`.format()` prompt assembly with no separation between instructions and data, and no statement of what the untrusted segment is allowed to influence.
-- **Model output as untrusted input** (`docs/llm-product.md` § "Model output is untrusted input"). Model output flowing into `subprocess`, SQL, file paths, `eval`, HTML, or further tool calls without the same validation any user input would get. The model can be steered by anything it read, so its output inherits the trust level of its least-trusted input.
+- **Model output as untrusted input.** Model output flowing into `subprocess`, SQL, file paths, `eval`, HTML, or further tool calls without the same validation any user input would get. The model can be steered by anything it read, so its output inherits the trust level of its least-trusted input.
 - **Tool-call authorization.** Tools invoked from model output must enforce the *calling user's* authorization, not the agent process's. A model that can reach a privileged tool on behalf of an unprivileged user is an authorization bypass one injected sentence away.
 - **Secrets and internal context in prompts.** Prompts are sent to a third-party API and are often logged on both ends. Keys, PII, internal hostnames, or proprietary data interpolated into a prompt is information disclosure — same severity reasoning as logging it.
 

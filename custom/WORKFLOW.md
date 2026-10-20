@@ -162,11 +162,6 @@ is already obvious.
    complete pre-commit change set: committed branch delta, staged and unstaged
    tracked changes, and every untracked file. This catches what the gate can't.
    - *Optional:* `/security` and `/performance` if you installed them.
-   - *LLM/AI-surface projects only, if installed:* `/eval` runs the eval
-     suite — the quality gate for non-deterministic output that
-     `/review-check` can't assert. Most projects ship no LLM surface and
-     skip this entirely; install the full/advanced docs for the detailed
-     decision rule.
 10. **Close review findings.** The orchestrator applies `[auto-fix]`
     findings, resyncs any affected docs, reruns the complete gate, and asks a
     fresh reviewer to verify the fixes and inspect their delta. A substantial
@@ -412,11 +407,6 @@ core loop; `--core` adds ADR/status/workflow docs; `--full` or
 - `docs/adr/README.md` — architecture decision records: when a choice is
   cross-cutting and costly to reverse, log the decision and its rationale
   (spec-vs-ADR table, numbering, template). Mostly for Large work.
-- `docs/evals.md` — what "eval" means (two senses): the review/analyze
-  work you already do for any project, plus the opt-in product-eval layer
-  for a product that contains an LLM/AI surface.
-- `docs/llm-product.md` — building that LLM/AI surface: the single call
-  seam, testing without live API calls, prompt versioning, model pinning.
 - `docs/parallel-agents.md` — autonomy tiers, worktrees, unattended runs.
 - `docs/local-executor.md` — handing the implement phase to a weaker or
   local model: the one rule that makes it safe, what to delegate and what

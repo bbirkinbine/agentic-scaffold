@@ -79,12 +79,10 @@ flowchart TD
     C --> D{"Opt-in for THIS repo?"}
     D -->|"network / auth / untrusted input / secrets"| D1["copy security-reviewer"]
     D -->|"hot path / async / under load"| D2["copy performance-reviewer"]
-    D -->|"product has an LLM/AI surface"| D4["copy evaluator<br/>(evals.md)"]
     D -->|"large / long-lived repo"| D3["enable serena MCP<br/>(serena-setup.md)"]
-    D -->|"small fresh repo / no LLM surface"| E
+    D -->|"small fresh repo"| E
     D1 --> E
     D2 --> E
-    D4 --> E
     D3 --> E
     E[".agentic/toolchain.sh install · pre-commit install"] --> F["scaffolding commit on main<br/>— the one commit allowed there —<br/>then branch everything after"]
     F --> G["/product-spec — optional<br/>interview → docs/specs/0000-product.md<br/>problem · success metrics · kill criteria · non-goals"]
@@ -163,10 +161,8 @@ its number is the shared id for the spec, the branch, and the PR's
 **Optional sharpening passes** slot in where each helps and are left off
 the diagram to keep it clean: `/scope-check` (fuzzy goal) and `/clarify`
 (open questions) before building, `/analyze` (tests cover the spec?)
-after `/test-first`, `/security` and `/performance` during review — and,
-on a project whose product contains an LLM/AI surface, `/eval` during
-review to gate output quality a test can't assert (most projects have no
-LLM surface and skip it). See [`../WORKFLOW.md`](../WORKFLOW.md).
+after `/test-first`, and `/security` and `/performance` during review. See
+[`../WORKFLOW.md`](../WORKFLOW.md).
 
 ---
 
@@ -242,7 +238,6 @@ the *Skip when* column is as load-bearing as the *Reach for* column.
 | Want proof tests cover the spec before implementing | `/analyze` after `/test-first` | Trivial/small tasks; one-criterion specs |
 | Network surface, auth, untrusted input, secrets | `security-reviewer` (opt-in, decide at day zero) | Pure-local tooling with no trust boundary |
 | Hot path, DB on user-sized data, async, latency SLO | `performance-reviewer` (opt-in) | Nothing runs under load |
-| Product contains an LLM/AI surface whose output is judged for quality | `evaluator` + `/eval` (opt-in; [`evals.md`](evals.md)); build it per [`llm-product.md`](llm-product.md) | Deterministic product — tests suffice, no LLM surface |
 | Agent burns turns re-mapping a large, long-lived repo | `serena` MCP ([`serena-setup.md`](serena-setup.md)) | Fresh or small repo — grep is enough |
 | Two+ features independent at the file level | Worktrees, one agent each ([`parallel-agents.md`](parallel-agents.md)) | Tasks share files, or work is exploratory |
 | Long run with nobody watching | Completion ladder rungs 2–4 + scoped client permissions | You're at the keyboard — checkpoints suffice |
@@ -293,9 +288,3 @@ Section shapes are in [`specs/README.md`](specs/README.md).
 - [`plugin-packaging.md`](plugin-packaging.md) — the (not-yet-adopted)
   plugin/marketplace distribution path.
 - [`serena-setup.md`](serena-setup.md) — the optional symbol-navigation MCP.
-- [`evals.md`](evals.md) — the two senses of "eval": the output/trajectory
-  review you already do (`/review`, `/analyze`, completion ladder), plus the
-  opt-in product-eval layer for an LLM/AI-surface product.
-- [`llm-product.md`](llm-product.md) — construction-side conventions for
-  that surface: the call seam, testing without live calls, prompt
-  versioning, model pinning.

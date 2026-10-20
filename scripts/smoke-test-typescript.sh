@@ -52,7 +52,9 @@ for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md \
   src/index.ts tests/index.test.ts; do
   must "$path"
 done
-for path in pyproject.toml .claude/skills src/'{{PACKAGE_NAME}}' tests/test_smoke.py; do
+for path in pyproject.toml .claude/skills src/'{{PACKAGE_NAME}}' tests/test_smoke.py \
+  docs/evals.md docs/llm-product.md .claude/commands/eval.md \
+  .agents/skills/eval/SKILL.md .pi/prompts/eval.md; do
   must_not "$path"
 done
 [[ -x .agentic/toolchain.sh ]] || fail "toolchain.sh is not executable"
