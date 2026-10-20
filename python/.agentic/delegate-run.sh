@@ -829,9 +829,11 @@ finish() {
         detail: (.reason // ""), seconds: (.seconds // 0)}]' "$result_dir/state.json" 2>/dev/null || echo '[]')"
     [[ -n "$STATE" && -f "$STATE/last-diagnostics.txt" ]] &&
       cp "$STATE/last-diagnostics.txt" "$result_dir/last-diagnostics.txt"
+    # The packet and packet_sha256 keys predate handoff and now hold the spec;
+    # they keep their names so existing ledgers stay readable.
     jq -n \
-      --arg ts "$(now_utc)" --arg run "$RUN_ID" --arg packet "${PACKET_REL:-}" \
-      --arg packet_sha "${PACKET_SHA:-}" --arg outcome "$OUTCOME" --arg reason "$REASON" \
+      --arg ts "$(now_utc)" --arg run "$RUN_ID" --arg packet "${SPEC_REL:-}" \
+      --arg packet_sha "${SPEC_SHA:-}" --arg outcome "$OUTCOME" --arg reason "$REASON" \
       --arg harness "$HARNESS_VERSION" --arg model "${MODEL_NAME:-}" --arg model_id "${MODEL_ID:-}" \
       --arg quant "${QUANT:-}" --arg runtime "${RUNTIME:-}" --arg endpoint "${ENDPOINT_NAME:-}" \
       --arg request "${REQUEST_JSON:-}" --arg target "${TARGET:-}" --arg bucket "${BUCKET:-}" \
@@ -1778,7 +1780,7 @@ handoff_scope_check() {
     SCOPE_VIOLATION="the session committed or changed branches"
     return 1
   fi
-  GIT_OPTIONAL_LOCKS=0 handoff_classify "$TREE" "$PACKET_REL" "$PHASE" "$STATE/live" 2>/dev/null || rc=$?
+  GIT_OPTIONAL_LOCKS=0 handoff_classify "$TREE" "$SPEC_REL" "$PHASE" "$STATE/live" 2>/dev/null || rc=$?
   case "$rc" in
     0) ;;
     2) SCOPE_VIOLATION="a changed path contains a newline"; return 1 ;;
@@ -1926,7 +1928,7 @@ handoff_segment() {
 
   manifest="$(worktree_manifest)"
   printf '%s\n' "$manifest" >>"$SEG_DIR/manifests"
-  guardrail="$(handoff_guardrail_message "$PACKET_REL" "$PHASE")"
+  guardrail="$(handoff_guardrail_message "$SPEC_REL" "$PHASE")"
   lease_end=$((RPC_LAST_ACTIVITY + LEASE_SECONDS))
   next_beat=$(($(date +%s) + PROGRESS_INTERVAL))
   while :; do
@@ -2057,7 +2059,7 @@ handoff_after_segment() {
     paused)
       progress "auditing the paused worktree (no gate, no commit)"
       state_update '.state = "auditing"'
-      audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+      audit_handoff "$wt" "$SPEC_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
       # A session that broke scope is not resumable, even if it reverted the
       # edit before the abort landed and the audit found a clean tree.
       [[ "$SEG_REASON" == "early scope stop: "* ]] && integrity "$SEG_REASON (worktree kept at $wt)"
@@ -2081,11 +2083,11 @@ handoff_after_segment() {
   esac
   state_update '.state = "verifying"'
   progress "independently verifying — plan scope"
-  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  audit_handoff "$wt" "$SPEC_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
   [[ -s "$STATE/changed" ]] || { OUTCOME=needs_frontier; REASON="the session changed nothing"; say "needs_frontier: $REASON"; finish 10; }
   progress "independently verifying — full gate"
   verify_cmd bash "$TOOLCHAIN" gate >"$RESULT_DIR/gate.log" 2>&1 || gate_status=$?
-  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  audit_handoff "$wt" "$SPEC_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
   if ((gate_status != 0)); then
     OUTCOME=needs_frontier
     REASON="the session ended with the gate red: $(bounded_tail "$RESULT_DIR/gate.log" | tail -n 5 | tr '\n' ' ')"
@@ -2174,8 +2176,8 @@ cmd_handoff() {
   RESULT_DIR="$DELEGATE_DIR/results/$RUN_ID"
   [[ -f "$ROOT/$spec" ]] || refuse "spec not found: $spec"
   case "$spec" in /* | *..*) refuse "spec path must be relative to the repository: $spec" ;; esac
-  PACKET_REL="$spec"
-  PACKET_SHA="$(sha_file "$ROOT/$spec")"
+  SPEC_REL="$spec"
+  SPEC_SHA="$(sha_file "$ROOT/$spec")"
   TARGET="$spec"
   PHASE="$phase"
   BUCKET="phase:$phase"
@@ -2211,7 +2213,7 @@ cmd_handoff() {
   mkdir -p "$RESULT_DIR/session" "$RESULT_DIR/pi-agent" "$RESULT_DIR/segments"
   jq -n --arg run "$RUN_ID" --arg spec "$spec" --arg phase "$phase" --arg profile "$profile" \
     --arg model "$MODEL_NAME" --arg mode "$MODE" --argjson selection "${SELECTION_JSON:-null}" \
-    --arg wt "$wt" --arg branch "$BRANCH" --arg snapshot "$SNAPSHOT_SHA" --arg spec_sha "$PACKET_SHA" \
+    --arg wt "$wt" --arg branch "$BRANCH" --arg snapshot "$SNAPSHOT_SHA" --arg spec_sha "$SPEC_SHA" \
     --arg plan_sha "$(sha_file "$STATE/plan-files")" --arg fp "$FINGERPRINT" --arg qualified "${QUALIFIED:-}" \
     --arg harness "$HANDOFF_HARNESS" --arg hv "$HANDOFF_HARNESS_VERSION" --argjson started "$(date +%s)" \
     --argjson max "${MAX_TOTAL:-null}" --argjson rp "$$" \
@@ -2585,8 +2587,8 @@ cmd_handoff_resume() {
   fi
   RUN_ID="$run"
   RESULT_DIR="$DELEGATE_DIR/results/$RUN_ID"
-  PACKET_REL="$(jq -r .spec "$file")"
-  TARGET="$PACKET_REL"
+  SPEC_REL="$(jq -r .spec "$file")"
+  TARGET="$SPEC_REL"
   PHASE="$(jq -r .phase "$file")"
   BUCKET="phase:$PHASE"
   BRANCH="$(jq -r .branch "$file")"
@@ -2606,10 +2608,10 @@ cmd_handoff_resume() {
   [[ "$(git -C "$wt" rev-parse HEAD)" == "$SNAPSHOT_SHA" &&
     "$(git -C "$wt" symbolic-ref -q HEAD)" == "refs/heads/$BRANCH" ]] ||
     resume_refuse "the worktree moved off its starting commit or branch (a session or verifier commit)"
-  [[ -f "$ROOT/$PACKET_REL" && "$(sha_file "$ROOT/$PACKET_REL")" == "$(jq -r .spec_sha256 "$file")" ]] ||
-    resume_refuse "the spec $PACKET_REL changed in the checkout since the handoff started"
-  PACKET_SHA="$(jq -r .spec_sha256 "$file")"
-  plan_files "$ROOT/$PACKET_REL" >"$STATE/plan-files"
+  [[ -f "$ROOT/$SPEC_REL" && "$(sha_file "$ROOT/$SPEC_REL")" == "$(jq -r .spec_sha256 "$file")" ]] ||
+    resume_refuse "the spec $SPEC_REL changed in the checkout since the handoff started"
+  SPEC_SHA="$(jq -r .spec_sha256 "$file")"
+  plan_files "$ROOT/$SPEC_REL" >"$STATE/plan-files"
   [[ "$(sha_file "$STATE/plan-files")" == "$(jq -r .plan_sha256 "$file")" ]] || resume_refuse "the approved plan's file list changed"
   load_handoff_harness || resume_refuse "agent harness unavailable: ${DELEGATE_HANDOFF_HARNESS:-pi}"
   load_profile "$(jq -r .profile "$file")"
@@ -2635,10 +2637,10 @@ cmd_handoff_resume() {
   fi
   state_update '.max_total_seconds = $m' --argjson m "${MAX_TOTAL:-null}"
   # Scope and test-file audit before resuming; a violation is an integrity stop.
-  audit_handoff "$wt" "$PACKET_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
+  audit_handoff "$wt" "$SPEC_REL" "$PHASE" "$BRANCH" "$RESULT_DIR"
   launch_report running "" 0
 
-  handoff_resume_prompt "$PACKET_REL" >"$RESULT_DIR/resume-prompt.md"
+  handoff_resume_prompt "$SPEC_REL" >"$RESULT_DIR/resume-prompt.md"
   handoff_session_setup
   handoff_segment "$RESULT_DIR/resume-prompt.md" "$session"
   handoff_after_segment
