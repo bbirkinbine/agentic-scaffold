@@ -55,7 +55,8 @@ for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md .gitignore \
   must "$path"
 done
 for path in pyproject.toml package.json src tests starter stack.sh bootstrap.sh \
-  .claude/skills; do
+  .claude/skills docs/evals.md docs/llm-product.md .claude/commands/eval.md \
+  .agents/skills/eval/SKILL.md .pi/prompts/eval.md; do
   must_not "$path"
 done
 [[ -x .agentic/toolchain.sh ]] || fail "toolchain.sh is not executable"

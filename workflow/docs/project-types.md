@@ -168,7 +168,7 @@ flowchart TD
 | --- | --- | --- |
 | `--minimal` | A small repo that wants the core loop without the full doctrine surface | Claude commands + portable Codex/Pi skills + Pi prompts, all clients' core roles, shared safety hooks, rules, specs convention, CI |
 | `--core` (default) | The normal attended agentic workflow | Minimal + the stack's skills, ADRs, the sharpening commands, status dashboard, workflow diagram, Dependabot |
-| `--full` | The author's complete workflow bundle | Core + advanced docs (parallel agents, plugin path, serena, evals) + optional-reviewer command stubs |
+| `--full` | The author's complete workflow bundle | Core + advanced docs (parallel agents, plugin path, serena, local execution) + optional-reviewer command stubs |
 
 Grow or shrink later: `bootstrap.sh --update --full` promotes a project,
 while an explicit smaller profile prunes files that are both excluded and
@@ -242,11 +242,10 @@ Read top-down: everything in a tier includes the tiers above it.
 ### Added by `--full` (or `--advanced-docs` for the docs only)
 
 - **Docs:** `docs/parallel-agents.md`, `docs/plugin-packaging.md`,
-  `docs/serena-setup.md`, `docs/evals.md`, `docs/llm-product.md`,
-  `docs/local-executor.md`
+  `docs/serena-setup.md`, `docs/local-executor.md`
 - **Workflows (`--full` only):** Claude and Pi `/security`, `/performance`,
-  `/eval`, `/delegate`, `/unattended` and matching Codex `$` skills (the
-  first three are stubs — each requires its opt-in agent, below), plus the
+  `/delegate`, `/unattended` and matching Codex `$` skills (the first two
+  are stubs — each requires its opt-in agent, below), plus the
   `.agentic/delegate-run.sh` local delegate runner that `/delegate` uses
 - **Workflow (`--full` only):** `.github/workflows/claude-review.yml.example`
 
@@ -261,7 +260,7 @@ Read top-down: everything in a tier includes the tiers above it.
 
 ### Opt-in agents — never auto-copied, manual per project (section 6)
 
-- `security-reviewer`, `performance-reviewer`, `evaluator` — copy the
+- `security-reviewer`, `performance-reviewer` — copy the
   `.claude/agents/optional/`, `.codex/agents/optional/`, and
   `.pi/agents/optional/` adapters only
   when the project's surface warrants it.
@@ -291,7 +290,6 @@ and Pi; Codex uses the same name as `$<name>`.
 | `/specs-status` | Refreshes + prints the spec dashboard | Any time you want the backlog at a glance | core |
 | `/security` (`security-reviewer`) | App-sec-only review | The diff touches a trust boundary (section 6) | full + opt-in agent |
 | `/performance` (`performance-reviewer`) | Perf-only review | The diff touches a hot path (section 6) | full + opt-in agent |
-| `/eval` (`evaluator`) | Authors/runs an LLM output-quality eval | The product ships an LLM/AI surface (section 6) | full + opt-in agent |
 | `/unattended` | `start` asks every foreseeable decision up front and records standing consent; `reconcile` reviews the decisions an unattended run made on the human's behalf | Leaving one feature to run unattended (overnight, a day away) to "ready to merge" ([`parallel-agents.md`](parallel-agents.md)) | full |
 | `/delegate` | Hands a whole phase of an approved spec to a local model session (Pi) in a git worktree through `.agentic/delegate-run.sh` (`handoff`), when the human picks that mode for the run | Local implementation with frontier verification and review ([`local-executor.md`](local-executor.md)) | full |
 
@@ -353,7 +351,6 @@ copy all three files and add a one-line mention in `AGENTS.md`.
 | --- | --- | --- | --- |
 | A network surface, auth, untrusted input, secrets, or external deserialization | `security-reviewer` + `/security` | Pure-local tooling with no trust boundary | agent header |
 | A hot path, DB queries on user-sized data, async, or a latency SLO | `performance-reviewer` + `/performance` | Nothing runs under load | agent header |
-| A product LLM/AI surface (summarizer, RAG, chatbot, agent trajectory, NL classifier) | `evaluator` + `/eval`; build to the [`llm-product.md`](llm-product.md) conventions | Deterministic product — tests suffice | [`evals.md`](evals.md) · [`llm-product.md`](llm-product.md) |
 | A large, long-lived repo where the agent re-maps structure every session | `serena` MCP | Fresh or small repo — grep is enough | [`serena-setup.md`](serena-setup.md) |
 | Two+ features independent at the file level, or a long unattended run | Worktrees / completion ladder | You are at the keyboard on one feature | [`parallel-agents.md`](parallel-agents.md) |
 | A local inference server (Ollama, llama.cpp, llama-swap, vLLM, LM Studio) and Pi, and you want a local model to implement an approved, tested phase | `--full` + the setup below | No server, or no wish to delegate | [`local-executor.md`](local-executor.md) |
@@ -382,8 +379,8 @@ server is running; default to no. If yes:
    delegation mode (`direct` or `handoff`) is chosen per run. The
    `handoff` mode and a fully local loop need Pi installed.
 
-`evals.md`, `llm-product.md`, `serena-setup.md`, `parallel-agents.md`, and
-`local-executor.md` install with `--full` or `--advanced-docs`. The optional agents themselves are always
+`serena-setup.md`, `parallel-agents.md`, and `local-executor.md` install
+with `--full` or `--advanced-docs`. The optional agents themselves are always
 available in the scaffold's `.claude/agents/optional/` and
 `.codex/agents/optional/`, whatever profile you installed.
 

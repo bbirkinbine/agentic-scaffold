@@ -177,8 +177,8 @@ decisions`, answer and log it as `/unattended` describes.
   regenerate its dashboard before final review.
 - **Verify:** Run `/review-check`, then `/review`; add
   `/review-adversarial` for meaningful features. Add installed `/security` or
-  `/performance` when their triggers match, and installed `/eval` for LLM
-  products. Resolve and re-review fixes; then stop for commit authorization.
+  `/performance` when their triggers match. Resolve and re-review fixes; then
+  stop for commit authorization.
 - **Bugs:** Reproduce first. The test must fail for the diagnosed cause before
   implementation and pass afterward.
 - **Multi-day work:** Append `## Phase handoff` at each phase boundary and

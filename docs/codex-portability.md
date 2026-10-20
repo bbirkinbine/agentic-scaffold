@@ -19,9 +19,8 @@ files by hand:
 - Codex loads the complete project contract from `AGENTS.md`.
 - The Spec → Plan → Test-first → Implement → Verify loop has a Codex-native
   entry point for every phase.
-- Planner, test-first, analyzer, reviewer, adversarial-review, security,
-  performance, and evaluator roles are available as Codex custom agents where
-  enabled.
+- Planner, test-first, analyzer, reviewer, adversarial-review, security, and
+  performance roles are available as Codex custom agents where enabled.
 - Reusable workflow guidance is available as Codex skills.
 - Safety, formatting, spec-dashboard, compaction, and turn-end checks run
   through Codex hooks or repository tooling.
@@ -86,8 +85,8 @@ unstructured code generator:
    pytest. A partial or red gate is not success.
 9. Delegate review to fresh read-only reviewer context that did not participate
    in implementation. Use both collaborative and adversarial review on
-   meaningful changes, plus enabled security, performance, or product-eval
-   specialists when their triggers apply.
+   meaningful changes, plus enabled security or performance specialists when
+   their triggers apply.
 10. Resolve `[auto-fix]` findings and rerun the gate. Stop and ask the human on
     `[ask-user]` findings because they change product intent or a deliberate
     trade-off.
@@ -346,7 +345,7 @@ Each existing Claude command needs a mapping entry with:
 
 The plan must cover at least `spec`, `product-spec`, `scope-check`, `clarify`,
 `adr`, `plan`, `test-first`, `analyze`, `review-check`, `review`,
-`review-adversarial`, `security`, `performance`, `eval`, and `specs-status`.
+`review-adversarial`, `security`, `performance`, and `specs-status`.
 
 If Codex does not provide a stable custom slash-command mechanism for a
 workflow, expose the workflow as a skill and document the equivalent
@@ -377,7 +376,6 @@ The adapters must preserve phase boundaries and permissions, not only names:
 | `review-adversarial` | Skill plus read-only adversarial agent | Argue against merging without inventing speculative requirements; use the same finding schema. |
 | `security` | Skill plus optional read-only security agent | Produce evidence-based application-security findings when the project or diff triggers it. |
 | `performance` | Skill plus optional read-only performance agent | Produce evidence-based performance findings and measurement commands; do not invent benchmarks. |
-| `eval` | Skill plus optional evaluator agent | Author cases from the spec and external data, stop for rubric approval, or run the suite against the approved threshold. |
 | `specs-status` | Skill plus shared repository script | Refresh the generated dashboard from spec status fields and report it. |
 
 Each Codex skill must stop at the same checkpoint as the corresponding Claude
@@ -412,8 +410,6 @@ Use these role boundaries:
   instructions forbid implementation edits. Because Codex sandbox modes are
   not test-directory allowlists, acceptance must inspect the agent's diff and
   fail if it changed `src/` or other implementation paths.
-- The evaluator may write only when authoring an opted-in eval suite; its run
-  and judge modes should otherwise be read-only where practical.
 - The main orchestrator owns implementation. Review agents recommend changes
   and never rewrite the code they are judging.
 

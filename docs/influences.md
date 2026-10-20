@@ -222,6 +222,20 @@ being re-proposed.
     scaffold ships one optional MCP (serena) and no connectors, so there is
     nothing to convert.
 
+- **Product-eval layer removed (2026-10-20).** The opt-in `/eval` command,
+  `evaluator` role and client adapters, `evals.md` doctrine, and companion
+  `llm-product.md` construction guide were added for consumer projects that
+  ship an LLM feature and were never used. Shipping them in every full-profile
+  project made an untested approach look standard: cases drafted before real
+  failures were observed, 1–5 rubric scores from one judge spanning several
+  dimensions, and no validation of that judge against human labels. The
+  scaffold does not target LLM-powered products, so this belongs neither in
+  its default workflow nor its advanced docs. Coding-agent evaluation remains
+  in the review gates, the delegate runner's `record-review` ledger, and
+  private task sets outside this public repository. Do not re-add a generic
+  product-eval layer from category guidance alone; reconsider only from a real
+  consumer need backed by observed failures and validated acceptance evidence.
+
 - **Single-file delegation removed (2026-10-17).** Adopted 2026-10, then
   withdrawn: `delegate-run.sh run` sent one `/delegate` packet (format 2,
   sized into `small`/`medium` buckets, `expected_lines` for new files) to a

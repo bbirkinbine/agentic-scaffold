@@ -131,7 +131,6 @@ case "$PROFILE" in
     must .codex/agents/reviewer-adversarial.toml
     must .github/dependabot.yml
     must_not docs/parallel-agents.md
-    must_not docs/llm-product.md
     must_not docs/local-executor.md
     must_not .claude/commands/security.md
     must_not .claude/commands/delegate.md
@@ -145,8 +144,6 @@ case "$PROFILE" in
     must .codex/agents/analyzer.toml
     must .pi/agents/analyzer.md
     must docs/parallel-agents.md
-    must docs/evals.md
-    must docs/llm-product.md
     must docs/local-executor.md
     must .claude/commands/security.md
     must .agents/skills/security/SKILL.md
@@ -165,6 +162,13 @@ case "$PROFILE" in
     exit 1
     ;;
 esac
+
+# Retired product-eval files are absent from every profile.
+must_not docs/evals.md
+must_not docs/llm-product.md
+must_not .claude/commands/eval.md
+must_not .agents/skills/eval/SKILL.md
+must_not .pi/prompts/eval.md
 
 # Opt-in agents are never auto-copied, in any profile.
 must_not .claude/agents/security-reviewer.md
@@ -351,6 +355,56 @@ run_profile_transition_matrix() {
   fi
   if ! grep -q 'preserving customized or unverified excluded file' "$log"; then
     echo "SMOKE FAIL (transition): customized-file preservation emitted no warning" >&2
+    exit 1
+  fi
+}
+
+run_retired_file_update() {
+  local root="$SCRATCH/retired-file-update"
+  local log="$SCRATCH/retired-file-update.log"
+  local rel hash
+  local retired_files=(
+    docs/evals.md
+    docs/llm-product.md
+    .claude/commands/eval.md
+    .agents/skills/eval/SKILL.md
+    .pi/prompts/eval.md
+  )
+
+  mkdir -p "$root"
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --full >/dev/null
+  )
+
+  # Recreate a previous installation's managed entries. Four remain unchanged;
+  # one is customized after its recorded hash to prove the ownership boundary.
+  for rel in "${retired_files[@]}"; do
+    mkdir -p "$root/$(dirname "$rel")"
+    printf 'retired scaffold content for %s\n' "$rel" >"$root/$rel"
+    hash="$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$root/$rel")"
+    printf 'sha256:%s\t%s\n' "$hash" "$rel" \
+      >>"$root/.agentic/scaffold-managed-files"
+  done
+  printf 'project customization\n' >>"$root/docs/llm-product.md"
+
+  (
+    cd "$root"
+    bash "$REPO_DIR/python/bootstrap.sh" --update >"$log"
+  )
+
+  transition_must_not "$root" docs/evals.md
+  transition_must_not "$root" .claude/commands/eval.md
+  transition_must_not "$root" .agents/skills/eval/SKILL.md
+  transition_must_not "$root" .pi/prompts/eval.md
+  transition_must "$root" docs/llm-product.md
+  grep -q 'preserving customized or unverified retired file: docs/llm-product.md' "$log" || {
+    echo "SMOKE FAIL (retired): customized-file preservation emitted no warning" >&2
+    exit 1
+  }
+  if grep -qE '(^|[[:space:]])(docs/evals\.md|docs/llm-product\.md|\.claude/commands/eval\.md|\.agents/skills/eval/SKILL\.md|\.pi/prompts/eval\.md)$' \
+    "$root/.agentic/scaffold-managed-files"; then
+    echo "SMOKE FAIL (retired): retired path remains in managed manifest" >&2
     exit 1
   fi
 }
@@ -578,6 +632,7 @@ run_profile_alias() {
 # each so the matrix covers lifecycle behavior without multiplying uv work.
 if [[ "$PROFILE" == full && -z "$STRICT" ]]; then
   run_profile_transition_matrix
+  run_retired_file_update
 elif [[ "$PROFILE" == core && "$STRICT" == --strict-hooks ]]; then
   run_strict_flagless_update
   run_missing_protocol_warning

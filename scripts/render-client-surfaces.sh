@@ -155,7 +155,7 @@ render_role() {
   description="$(frontmatter_value description "$source")"
 
   case "$name" in
-    test-first | evaluator) sandbox="workspace-write" ;;
+    test-first) sandbox="workspace-write" ;;
     *) sandbox="read-only" ;;
   esac
 
@@ -182,7 +182,7 @@ render_role() {
   } > "$codex_dir/$name.toml"
 
   case "$name" in
-    test-first | evaluator)
+    test-first)
       pi_tools='read, grep, find, ls, bash, edit, write'
       pi_acceptance='writer'
       ;;

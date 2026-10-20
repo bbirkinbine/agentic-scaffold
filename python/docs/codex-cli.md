@@ -135,8 +135,8 @@ format step may update files.
 
 ## Opt-in roles
 
-Security, performance, and product-eval reviewers remain per-project opt-ins.
-Copy all three adapters so every supported client can invoke the role:
+Security and performance reviewers remain per-project opt-ins. Copy all
+three adapters so every supported client can invoke the role:
 
 ```bash
 cp path/to/agentic-scaffold/python/.claude/agents/optional/security-reviewer.md \
@@ -147,8 +147,8 @@ cp path/to/agentic-scaffold/python/.pi/agents/optional/security-reviewer.md \
    .pi/agents/security-reviewer.md
 ```
 
-Repeat with `performance-reviewer` or `evaluator` when its trigger applies,
-then record the enabled role in `AGENTS.md`; every client reads that canonical
+Repeat with `performance-reviewer` when its trigger applies, then record the
+enabled role in `AGENTS.md`; every client reads that canonical
 contract (Claude through its import).
 
 ## Guardrails and client differences
