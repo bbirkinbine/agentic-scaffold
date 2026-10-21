@@ -38,8 +38,32 @@ change, show `git status` and `git diff`, then wait.
 
 ## Pull requests
 
-Run `/review`, then open with `gh pr create --fill --web`. In issue mode, put
-`Closes #<issue-number>` in the PR body; omit it in local mode.
+Run `/review` and `.agentic/hooks/closeout-check.sh`. Before the first PR in a
+GitHub-backed repo, check `gh repo view --json deleteBranchOnMerge`. If
+it is false, run `gh repo edit --delete-branch-on-merge` and say so.
+
+Open the PR from the terminal: `gh pr create --base <base> --title "<subject>"
+--body-file -`. Do not open a browser draft (`--web`), and do not show the
+title or body for approval first; the reviewed commits are the draft. In issue
+mode, put `Closes #<issue-number>` in the PR body; omit it in local mode.
+
+Then watch CI with `gh pr checks <number> --watch`. On a failing check, fix the
+cause on the branch, rerun the gate, push, and watch again. Report to the human
+only when every check passes, and give the PR URL. Merging stays theirs.
+
+### After the merge
+
+When the human reports a merge, verify it first:
+`gh pr view <number> --json state` must return `MERGED`. Then clean up:
+
+```bash
+git switch <default-branch> && git pull --ff-only
+git branch -d <branch>   # -d refuses an unmerged branch; never -D here
+git fetch --prune
+git worktree remove ../<repo>-<branch>   # only if the branch had a worktree
+```
+
+With delete-branch-on-merge on, GitHub has already removed the remote branch.
 
 ### Close-tasks ride in the PR they belong to
 

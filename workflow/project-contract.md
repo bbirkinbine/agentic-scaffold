@@ -52,15 +52,18 @@ The one approval policy; other files add only their own exceptions.
 - **Runs without asking** once the plan (or Small spec) is approved:
   reversible in-plan work: planned edits; gates, tests, linters, formatters;
   installing plan-named dependencies (lockfile included); local reads; the
-  feature branch; re-reviews; in-scope fixes.
+  feature branch; re-reviews; in-scope fixes; and, once `gh pr view` shows
+  the PR `MERGED`, the post-merge cleanup in Git workflow → After the merge.
 - **Stop and ask:** spec approval, plan approval, scope expansion (a file,
   behavior, or dependency the plan does not name), and `[ask-user]` or
   `[DECISION NEEDED]` items.
 - **Explicit approval:** commit; push; PR create or merge; destructive acts
   (deleting branches or data, history rewrite, force-push); repo, CI, or
   protection settings; network publishing; activating local delegation;
-  handoff temporary commits (`/delegate`). "Commit and push" grants both; a
-  commit grant excludes push. Each commit needs its own approval unless the
+  handoff temporary commits (`/delegate`). "Commit and push" grants both, and
+  also opening that feature's PR, turning on delete-branch-on-merge when it
+  is off, and watching CI (Git workflow → Pull requests); a commit grant
+  excludes push. Each commit needs its own approval unless the
   human grants commits for the rest of one feature, recorded in its spec's
   `## Standing decisions`; no grant covers force-push or merge.
 
