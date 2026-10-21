@@ -52,15 +52,18 @@ The one approval policy; other files add only their own exceptions.
 - **Runs without asking** once the plan (or Small spec) is approved:
   reversible in-plan work: planned edits; gates, tests, linters, formatters;
   installing plan-named dependencies (lockfile included); local reads; the
-  feature branch; re-reviews; in-scope fixes.
+  feature branch; re-reviews; in-scope fixes; and, once `gh pr view` shows
+  the PR `MERGED`, the post-merge cleanup in Git workflow → After the merge.
 - **Stop and ask:** spec approval, plan approval, scope expansion (a file,
   behavior, or dependency the plan does not name), and `[ask-user]` or
   `[DECISION NEEDED]` items.
 - **Explicit approval:** commit; push; PR create or merge; destructive acts
   (deleting branches or data, history rewrite, force-push); repo, CI, or
   protection settings; network publishing; activating local delegation;
-  handoff temporary commits (`/delegate`). "Commit and push" grants both; a
-  commit grant excludes push. Each commit needs its own approval unless the
+  handoff temporary commits (`/delegate`). "Commit and push" grants both, and
+  also opening that feature's PR, turning on delete-branch-on-merge when it
+  is off, and watching CI (Git workflow → Pull requests); a commit grant
+  excludes push. Each commit needs its own approval unless the
   human grants commits for the rest of one feature, recorded in its spec's
   `## Standing decisions`; no grant covers force-push or merge.
 
@@ -328,8 +331,32 @@ change, show `git status` and `git diff`, then wait.
 
 ## Pull requests
 
-Run `/review`, then open with `gh pr create --fill --web`. In issue mode, put
-`Closes #<issue-number>` in the PR body; omit it in local mode.
+Run `/review` and `.agentic/hooks/closeout-check.sh`. Before the first PR in a
+GitHub-backed repo, check `gh repo view --json deleteBranchOnMergeEnabled`. If
+it is false, run `gh repo edit --delete-branch-on-merge` and say so.
+
+Open the PR from the terminal: `gh pr create --base <base> --title "<subject>"
+--body-file -`. Do not open a browser draft (`--web`), and do not show the
+title or body for approval first; the reviewed commits are the draft. In issue
+mode, put `Closes #<issue-number>` in the PR body; omit it in local mode.
+
+Then watch CI with `gh pr checks <number> --watch`. On a failing check, fix the
+cause on the branch, rerun the gate, push, and watch again. Report to the human
+only when every check passes, and give the PR URL. Merging stays theirs.
+
+### After the merge
+
+When the human reports a merge, verify it first:
+`gh pr view <number> --json state` must return `MERGED`. Then clean up:
+
+```bash
+git switch <default-branch> && git pull --ff-only
+git branch -d <branch>   # -d refuses an unmerged branch; never -D here
+git fetch --prune
+git worktree remove ../<repo>-<branch>   # only if the branch had a worktree
+```
+
+With delete-branch-on-merge on, GitHub has already removed the remote branch.
 
 ### Close-tasks ride in the PR they belong to
 
