@@ -713,6 +713,31 @@ printf '{"cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: 
 }
 rm -f src/smoketest/untouched.py src/smoketest/patched.py tests/test_edited.py
 
+# ruff formats any file it is named: a JSON object past the line length came
+# back as a Python dict with a trailing comma, and a shell script failed the
+# hook. Files outside ruff's set pass through untouched with a clean exit;
+# Markdown is in the set (format-check enforces its Python code blocks).
+json='{"name": "smoke-edited-json-file-with-a-long-name", "version": "1.0.0", "private": true, "license": "MIT"}'
+printf '%s\n' "$json" > edited.json
+printf 'echo  hi\n' > edited.sh
+printf '# Title\n\n```python\nVALUE   =  1\n```\n' > edited.md
+for file in edited.json edited.sh edited.md; do
+  printf '{"cwd":"%s","tool_input":{"file_path":"%s/%s"}}' "$PWD" "$PWD" "$file" \
+    | bash .agentic/hooks/format-after-edit.sh || {
+    echo "SMOKE FAIL ($PROFILE): edit hook failed on $file" >&2
+    exit 1
+  }
+done
+[[ "$(cat edited.json)" == "$json" && "$(cat edited.sh)" == 'echo  hi' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook rewrote a file ruff does not own" >&2
+  exit 1
+}
+[[ "$(cat edited.md)" == $'# Title\n\n```python\nVALUE = 1\n```' ]] || {
+  echo "SMOKE FAIL ($PROFILE): edit hook did not format a Markdown code block" >&2
+  exit 1
+}
+rm -f edited.json edited.sh edited.md
+
 # --- close-out gate behavior ---
 # The rule this enforces was written, specific, and skipped anyway, so the
 # check itself gets tested rather than merely installed. CLOSEOUT_BRANCH

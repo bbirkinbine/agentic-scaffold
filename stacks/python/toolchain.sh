@@ -47,7 +47,27 @@ ready() {
 }
 
 tc_install() { uv sync; }
-tc_format() { uv run ruff format --force-exclude "${@:-.}"; }
+# ruff formats any file it is named, so a .json comes back as a Python dict
+# (trailing commas included) and a .sh fails the hook. Keep only the
+# extensions ruff's own discovery covers, which format-check enforces;
+# Markdown joined that set (its Python code blocks) in ruff 0.16, the floor
+# in pyproject.toml. Directories pass through, since ruff filters what it
+# finds there; with no paths, format the whole tree.
+tc_format() {
+  (($#)) || set -- .
+  local path paths=()
+  for path in "$@"; do
+    if [[ -d "$path" ]]; then
+      paths+=("$path")
+      continue
+    fi
+    case "$path" in
+      *.py | *.pyi | *.ipynb | *.md) paths+=("$path") ;;
+    esac
+  done
+  ((${#paths[@]})) || return 0
+  uv run ruff format --force-exclude "${paths[@]}"
+}
 tc_format_check() { uv run ruff format --check .; }
 tc_lint() { uv run ruff check .; }
 tc_typecheck() { uv run mypy $TC_SOURCE_DIRS; }
