@@ -332,7 +332,7 @@ change, show `git status` and `git diff`, then wait.
 ## Pull requests
 
 Run `/review` and `.agentic/hooks/closeout-check.sh`. Before the first PR in a
-GitHub-backed repo, check `gh repo view --json deleteBranchOnMergeEnabled`. If
+GitHub-backed repo, check `gh repo view --json deleteBranchOnMerge`. If
 it is false, run `gh repo edit --delete-branch-on-merge` and say so.
 
 Open the PR from the terminal: `gh pr create --base <base> --title "<subject>"
