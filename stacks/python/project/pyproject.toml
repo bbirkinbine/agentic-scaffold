@@ -17,7 +17,7 @@ module-name = "{{PACKAGE_NAME}}"
 dev = [
   "pytest>=8",
   "pytest-asyncio",
-  "ruff>=0.15",
+  "ruff>=0.16",
   "mypy>=2.0",
   "pre-commit",
   # Optional verification depth — cheap when an agent does the labor.
