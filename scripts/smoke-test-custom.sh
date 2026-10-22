@@ -39,6 +39,7 @@ for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md .gitignore \
   .pre-commit-config.yaml .agentic/toolchain.sh .agentic/scaffold-state \
   .agentic/hooks/gate-on-stop.sh .agentic/hooks/format-after-edit.sh \
   .agentic/hooks/closeout-check.sh .agentic/hooks/block-destructive.sh \
+  .agentic/hooks/protect-paths.sh .agentic/protected-paths \
   .agentic/hooks/branch-check.sh \
   .claude/settings.json .claude/agents/reviewer.md .claude/agents/test-first.md \
   .claude/commands/spec.md .claude/commands/plan.md \

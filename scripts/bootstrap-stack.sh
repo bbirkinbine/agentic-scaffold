@@ -58,6 +58,8 @@
 #     A stack may also claim a normally MANAGED path by listing it in its
 #     STACK_PROJECT_FILES: the custom stack owns .agentic/toolchain.sh and
 #     .github/workflows/ci.yml, because the project writes both.
+#     .agentic/protected-paths (the edit guard's list) is project-owned in
+#     every stack: the human writes it.
 #   - MANAGED  (everything else — .agentic/, .agents/, .claude/, .codex/,
 #     .pi/, WORKFLOW.md, .pre-commit-config.yaml, docs/specs/README.md, the
 #     .github/ tree) — the agentic scaffolding itself. Bootstrap choices
@@ -932,6 +934,15 @@ render_strict_settings() {
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/block-destructive.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/protect-paths.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -1021,6 +1032,15 @@ render_no_stop_settings() {
             "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/block-destructive.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}\"/.agentic/hooks/protect-paths.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -1058,6 +1078,7 @@ migrate_generic_state
 # supported one-line Claude import after all managed files are installed.
 migrate_claude_only_contract
 copy AGENTS.md
+copy .agentic/protected-paths
 for rel in "${STACK_PROJECT_FILES[@]}"; do
   copy "$rel"
 done
@@ -1133,6 +1154,7 @@ sync .pi/extensions/agentic-child-hooks.ts
 sync .agentic/toolchain.sh
 sync .agentic/hooks/branch-check.sh
 sync .agentic/hooks/block-destructive.sh
+sync .agentic/hooks/protect-paths.sh
 sync .agentic/hooks/context-reminder.sh
 sync .agentic/hooks/format-after-edit.sh
 sync .agentic/hooks/statusline.sh

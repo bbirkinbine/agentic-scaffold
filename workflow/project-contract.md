@@ -183,6 +183,12 @@ correctness. The rules, complete gate, and fresh semantic review still apply.
 - <!-- agentic-scaffold:stack-dont-touch -->
 - {{ADD_PROJECT_SPECIFIC_DONT_TOUCH — e.g., `src/{{PACKAGE_NAME}}/migrations/` if Alembic; vendored upstream files under `sources/`; generated artifacts under `out/`}}
 
+Mirror every path entry in `.agentic/protected-paths` (one glob per line);
+the edit guard `.agentic/hooks/protect-paths.sh` then refuses an edit or
+write to a listed path in every client. Entries that name part of a file (a
+TOML table, a section) stay prose only. Removing or commenting out a line
+there is a scope expansion: ask first.
+
 ## Open work / current state (updated {{YYYY-MM-DD}})
 
 - {{WHAT_IS_IN_PROGRESS_OR_BLOCKED}}

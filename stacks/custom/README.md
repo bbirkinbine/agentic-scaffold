@@ -29,8 +29,9 @@ this one ships a template the project fills.
 | `format [path ...]` / `format-check` | `unfilled` | the formatter in write and check mode, or `no_tool`; `format` formats only the paths the edit hook passes, or the whole project when given none |
 | `lint` | `unfilled` | the linter, warnings as errors |
 | `typecheck` | `unfilled` | a type check, compile, or elaboration that fails on a broken tree |
+| `deps` | `no_tool` | optional: a dependency-hygiene check (`go mod tidy -diff`, `cargo machete`), or leave it |
 | `test [target]` | `unfilled` | the suite, and one focused target when an argument is given |
-| `gate` | works as shipped | nothing; it runs the four checks and names every red step |
+| `gate` | works as shipped | nothing; it runs every check and names every red step |
 
 **Before activation**, `TC_CONFIGURED=0` makes `ready` exit 3. The Stop
 hook, edit hook, pre-commit steps, and CI quality job skip only that status.
@@ -63,7 +64,11 @@ valid fill on day zero, and better than a guessed toolchain.
 
 Git hooks use pre-commit (a Python tool) so the hygiene hooks are the same
 ones every flavor gets: `uv tool install pre-commit` or `pipx install
-pre-commit`, then `pre-commit install`.
+pre-commit`, then `pre-commit install`. Mirror the path entries of the
+contract's Don't-touch list into `.agentic/protected-paths` so the edit
+guard enforces them. Claude Code reads hook wiring at session start and
+does not reload it: start a new session after bootstrap, `--update`, or a
+hook edit.
 
 When a second project wants the same tools, that is the signal to promote
 the filled runner into a real `stacks/<name>/` adapter

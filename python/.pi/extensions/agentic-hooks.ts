@@ -152,6 +152,24 @@ export function registerAgenticHooks(pi, { parentLifecycle = true } = {}) {
       return { block: true, reason: `Sensitive path denied by agentic-scaffold: ${candidatePath}` };
     }
 
+    if (["edit", "write"].includes(event.toolName)) {
+      const guard = await runHook(root, "protect-paths.sh", [], {
+        cwd: root,
+        tool_name: event.toolName === "edit" ? "Edit" : "Write",
+        tool_input: { file_path: candidatePath },
+      });
+      if (guard.code !== 0) {
+        return {
+          block: true,
+          reason: guard.stderr.trim() || guard.stdout.trim() ||
+            (guard.code === 2
+              ? "Blocked by agentic-scaffold protected-path guard."
+              : "agentic-scaffold protected-path guard failed closed."),
+        };
+      }
+      return undefined;
+    }
+
     if (event.toolName !== "bash") return undefined;
     const command = typeof event.input?.command === "string" ? event.input.command : "";
     if (SENSITIVE_COMMAND.test(command)) {

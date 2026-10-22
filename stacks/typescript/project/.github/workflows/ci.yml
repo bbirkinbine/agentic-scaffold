@@ -27,7 +27,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      # The four gate steps run through the toolchain runner, the same
+      # The gate steps run through the toolchain runner, the same
       # entry point the Stop hook and /review-check use, so CI and the local
       # gate cannot disagree about which tools run. Separate steps keep a
       # red run readable: the failing step names the tool.
@@ -42,6 +42,9 @@ jobs:
 
       - name: Type-check
         run: bash .agentic/toolchain.sh typecheck
+
+      - name: Dependency check
+        run: bash .agentic/toolchain.sh deps
 
       - name: Tests
         run: bash .agentic/toolchain.sh test

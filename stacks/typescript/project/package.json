@@ -10,12 +10,19 @@
     "format": ".agentic/toolchain.sh format",
     "lint": ".agentic/toolchain.sh lint",
     "typecheck": ".agentic/toolchain.sh typecheck",
+    "deps": ".agentic/toolchain.sh deps",
     "test": ".agentic/toolchain.sh test",
     "gate": ".agentic/toolchain.sh gate"
+  },
+  "knip": {
+    "ignoreDependencies": [
+      "@biomejs/biome"
+    ]
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "@types/node": "^24.0.0",
+    "knip": "^6.42.1",
     "typescript": "^7.0.0",
     "vitest": "^5.0.0"
   }

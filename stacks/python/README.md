@@ -9,7 +9,7 @@ tree (before 2026-06-09 the scaffold lived under `templates/python/` in
 `github.com/bbirkinbine/dotfiles`). The conventions and rationale behind
 each piece are maintained in personal methodology notes outside this repo.
 What this stack supplies beyond the shared workflow is the gate behind
-`.agentic/toolchain.sh` (uv, ruff, mypy, pytest), the manifest and tool
+`.agentic/toolchain.sh` (uv, ruff, mypy, deptry, pytest), the manifest and tool
 configs, the starter layout, the `python-code` conventions rule, and three
 skills.
 
@@ -25,17 +25,18 @@ python/
 ├── AGENTS.md                              # complete client-neutral project contract (stack block spliced in)
 ├── CLAUDE.md                              # one-line Claude Code import of AGENTS.md
 ├── WORKFLOW.md                            # human-facing loop walkthrough (start here)
-├── pyproject.toml                         # uv + ruff + mypy + pytest config
+├── pyproject.toml                         # uv + ruff + mypy + deptry + pytest config
 ├── .gitignore                             # Python ignores, incl. .env* (.env.*.example kept)
 ├── .pre-commit-config.yaml                # no-commit-to-main + secret scan + ruff + mypy + commit-msg AI-attribution strip
 ├── .agentic/
-│   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/test/gate; the one file naming the tools
+│   ├── toolchain.sh                       # the gate runner: install/format/lint/typecheck/deps/test/gate; the one file naming the tools
 │   ├── delegate-run.sh                    # --full: qualify local models, hand a phase to Pi in a worktree, verify, score
+│   ├── protected-paths                    # project-owned: the Don't-touch paths the edit guard refuses (one glob per line)
 │   └── hooks/                             # shared hook implementations used by all clients
 ├── .agents/
 │   └── skills/                            # Codex workflow + reusable repository skills
 ├── .claude/
-│   ├── settings.json                      # permissions deny (.env/key reads) + status line + SessionStart branch check + PreToolUse deny-list + PostToolUse format-only + PreCompact preserve-context
+│   ├── settings.json                      # permissions deny (.env/key reads) + status line + SessionStart branch check + PreToolUse deny-list and edit guard + PostToolUse format-only + PreCompact preserve-context
 │   ├── agents/
 │   │   ├── analyzer.md                    # Fresh read-only consistency cross-check
 │   │   ├── planner.md                     # Spec → markdown plan; read-only
@@ -82,7 +83,7 @@ python/
 │   └── agents/                            # pi-subagents roles (optional roles stay opt-in)
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                         # CI gate: the four toolchain.sh steps + pip-audit (supply-chain gate) on every PR
+│   │   ├── ci.yml                         # CI gate: lockfile check, the toolchain.sh steps, pip-audit (supply-chain gate) on every PR
 │   │   └── claude-review.yml.example      # Opt-in Claude PR review (inert until renamed; bills an API key)
 │   ├── dependabot.yml                     # weekly dependency + actions update PRs (uv + github-actions)
 │   ├── ISSUE_TEMPLATE/
@@ -178,6 +179,12 @@ After bootstrap:
    `pre-commit` and `commit-msg` hook types (the latter runs
    `strip-ai-attribution.sh`, which drops AI co-author trailers and
    generated-by-client footers that slip into a commit message).
+   Then mirror the path entries of the contract's Don't-touch list into
+   `.agentic/protected-paths` so the edit guard enforces them.
+   **Claude Code:** start a new session after bootstrap, `--update`, or
+   any edit to `.claude/settings.json` or a hook script. Hook wiring is
+   read at session start and does not reload mid-session, so a changed
+   hook that "does nothing" is usually a session that predates it.
 4. **Codex:** start `codex`, accept the normal project trust review, then
    run `/hooks` to review and trust the checked-in hook definitions.
    Run `/skills` to inspect workflows. See

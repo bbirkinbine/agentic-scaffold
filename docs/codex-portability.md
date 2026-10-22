@@ -469,6 +469,13 @@ In particular:
 - Codex currently intercepts only supported tool paths and not every shell or
   built-in operation. Treat `PreToolUse` as a guardrail, not a complete
   enforcement boundary.
+- The edit guard (`protect-paths.sh`, added 2026-10-22) is wired as
+  `PreToolUse` with matcher `apply_patch` and parses the patch body's
+  `*** Add/Update/Delete File` and `*** Move to` lines. Whether Codex fires
+  `PreToolUse` for `apply_patch` is unverified live; the Bash matcher is the
+  verified one. Until a live run confirms it, the Don't-touch rule in
+  `AGENTS.md` and the reviewer's don't-touch check remain the enforcement
+  under Codex.
 
 The safety model should have three independent layers:
 

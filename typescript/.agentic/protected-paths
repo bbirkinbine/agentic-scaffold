@@ -1,0 +1,13 @@
+# Protected paths — the mechanical half of AGENTS.md → Don't-touch list.
+#
+# One glob per line, relative to the project root; `#` starts a comment.
+# `*` crosses `/`; a line naming a directory protects everything beneath it.
+# .agentic/hooks/protect-paths.sh refuses an agent edit or write to a
+# matching path in every client and tells the agent to ask. This file is
+# project-owned: the human edits it; an agent proposes a change and waits.
+# Entries that name part of a file (a TOML table) stay prose in AGENTS.md.
+#
+# Examples — uncomment or add your own:
+# src/<package>/migrations/
+# sources/
+# out/

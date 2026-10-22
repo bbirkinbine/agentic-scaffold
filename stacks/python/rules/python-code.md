@@ -6,16 +6,16 @@ paths:
 
 # Python code conventions
 
+- **The gate is the convention spec.** `pyproject.toml` configures ruff and
+  mypy; what they enforce (type hints on every signature, no bare or blind
+  `except`, absolute imports, Google-style docstrings on public symbols) is
+  not repeated here. Fix the finding, never the config.
 - **Files ≤ 300 lines.** Split aggressively; one concept per file. The
   `python-module-split` skill auto-invokes when a file approaches this.
-- **Type hints required** on every function signature. `Any` requires a
-  comment justifying it.
-- **No bare `except:`**. Catch specific exceptions or `Exception` with a
-  re-raise/log.
-- **Docstrings:** Google-style. One-liner for trivial helpers; full
-  args/returns/raises for public functions.
-- **Imports:** absolute imports inside the package; relative only inside
-  `__init__.py`.
+- **`Any`** requires a comment justifying it.
+- **Docstrings** say what the signature does not: units, invariants,
+  side effects, and what is raised when. A one-liner is right for a trivial
+  helper; a docstring that restates the name is worse than none.
 - **Logging:** follow the project choice in `AGENTS.md` / `pyproject.toml`.
   `structlog` is a good default for services; stdlib `logging` is fine for
   small libraries and CLIs. Avoid `print` for non-CLI diagnostics.

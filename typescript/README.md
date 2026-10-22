@@ -27,8 +27,9 @@ behind `.agentic/toolchain.sh`:
 | `format` / `format-check` | Biome, `--reporter concise` |
 | `lint` | Biome, warnings are errors |
 | `typecheck` | `tsc --noEmit`, strict plus `noUncheckedIndexedAccess` |
+| `deps` | knip, dependency findings only (undeclared, unused, unlisted). knip sees a tool as used only when a `package.json` script calls its binary, and the runner calls Biome, so `@biomejs/biome` is ignored by name in the `knip` key; add any other runner-only tool there |
 | `test [target]` | Vitest |
-| `gate` | all four checks, every red step reported |
+| `gate` | every check above, every red step reported |
 
 Project-owned files laid down once: `package.json`, `tsconfig.json`,
 `biome.json`, `vitest.config.ts`, `.nvmrc` (Node 24), `.gitignore`. The
@@ -43,7 +44,11 @@ in `.agentic/toolchain.sh` and the tool's config file; nothing else moves.
 
 Git hooks use pre-commit (a Python tool) so the hygiene hooks are the same
 ones every flavor gets: `uv tool install pre-commit` or `pipx install
-pre-commit`, then `pre-commit install`.
+pre-commit`, then `pre-commit install`. Mirror the path entries of the
+contract's Don't-touch list into `.agentic/protected-paths` so the edit
+guard enforces them. Claude Code reads hook wiring at session start and
+does not reload it: start a new session after bootstrap, `--update`, or a
+hook edit.
 
 No stack skills ship yet; they are added on field evidence, not by symmetry
 with the Python ones.

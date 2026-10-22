@@ -38,8 +38,9 @@ must_not() { [[ ! -e "$1" ]] || fail "file should not be installed: $1"; }
 for path in CLAUDE.md WORKFLOW.md AGENTS.md README.md \
   package.json tsconfig.json biome.json vitest.config.ts .nvmrc .gitignore \
   .pre-commit-config.yaml .agentic/toolchain.sh .agentic/scaffold-state \
-  .agentic/hooks/format-after-edit.sh \
+  .agentic/hooks/format-after-edit.sh .agentic/protected-paths \
   .agentic/hooks/closeout-check.sh .agentic/hooks/block-destructive.sh \
+  .agentic/hooks/protect-paths.sh \
   .claude/settings.json .claude/agents/reviewer.md .claude/agents/test-first.md \
   .claude/commands/review-check.md .claude/commands/test-first.md \
   .codex/config.toml .codex/hooks.json .codex/rules/safety.rules \

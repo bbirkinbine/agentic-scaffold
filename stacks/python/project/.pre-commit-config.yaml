@@ -7,6 +7,9 @@ repos:
   # Guardrail: block direct commits to main/master. Feature and fix work
   # belongs on a branch (see AGENTS.md -> Git workflow). The one expected
   # exception is the day-zero scaffolding commit: git commit --no-verify.
+  # The destructive-command hook allows that bypass only while the
+  # repository has no commits; afterwards an agent must fix the failing
+  # check, and a human runs any deliberate bypass in a plain terminal.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

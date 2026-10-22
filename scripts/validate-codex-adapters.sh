@@ -393,9 +393,16 @@ def hook_matrix(
                     )
                 normalized_matcher = "edit"
             elif event == "PreToolUse":
-                if matcher != "Bash":
-                    fail(f"{client} PreToolUse matcher must be 'Bash': {source}")
-                normalized_matcher = "shell"
+                edit_matcher = "Edit|Write" if client == "claude" else "apply_patch"
+                if matcher == "Bash":
+                    normalized_matcher = "shell"
+                elif matcher == edit_matcher:
+                    normalized_matcher = "edit"
+                else:
+                    fail(
+                        f"{client} PreToolUse matcher must be 'Bash' or "
+                        f"{edit_matcher!r}: {source}"
+                    )
             elif event == "SessionStart" and matcher is not None:
                 if matcher != "compact":
                     fail(f"{client} SessionStart matcher must be 'compact': {source}")
@@ -459,6 +466,7 @@ def assert_hook_matrix(
 python_default: list[HookEntry] = [
     ("SessionStart", "*", "branch-check.sh", ()),
     ("PreToolUse", "shell", "block-destructive.sh", ()),
+    ("PreToolUse", "edit", "protect-paths.sh", ()),
     ("PostToolUse", "edit", "format-after-edit.sh", ()),
     ("PostToolUse", "edit", "specs-status.sh", ("--hook",)),
     ("SessionStart", "compact", "context-reminder.sh", ()),
