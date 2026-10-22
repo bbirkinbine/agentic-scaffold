@@ -13,15 +13,18 @@
 #   format-check          fail if formatting would change anything
 #   lint                  lint
 #   typecheck             type-check the source tree
+#   deps                  dependency check: undeclared imports, unused and
+#                         transitive dependencies
 #   test [target ...]     run the suite, or one focused target verbosely
-#   gate [--quiet]        lint + format-check + typecheck + test; keeps going
+#   gate [--quiet]        lint + format-check + typecheck + deps + test; keeps going
 #                         after a failure so every red step is reported.
 #                         --quiet swallows tool output and prints only
 #                         "failed: <steps>" on red (nothing on green).
 #   ready                 exit 0 once the project has source and test dirs
 #   source-dirs           print the source directories the gate guards
 #
-# TypeScript stack: npm, Biome (format + lint), tsc (types), Vitest (tests).
+# TypeScript stack: npm, Biome (format + lint), tsc (types), knip (dependencies),
+# Vitest (tests).
 # Tool configuration lives in package.json, biome.json, tsconfig.json, and
 # vitest.config.ts, which are project-owned; this runner is scaffold-managed.
 # Biome runs with --reporter concise so hook and agent output stays short.
@@ -62,6 +65,9 @@ tc_format() {
 tc_format_check() { npx biome format --reporter concise .; }
 tc_lint() { npx biome lint --error-on-warnings --reporter concise .; }
 tc_typecheck() { npx tsc --noEmit --pretty false; }
+# --dependencies limits knip to dependency findings; its unused-export mode
+# is noisy on a library and is not part of the gate.
+tc_deps() { npx knip --dependencies --reporter compact; }
 tc_test() {
   if (($#)); then
     npx vitest run --reporter verbose "$@"
@@ -74,7 +80,7 @@ gate() {
   local quiet=0 step failed=""
   [[ "${1:-}" == "--quiet" ]] && quiet=1
 
-  for step in lint format-check typecheck test; do
+  for step in lint format-check typecheck deps test; do
     if [[ "$quiet" == 1 ]]; then
       run_step "$step" >/dev/null 2>&1 || failed="${failed} ${step}"
     else
@@ -98,13 +104,14 @@ run_step() {
     format-check) tc_format_check ;;
     lint) tc_lint ;;
     typecheck) tc_typecheck ;;
+    deps) tc_deps ;;
     test) shift; tc_test "$@" ;;
     *) return 1 ;;
   esac
 }
 
 case "${1:-}" in
-  install | format | format-check | lint | typecheck | test)
+  install | format | format-check | lint | typecheck | deps | test)
     run_step "$@"
     ;;
   gate)

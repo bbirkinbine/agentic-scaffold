@@ -1,5 +1,5 @@
 ---
-description: Run the full local quality gate (lint, format, typecheck, tests) through .agentic/toolchain.sh before invoking /review. Refuses to declare pass on any failure.
+description: Run the full local quality gate (lint, format, typecheck, deps, tests) through .agentic/toolchain.sh before invoking /review. Refuses to declare pass on any failure.
 ---
 
 This is the pre-`/review` quality gate. It does not declare a feature
@@ -15,7 +15,9 @@ report results:
    hook formats on every edit, so this is usually a no-op; we run it anyway
    so the gate is reproducible from a fresh clone)
 3. `.agentic/toolchain.sh typecheck` — type check
-4. `.agentic/toolchain.sh test` — tests (fail-fast, short output)
+4. `.agentic/toolchain.sh deps` — dependency check (undeclared imports,
+   unused and transitive dependencies; `no_tool` in a stack without one)
+5. `.agentic/toolchain.sh test` — tests (fail-fast, short output)
 
 If any step fails:
 

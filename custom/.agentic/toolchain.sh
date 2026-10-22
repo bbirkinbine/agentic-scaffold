@@ -13,8 +13,9 @@
 #   format-check          fail if formatting would change anything
 #   lint                  lint
 #   typecheck             type-check, compile, or elaborate the source tree
+#   deps                  dependency check (unused, undeclared); no_tool by default
 #   test [target ...]     run the suite, or one focused target verbosely
-#   gate [--quiet]        lint + format-check + typecheck + test; keeps going
+#   gate [--quiet]        lint + format-check + typecheck + deps + test; keeps going
 #                         after a failure so every red step is reported.
 #                         --quiet swallows tool output and prints only
 #                         "failed: <steps>" on red (nothing on green).
@@ -59,6 +60,8 @@ tc_format() { unfilled format; }             # gofmt -w "${@:-.}" | verible-veri
 tc_format_check() { unfilled format-check; } # test -z "$(gofmt -l .)"
 tc_lint() { unfilled lint; }                 # go vet ./... | verilator --lint-only -Wall rtl/top.v
 tc_typecheck() { unfilled typecheck; }       # go build ./... | yosys -q -p 'read_verilog rtl/*.v; hierarchy -check'
+# Dependency hygiene is optional: ships as no_tool, fill when the stack has one.
+tc_deps() { no_tool; }                       # go mod tidy -diff | cargo machete
 # "$@" is an optional focused target (a file, a test name). Run the whole
 # suite when it is empty, and only the target when it is not.
 tc_test() { unfilled test; }                 # go test "${@:-./...}" | make -C sim "${@:-all}"
@@ -77,7 +80,7 @@ ready() {
     1) ;;
     *) echo "toolchain: TC_CONFIGURED must be 0 or 1" >&2; return 2 ;;
   esac
-  for step in install format format_check lint typecheck test; do
+  for step in install format format_check lint typecheck deps test; do
     body="$(declare -f "tc_${step}")" || {
       echo "toolchain: missing tc_${step}" >&2
       return 2
@@ -105,7 +108,7 @@ gate() {
 
   ready || { echo "failed: configuration"; return 1; }
 
-  for step in lint format-check typecheck test; do
+  for step in lint format-check typecheck deps test; do
     if [[ "$quiet" == 1 ]]; then
       run_step "$step" >/dev/null 2>&1 || failed="${failed} ${step}"
     else
@@ -129,13 +132,14 @@ run_step() {
     format-check) tc_format_check ;;
     lint) tc_lint ;;
     typecheck) tc_typecheck ;;
+    deps) tc_deps ;;
     test) shift; tc_test "$@" ;;
     *) return 1 ;;
   esac
 }
 
 case "${1:-}" in
-  install | format | format-check | lint | typecheck | test)
+  install | format | format-check | lint | typecheck | deps | test)
     run_step "$@"
     ;;
   gate)

@@ -76,6 +76,7 @@ the framework's full living-spec maintenance burden was not.
 | The multi-stack direction (`docs/multi-stack-scaffold.md`): keep the workflow layer language-neutral and put the language's strict gate behind one runner, because per-language agent capability varies by model and task in no stable order, so the gate must not vary by language | Zan et al., "Multi-SWE-bench", [arXiv:2504.02605](https://arxiv.org/abs/2504.02605) (NeurIPS 2025); SWE-bench Multilingual, <https://www.swebench.com/multilingual.html>; "SWE-Bench ProMax", [arXiv:2608.09802](https://arxiv.org/abs/2608.09802) (COLM 2026), whose Table 3 reversed the first draft's assumption of a persisting Python advantage; Mündler et al., "Type-Constrained Code Generation with Language Models", [arXiv:2504.09246](https://arxiv.org/abs/2504.09246) (PLDI 2025); Berger et al., "On the Impact of Programming Languages on Code Quality: A Reproduction Study", [TOPLAS 2019](https://dl.acm.org/doi/10.1145/3340571), cited as a caution, not support. All retrieved 2026-09-26; per-claim grounding and what could not be verified are in `docs/multi-stack-research.md` |
 | TypeScript stack defaults in `docs/multi-stack-scaffold.md`: Biome over ESLint while TypeScript 7 has no programmatic API; Node 24 LTS; Vitest 5; `--reporter concise` in hooks | Microsoft, [Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) (2026-07-08); typescript-eslint, [Dependency Versions](https://typescript-eslint.io/users/dependency-versions/); Biome, [v2.5](https://biomejs.dev/blog/biome-v2-5/) (2026-06-05) and [Roadmap 2026](https://biomejs.dev/blog/roadmap-2026/); Node.js, [Evolving the Node.js Release Schedule](https://nodejs.org/en/blog/announcements/evolving-the-nodejs-release-schedule) (2026-03-10) and [endoflife.date](https://endoflife.date/nodejs); [Vitest 5.0](https://vitest.dev/blog/) (2026-09-03). All retrieved 2026-09-26; these decay in months, re-verify at step 4 |
 | Go and Rust gate rows in `docs/multi-stack-scaffold.md` | [golangci-lint releases](https://github.com/golangci/golangci-lint/releases) (v2.14.0, 2026-09-24); [Go release history](https://go.dev/doc/devel/release) (1.27, 2026-08-19); [Govulncheck v1.0.0](https://go.dev/blog/govulncheck) (2023-07-13); [RustSec](https://rustsec.org/) for cargo-audit and cargo-deny. Retrieved 2026-09-26 |
+| The pre-commit-bypass patterns in `shared/hooks/block-destructive.sh` (`--no-verify`, `commit -n`, `SKIP=` on a commit, `pre-commit uninstall`, `core.hooksPath`, rewriting `.git/hooks/`) and the edit guard `workflow/hooks/protect-paths.sh` that makes the contract's Don't-touch paths mechanical through the project-owned `.agentic/protected-paths` | ECC, [affaan-m/ECC](https://github.com/affaan-m/ECC) (MIT; `scripts/hooks/block-no-verify.js` and `scripts/hooks/config-protection.js`, v2.2.3, retrieved 2026-10-22). Both ship there as Node hooks; here they are bash patterns in the existing deny list and a list-driven PreToolUse hook, with the root commit exempt from the bypass check because `no-commit-to-branch` refuses it on `main`. The reviewer's silent-failure clause (item 3) names the three shapes ECC's `silent-failure-hunter` agent hunts; the hook-restart note in the stack READMEs comes from ECC's `docs/hook-bug-workarounds.md`. The same review added deptry and knip (`deps` gate step), ruff `D` and `BLE`, and the `uv lock --check` CI step; those were gaps found by comparison, not features taken from ECC |
 
 ### A tension, and how it was resolved
 
@@ -257,6 +258,27 @@ being re-proposed.
   recorded review verdicts. The design and trial history remain in
   [`local-delegate-runner.md`](local-delegate-runner.md) and
   [`local-phase-handoff.md`](local-phase-handoff.md).
+- **The rest of ECC** ([affaan-m/ECC](https://github.com/affaan-m/ECC),
+  reviewed 2026-10-22 at v2.2.3). A harness plugin of 71 agents, 311 skills,
+  97 commands, and about 60 Node hooks, installed per machine. Measured at a
+  full install: about 96 KB of skill descriptions, 15 KB of agent
+  descriptions, and 19 KB of always-on common rules, roughly 40k tokens
+  before the first prompt; skill bodies (2.9 MB) load on demand. Not
+  adopted, by category: the language and framework rule packs (they restate
+  the model's prior: PEP 8, hooks discipline, the OWASP checklist); the
+  thresholds (80% coverage, 800-line files, 50-line functions, immutability
+  as CRITICAL) and conventional-commit prefixes, all settled elsewhere in
+  this log or in PR #24; the instinct and learned-skill memory layer and the
+  cross-harness vault (durable knowledge lives in specs, ADRs, and the
+  contract here, and ECC marks its own activation as unobserved); the
+  prompt-defense boilerplate pasted into every agent (about 1.5 KB each,
+  unsourced effectiveness); the research-first rule to search GitHub and
+  prefer forking an 80% solution (unsourced; the provenance rule already
+  covers crediting what was taken); and the catalog model itself, whose
+  description cost grows linearly with entries and cannot be deferred. One
+  gap it exposed is noted, not built: the scaffold has no brownfield
+  story, and ECC's `spec-miner` (flat requirement and invariant list, one
+  output path, read-only shell) is the shape to copy if one is ever wanted.
 
 ## Corrections
 

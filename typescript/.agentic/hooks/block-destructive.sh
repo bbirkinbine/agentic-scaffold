@@ -12,7 +12,9 @@
 # truly unrecoverable: rm -rf on system paths, git clean -fd, history
 # rewrites, disk writes, filesystem creates, terraform destroy,
 # destructive SQL. (Force-push and hard reset are deliberately NOT
-# listed — see the git section below.)
+# listed — see the git section below.) One recoverable family is listed
+# too: commands that skip or disable the pre-commit checks, because they
+# are the single hole in every commit-time guard (see "gate bypass").
 #
 # It is also one layer, not the whole defense. The client's OS-level
 # sandboxing and permission modes sit above this hook and are
@@ -98,6 +100,31 @@ check "${GIT_COMMAND_RE}${GIT_GLOBAL_OPTIONS_RE}[[:space:]]+clean([[:space:]]|$)
       'git clean -fd (permanently deletes untracked work — not in reflog)'
 check "${GIT_COMMAND_RE}${GIT_GLOBAL_OPTIONS_RE}[[:space:]]+(filter-branch|filter-repo)([[:space:]]|$)" \
       'git history rewrite (filter-branch / filter-repo)'
+
+# --- gate bypass ---
+# Recoverable, but the one hole in every commit-time check: pre-commit runs
+# gitleaks, the private-key and large-file checks, the attribution strip,
+# and the stack's format/lint/type steps, and one flag skips all of them.
+# An agent that meets a failing hook reaches for the flag because it is the
+# fastest way past the error; the fix is the failing check, not the flag.
+# The root commit is the one legitimate use (no-commit-to-branch refuses it
+# on main), so a repository with no HEAD yet is exempt from the first three.
+# Known false positive: a commit message that itself contains " -n " or
+# " --no-verify " inside its quotes; reword the message.
+if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+  check "${GIT_COMMAND_RE}${GIT_GLOBAL_OPTIONS_RE}[[:space:]]+(commit|merge|rebase|push)[^;|&]*[[:space:]]--no-verify([[:space:]]|$)" \
+        'git --no-verify skips the pre-commit checks; fix the failing check instead'
+  check "${GIT_COMMAND_RE}${GIT_GLOBAL_OPTIONS_RE}[[:space:]]+commit[^;|&]*[[:space:]]-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)" \
+        'git commit -n is --no-verify; fix the failing check instead'
+  check '(^|[[:space:]]|;|&&|\|\|)(export[[:space:]]+)?SKIP=[^[:space:]]*[^;|&]*[[:space:]]git[^;|&]*[[:space:]]commit([[:space:]]|$)' \
+        'SKIP= on a commit skips named pre-commit hooks; fix the failing check instead'
+fi
+check '(^|[[:space:]])pre-commit[[:space:]]+uninstall([[:space:]]|$)' \
+      'pre-commit uninstall removes the commit-time checks'
+check 'core\.hooksPath' \
+      'core.hooksPath points git away from the pre-commit hooks'
+check '(^|[[:space:]])(rm|mv|chmod|truncate)[[:space:]][^;|&]*\.git/hooks/|>[[:space:]]*\.git/hooks/' \
+      'removing or rewriting .git/hooks/ disables the commit-time checks'
 
 # --- disk / filesystem ---
 check ':\(\)[[:space:]]*\{[[:space:]]*:\|:&[[:space:]]*\};:' \

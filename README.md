@@ -85,7 +85,7 @@ hooks load.
   hook that keeps AI attribution out of history; CI that runs the same
   gate plus a dependency audit.
 - **One file that names the tools,** `.agentic/toolchain.sh`. Python: uv,
-  ruff, mypy, pytest. TypeScript: npm, Biome, tsc, Vitest. Swap a tool
+  ruff, mypy, deptry, pytest. TypeScript: npm, Biome, tsc, knip, Vitest. Swap a tool
   there and nothing else moves. Custom: a template you fill for any other
   stack; the gates stay quiet until you do, so a research phase can run on
   specs and reviews first.

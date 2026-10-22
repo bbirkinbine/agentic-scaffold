@@ -6,7 +6,7 @@
 STACK_NAME="python"
 STACK_LABEL="Python"
 # Tools behind .agentic/toolchain.sh, for the bootstrap's closing summary.
-STACK_TOOLS_SUMMARY="ruff, mypy, pytest"
+STACK_TOOLS_SUMMARY="ruff, mypy, deptry, pytest"
 # PROJECT-OWNED files copied once from the rendered flavor root and never
 # overwritten: the manifest and ignore rules the project customizes.
 STACK_PROJECT_FILES=(pyproject.toml .gitignore)

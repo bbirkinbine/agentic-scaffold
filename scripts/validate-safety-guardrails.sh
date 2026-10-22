@@ -36,6 +36,23 @@ hook_cases=(
   'block::Git history rewrite with -C::git -C . filter-repo --force'
   'block::catastrophic rm::rm -rf /'
   'block::Terraform destroy::terraform destroy'
+  'allow::plain commit::git commit -m "add the thing"'
+  'allow::commit flags without n::git commit -am "add the thing"'
+  'allow::SKIP on a pre-commit run, not a commit::SKIP=mypy uv run pre-commit run --all-files'
+  'allow::reading the hooks dir::ls .git/hooks'
+  'allow::pre-commit install::pre-commit install'
+  'block::commit --no-verify::git commit -m "add the thing" --no-verify'
+  'block::commit -n::git commit -n -m "add the thing"'
+  'block::commit -anm::git commit -anm "add the thing"'
+  'block::push --no-verify with -C::git -C . push --no-verify origin feature'
+  'block::absolute Git merge --no-verify::/usr/bin/git merge --no-verify feature'
+  'block::SKIP on a commit::SKIP=gitleaks git commit -m "add the thing"'
+  'block::exported SKIP then commit::export SKIP=gitleaks; git commit -m "add the thing"'
+  'block::pre-commit uninstall::pre-commit uninstall'
+  'block::hooksPath override::git -c core.hooksPath=/dev/null commit -m "add the thing"'
+  'block::hooksPath config::git config core.hooksPath /tmp/none'
+  'block::removing a hook file::rm .git/hooks/pre-commit'
+  'block::rewriting a hook file::echo exit 0 > .git/hooks/pre-commit'
 )
 
 for fixture in "${hook_cases[@]}"; do
@@ -60,6 +77,30 @@ for fixture in "${hook_cases[@]}"; do
     grep -q 'BLOCKED' "$stderr" \
       || fail "hook case '$label' blocked without an actionable reason"
   fi
+done
+
+# The root commit is exempt from the --no-verify / -n / SKIP= checks:
+# no-commit-to-branch refuses it on main, so the day-zero scaffolding
+# commit is the one legitimate bypass. Everything else stays blocked.
+root_repo="$TMP_DIR/root-commit"
+mkdir -p "$root_repo" && git -C "$root_repo" init -q
+for fixture in \
+  'allow::root commit --no-verify::git commit -m "scaffold" --no-verify' \
+  'allow::root commit SKIP::SKIP=no-commit-to-branch git commit -m "scaffold"' \
+  'block::root repo pre-commit uninstall::pre-commit uninstall'; do
+  expected="${fixture%%::*}"
+  remainder="${fixture#*::}"
+  label="${remainder%%::*}"
+  command="${remainder#*::}"
+  if (cd "$root_repo" && python3 -c \
+    'import json,sys; print(json.dumps({"tool_input": {"command": sys.argv[1]}}))' \
+    "$command" | bash "$HOOK" >/dev/null 2>&1); then
+    actual=allow
+  else
+    actual=block
+  fi
+  [[ "$actual" == "$expected" ]] \
+    || fail "hook case '$label' expected $expected, got $actual: $command"
 done
 
 policy_cases=(

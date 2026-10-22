@@ -177,19 +177,21 @@ flowchart LR
     W["your work<br/>(edit · run · commit)"]
     SS["Session start"] --> SSb["shared branch-check.sh<br/>warn if on main or tree already dirty"] --> W
     RL["reading src/** or tests/**"] --> RLb["AGENTS.md standing rules<br/>+ Claude path-scoped adapters"] --> W
-    W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, …"]
+    W --> PRE["before each Bash<br/>(PreToolUse)"] --> PREb["block-destructive.sh<br/>deny rm -rf /, git clean -fd, --no-verify, …"]
+    W --> PREP["before each edit tool<br/>(PreToolUse)"] --> PREPb["protect-paths.sh<br/>refuse edits to .agentic/protected-paths entries"]
     W --> POST["after each edit tool<br/>(Claude Edit/Write · Codex apply_patch)"] --> POSTb["toolchain.sh format<br/>(+ lint · typecheck with --strict-hooks)"]
     W --> CMP["after compaction<br/>(SessionStart compact)"] --> CMPb["rebuild spec · branch ·<br/>modified files · gate state from the repo"]
     W --> STOP["turn end<br/>(Stop — default; --no-stop-gate removes)"] --> STOPb["shared gate-on-stop.sh<br/>block if src/ dirty & gate red<br/>(one automatic retry)"]
     W --> PC["git commit<br/>(pre-commit)"] --> PCb["no-commit-to-branch · gitleaks · detect-private-key"]
-    W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: the four toolchain.sh steps + dependency audit — non-skippable<br/>+ claude-review.yml if enabled"]
+    W --> CIp["pull request<br/>(GitHub Actions)"] --> CIb["CI: the toolchain.sh steps + dependency audit — non-skippable<br/>+ claude-review.yml if enabled"]
 
     classDef auto fill:#bfdbfe,stroke:#1e40af,color:#111;
-    class SSb,RLb,PREb,POSTb,CMPb,STOPb,PCb,CIb auto;
+    class SSb,RLb,PREb,PREPb,POSTb,CMPb,STOPb,PCb,CIb auto;
 ```
 
 Behaviour, edge cases, and how to bypass each (e.g. the Stop hook,
-`--no-verify` for the day-zero commit) live in
+`--no-verify` for the day-zero commit, the only one the destructive hook
+allows it on) live in
 `../AGENTS.md` → **Hooks and guardrails**. The line `block-destructive`
 draws is *unrecoverable* — things the reflog or a re-clone can't bring
 back; merely risky-but-recoverable commands stay off it. OS-level

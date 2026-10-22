@@ -58,7 +58,8 @@ reasons, the options, and the edge cases.
    misleads it. One placeholder is the starter package directory
    `src/{{PACKAGE_NAME}}/` — rename it to your package name. Own the
    canonical `AGENTS.md` content (description, don't-touch list,
-   conventions); leave `CLAUDE.md` as the `@AGENTS.md` compatibility
+   conventions); mirror the don't-touch paths into `.agentic/protected-paths`
+   so the edit guard enforces them; leave `CLAUDE.md` as the `@AGENTS.md` compatibility
    import. Draft the contract by hand or with the agent, your call, but
    read and cut every line rather than committing a generated file unread.
    The study measured agent-generated context files at 0.5–2% below no
@@ -153,7 +154,7 @@ is already obvious.
    maintenance surface. Flip the active spec's `**Status:**` to `shipped` and
    regenerate its dashboard here, on the feature branch.
 8. **`/review-check`** — runs the gate through `.agentic/toolchain.sh`
-   (lint, format, typecheck, tests; the stack's tools behind it, listed in
+   (lint, format, typecheck, deps, tests; the stack's tools behind it, listed in
    `AGENTS.md` → "Stack"). It
    must be green, but green is not the final checkpoint; semantic review
    still follows.

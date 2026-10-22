@@ -27,10 +27,17 @@ jobs:
           python-version: "3.12"
           enable-cache: true
 
-      # The four gate steps run through the toolchain runner, the same
-      # entry point the Stop hook and /review-check use, so CI and the local
-      # gate cannot disagree about which tools run. Separate steps keep a
-      # red run readable: the failing step names the tool.
+      # The gate steps run through the toolchain runner, the same entry
+      # point the Stop hook and /review-check use, so CI and the local gate
+      # cannot disagree about which tools run. Separate steps keep a red
+      # run readable: the failing step names the tool.
+      #
+      # The lockfile check comes first: a plain `uv sync` quietly rewrites a
+      # stale uv.lock and carries on, so a dependency change could ship
+      # without its lock change ever being committed or reviewed.
+      - name: Check lockfile is current
+        run: uv lock --check
+
       - name: Install dependencies
         run: bash .agentic/toolchain.sh install
 
@@ -42,6 +49,9 @@ jobs:
 
       - name: Type-check
         run: bash .agentic/toolchain.sh typecheck
+
+      - name: Dependency check
+        run: bash .agentic/toolchain.sh deps
 
       - name: Tests
         run: bash .agentic/toolchain.sh test
@@ -62,7 +72,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
       - name: Run public-repo and client-contract checks
         env:
@@ -103,7 +113,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
       # `--with` adds pip-audit to the run ephemerally, so it sees the
       # project's installed deps without becoming a permanent dev

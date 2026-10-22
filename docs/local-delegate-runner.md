@@ -527,7 +527,7 @@ A candidate failure spends an attempt; an integrity violation stops the run.
    language-neutral shell parser cannot prove them.
 2. **Full gate.** Syntax-check `.agentic/toolchain.sh`, then run `ready`.
    Exit 0 permits running each gate step — lint, format-check, typecheck,
-   and the whole suite — plus the packet's focused tests. Exit 3 refuses
+   deps, and the whole suite — plus the packet's focused tests. Exit 3 refuses
    delegation because verification is unconfigured; any other failure
    reports a broken verifier. Never treat a skipped gate as green. The
    focused tests must pass, and every step that was green on the baseline

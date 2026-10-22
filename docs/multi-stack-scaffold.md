@@ -109,9 +109,10 @@ Every consumer of the quality gate calls one script instead of naming tools:
 .agentic/toolchain.sh format             # ruff format . | biome format --write .
 .agentic/toolchain.sh lint               # ruff check . | biome lint .
 .agentic/toolchain.sh typecheck          # mypy src/ | tsc --noEmit
+.agentic/toolchain.sh deps               # deptry . | knip --dependencies
 .agentic/toolchain.sh test               # pytest -x --tb=short | vitest run
 .agentic/toolchain.sh test <target>      # one test, for the red-first check
-.agentic/toolchain.sh gate [--quiet]     # lint + format-check + typecheck + test
+.agentic/toolchain.sh gate [--quiet]     # lint + format-check + typecheck + deps + test
 .agentic/toolchain.sh ready              # 0 ready, 3 uninitialized; other statuses are errors
 ```
 
@@ -146,7 +147,7 @@ stacks/<name>/
   manifest/                 pyproject.toml | package.json + tsconfig.json + biome.json
   gitignore                 rendered to the project's .gitignore
   pre-commit-config.yaml    hygiene hooks (shared) + the stack's format/lint hooks
-  ci.yml                    consumer CI: install, the four gate steps, hygiene, closeout, audit
+  ci.yml                    consumer CI: install, the gate steps, hygiene, closeout, audit
   dependabot.yml            ecosystem: pip | npm
   starter/                  src/ and tests/ that are green on day zero
   rules/<name>-code.md      conventions; the standing rule appended to AGENTS.md

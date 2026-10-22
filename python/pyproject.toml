@@ -19,6 +19,7 @@ dev = [
   "pytest-asyncio",
   "ruff>=0.16",
   "mypy>=2.0",
+  "deptry>=0.25",
   "pre-commit",
   # Optional verification depth — cheap when an agent does the labor.
   # Uncomment per project once there is real logic worth the rigor:
@@ -45,10 +46,23 @@ select = [
   "TID",           # tidy imports
   "PTH",           # use pathlib
   "S",             # flake8-bandit security checks (tests ignore S101 below)
+  "D",             # pydocstyle: docstrings on public symbols, Google style (below)
+  "BLE",           # blind except: `except Exception` that swallows instead of re-raising
 ]
+# Public modules, classes, functions, and methods need a docstring; module,
+# package, magic-method, and __init__ docstrings are not required.
+ignore = ["D100", "D104", "D105", "D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ANN", "S101"]  # allow asserts in tests, no annotation requirement
+"tests/**" = ["ANN", "S101", "D"]  # allow asserts in tests, no annotation or docstring requirement
+
+# Dependency hygiene: imports with no declared dependency, declared
+# dependencies nothing imports, and transitive packages used directly.
+[tool.deptry]
+known_first_party = ["{{PACKAGE_NAME}}"]
 
 [tool.mypy]
 python_version = "3.12"

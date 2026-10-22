@@ -75,7 +75,9 @@ carries the latest conventions and is updated first.
       rg '\{\{' .
       ```
       No `{{` markers should be left after this pass. Own the root-contract
-      `AGENTS.md` content (description, don't-touch list, conventions).
+      `AGENTS.md` content (description, don't-touch list, conventions), and
+      mirror the don't-touch paths into `.agentic/protected-paths` so the
+      edit guard enforces them.
       Leave `CLAUDE.md` as the `@AGENTS.md` compatibility import. Draft the
       contract by hand or with the agent, your call, but read and cut every
       line rather than committing a generated file unread. The study

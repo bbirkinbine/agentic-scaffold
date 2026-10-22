@@ -231,7 +231,7 @@ personal notes outside this repo.
 
 ---
 
-## Current state (updated 2026-10-20)
+## Current state (updated 2026-10-22)
 
 The scaffold has supported Claude Code and Codex CLI since 2026-08-11 and
 added first-class Pi adapter surfaces on 2026-10-05. Claude/Codex are
@@ -344,4 +344,8 @@ Open:
   not run them, so a green CI is narrower than it looks. The post-compaction
   reminder moved to `SessionStart` (matcher `compact`) on 2026-10-18 on
   docs and Codex source evidence; no live compaction has exercised it in
-  either client yet.
+  either client yet. The edit guard added 2026-10-22
+  (`protect-paths.sh`, wired as `PreToolUse` on `Edit|Write` for Claude and
+  `apply_patch` for Codex) is smoke-tested on its payloads but has not
+  fired in a live client; whether Codex invokes `PreToolUse` for
+  `apply_patch` at all is unverified.

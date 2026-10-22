@@ -228,6 +228,8 @@ render_hooks() {
   done
   cp "$stack_dir/toolchain.sh" "$build/.agentic/toolchain.sh"
   cp "$WORKFLOW_DIR/bin/delegate-run.sh" "$build/.agentic/delegate-run.sh"
+  # The protected-path list the edit guard reads; project-owned once installed.
+  cp "$WORKFLOW_DIR/protected-paths" "$build/.agentic/protected-paths"
   chmod +x "$build"/.agentic/hooks/*.sh "$build/.agentic/toolchain.sh" \
     "$build/.agentic/delegate-run.sh"
 }

@@ -252,6 +252,14 @@ HOOK
 cat >/dev/null
 printf '%s' "$*" >.agentic/format-args
 HOOK
+  cat >"$fixture/.agentic/hooks/protect-paths.sh" <<'HOOK'
+#!/usr/bin/env bash
+payload="$(cat)"
+if [[ "$payload" == *'"file_path":"locked/'* ]]; then
+  echo 'fixture protected-path block' >&2
+  exit 2
+fi
+HOOK
   cat >"$fixture/.agentic/hooks/specs-status.sh" <<'HOOK'
 #!/usr/bin/env bash
 cat >/dev/null
@@ -308,6 +316,10 @@ const secret = await toolCall({ toolName: "read", input: { path: ".env" } }, ctx
 if (secret?.block !== true) throw new Error("sensitive read was not blocked");
 const grepSecret = await toolCall({ toolName: "grep", input: { pattern: "secret", path: ".env" } }, ctx);
 if (grepSecret?.block !== true) throw new Error("explicit sensitive grep was not blocked");
+const guardedEdit = await toolCall({ toolName: "edit", input: { path: "locked/file.ts" } }, ctx);
+if (guardedEdit?.block !== true) throw new Error("protected-path edit was not blocked");
+const openEdit = await toolCall({ toolName: "write", input: { path: "src/open.ts" } }, ctx);
+if (openEdit !== undefined) throw new Error("unprotected path write was blocked");
 const grepResult = await toolResult({
   toolName: "grep",
   input: { pattern: "secret", path: "." },

@@ -2,7 +2,7 @@
 # Smoke-test bootstrap.sh end to end: run one profile into a temp dir,
 # assert the profile's file set, walk the day-zero placeholder fill the
 # way WORKFLOW.md prescribes, and run the full quality gate (ruff lint +
-# format, mypy, pytest). Proves a fresh project is green on day zero —
+# format, mypy, deptry, pytest). Proves a fresh project is green on day zero —
 # the claim the starter src/ + tests/ layout exists to back.
 #
 # Usage:
@@ -73,6 +73,8 @@ if [[ "$PROFILE" == full && "$delegation_hint" == 0 ]] ||
 fi
 must .claude/settings.json
 must .agentic/hooks/block-destructive.sh
+must .agentic/hooks/protect-paths.sh
+must .agentic/protected-paths
 must .agentic/hooks/statusline.sh
 must .agentic/hooks/context-reminder.sh
 must .agentic/hooks/format-after-edit.sh
@@ -737,6 +739,44 @@ done
   exit 1
 }
 rm -f edited.json edited.sh edited.md
+
+# --- the edit guard refuses listed paths in every payload shape ---
+# The shipped list is all comments (allow everything); a filled list blocks
+# Claude/Pi file_path payloads and Codex apply_patch bodies, names itself in
+# the reason, and ignores unlisted paths and paths outside the project.
+guard_err="$SCRATCH/guard.err"
+cp .agentic/protected-paths "$SCRATCH/protected-paths.orig"
+printf '{"cwd":"%s","tool_input":{"file_path":"src/smoketest/locked.py"}}' "$PWD" \
+  | bash .agentic/hooks/protect-paths.sh || {
+  echo "SMOKE FAIL ($PROFILE): edit guard blocked with the shipped (all-comment) list" >&2
+  exit 1
+}
+printf '%s\n' '# smoke' 'src/smoketest/locked.py' 'vendor/' > .agentic/protected-paths
+if printf '{"cwd":"%s","tool_input":{"file_path":"src/smoketest/locked.py"}}' "$PWD" \
+  | bash .agentic/hooks/protect-paths.sh 2>"$guard_err"; then
+  echo "SMOKE FAIL ($PROFILE): edit guard allowed a listed path" >&2
+  exit 1
+fi
+grep -q 'BLOCKED by .agentic/hooks/protect-paths.sh' "$guard_err" || {
+  echo "SMOKE FAIL ($PROFILE): edit guard blocked without naming itself" >&2
+  exit 1
+}
+if printf '{"cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Add File: vendor/lib.py\\n*** End Patch"}}' "$PWD" \
+  | bash .agentic/hooks/protect-paths.sh 2>/dev/null; then
+  echo "SMOKE FAIL ($PROFILE): edit guard allowed an apply_patch into a listed directory" >&2
+  exit 1
+fi
+printf '{"cwd":"%s","tool_input":{"file_path":"%s/src/smoketest/open.py"}}' "$PWD" "$PWD" \
+  | bash .agentic/hooks/protect-paths.sh || {
+  echo "SMOKE FAIL ($PROFILE): edit guard blocked an unlisted path" >&2
+  exit 1
+}
+printf '{"cwd":"%s","tool_input":{"file_path":"../elsewhere/vendor/lib.py"}}' "$PWD" \
+  | bash .agentic/hooks/protect-paths.sh || {
+  echo "SMOKE FAIL ($PROFILE): edit guard blocked a path outside the project" >&2
+  exit 1
+}
+cp "$SCRATCH/protected-paths.orig" .agentic/protected-paths
 
 # --- close-out gate behavior ---
 # The rule this enforces was written, specific, and skipped anyway, so the

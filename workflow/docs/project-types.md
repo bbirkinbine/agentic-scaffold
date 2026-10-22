@@ -203,13 +203,16 @@ Read top-down: everything in a tier includes the tiers above it.
 - **Agents:** Claude Markdown, Codex TOML, and Pi Markdown adapters for
   `planner`, `test-first`, `reviewer`
 - **Hooks:** `branch-check` (warn on `main` or an already-dirty checkout), `block-destructive`
-  (deny unrecoverable Bash), `specs-status` (refresh the spec dashboard),
+  (deny unrecoverable Bash and pre-commit bypasses), `protect-paths` (refuse
+  edits to the paths listed in the project-owned `.agentic/protected-paths`),
+  `specs-status` (refresh the spec dashboard),
   `gate-on-stop` (block turn-end while the source tree is dirty and
   `.agentic/toolchain.sh gate` is red — remove with `--no-stop-gate`),
   `strip-ai-attribution` (commit-msg backstop); default settings run
   `.agentic/toolchain.sh format <edited files>` on edit
 - **Gate runner:** `.agentic/toolchain.sh` — the one file naming the stack's
-  tools (Python: ruff, mypy, pytest; TypeScript: Biome, tsc, Vitest; custom:
+  tools (Python: ruff, mypy, deptry, pytest; TypeScript: Biome, tsc, knip,
+  Vitest; custom:
   a project-owned template, quiet until filled); hooks, `/review-check`, and
   CI call its subcommands
 - **Rules:** git-workflow, commit-style, public-repo-hygiene,
@@ -218,7 +221,7 @@ Read top-down: everything in a tier includes the tiers above it.
   its conventions and test-first notes in the contract's project-owned
   Stack section, so `--update` does not overwrite them)
 - **Convention + CI:** `docs/specs/README.md`, `.github/workflows/ci.yml`
-  (the four gate steps through the runner, plus a dependency audit; the
+  (the gate steps through the runner, plus a dependency audit; the
   custom stack's is project-owned, runs the gate once the runner is filled,
   and ships no audit job), PR template, issue forms, `.pre-commit-config.yaml`
 - **Codex:** `.codex/config.toml`, trusted hooks, command rules, and
